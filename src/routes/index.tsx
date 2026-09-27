@@ -266,7 +266,7 @@ function Index() {
   };
 
   return (
-    <div className="mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
+    <div className="relative mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
       {/* Feed */}
       <div
         ref={feedRef}

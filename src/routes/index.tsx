@@ -1,7 +1,6 @@
-// ============= Full file contents =============
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, ChevronDown } from "lucide-react";
+import { Bookmark, ChevronDown } from "lucide-react";
 import heroParlamento from "@/assets/hero-parlamento.jpg";
 import desportoEstadio from "@/assets/desporto-estadio.jpg";
 import economiaMercado from "@/assets/economia-mercado.jpg";
@@ -50,8 +49,6 @@ interface Article {
   time: string;
   minutesAgo: number;
   author: string;
-  likes: number;
-  comments: number;
   urgent?: boolean;
   image?: string;
 }
@@ -67,8 +64,6 @@ const ARTICLES: Article[] = [
     minutesAgo: 4,
     author: "Marta Sousa",
     urgent: true,
-    likes: 842,
-    comments: 156,
     image: heroParlamento,
   },
   {
@@ -80,8 +75,6 @@ const ARTICLES: Article[] = [
     time: "18:41",
     minutesAgo: 15,
     author: "Rui Almeida",
-    likes: 2140,
-    comments: 483,
     image: desportoEstadio,
   },
   {
@@ -93,8 +86,6 @@ const ARTICLES: Article[] = [
     time: "18:20",
     minutesAgo: 36,
     author: "Inês Carvalho",
-    likes: 517,
-    comments: 89,
     image: economiaMercado,
   },
   {
@@ -106,8 +97,6 @@ const ARTICLES: Article[] = [
     time: "17:58",
     minutesAgo: 58,
     author: "João Pereira",
-    likes: 963,
-    comments: 204,
     image: mundoCimeira,
   },
   {
@@ -119,8 +108,6 @@ const ARTICLES: Article[] = [
     time: "17:32",
     minutesAgo: 84,
     author: "Beatriz Nunes",
-    likes: 1288,
-    comments: 97,
     image: culturaSintra,
   },
   {
@@ -132,8 +119,6 @@ const ARTICLES: Article[] = [
     time: "17:10",
     minutesAgo: 106,
     author: "Inês Carvalho",
-    likes: 342,
-    comments: 61,
   },
   {
     id: 7,
@@ -144,8 +129,6 @@ const ARTICLES: Article[] = [
     time: "16:45",
     minutesAgo: 131,
     author: "Marta Sousa",
-    likes: 1476,
-    comments: 328,
   },
   {
     id: 8,
@@ -156,8 +139,6 @@ const ARTICLES: Article[] = [
     time: "16:12",
     minutesAgo: 164,
     author: "João Pereira",
-    likes: 729,
-    comments: 142,
     image: mundoCalor,
   },
 ];
@@ -169,11 +150,6 @@ const TICKER_ITEMS = [
   "Inflação abranda para 2,1%",
   "Aviso laranja no Alentejo até às 21:00",
 ];
-
-function formatCount(n: number) {
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(".", ",") + "k";
-  return String(n);
-}
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -196,34 +172,28 @@ function formatDate(d: Date) {
   });
 }
 
-function RailButton({
-  icon,
-  label,
-  ariaLabel,
+function SaveButton({
+  saved,
   onClick,
-  active,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  ariaLabel: string;
-  onClick?: () => void;
-  active?: boolean;
+  saved: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       className="flex flex-col items-center gap-1 text-feed-fg transition-transform active:scale-90"
-      aria-label={ariaLabel}
+      aria-label={saved ? "Remover dos guardados" : "Guardar"}
     >
       <span
         className={`flex size-11 items-center justify-center rounded-full backdrop-blur-sm ${
-          active ? "animate-heart-pop bg-live text-live-foreground" : "bg-feed-fg/15"
+          saved ? "animate-heart-pop bg-live text-live-foreground" : "bg-feed-fg/15"
         }`}
       >
-        {icon}
+        <Bookmark className={`size-6 ${saved ? "fill-live-foreground" : ""}`} />
       </span>
-      <span className="text-[11px] font-semibold tabular-nums drop-shadow">
-        {label}
+      <span className="text-[11px] font-semibold drop-shadow">
+        {saved ? "Guardado" : "Guardar"}
       </span>
     </button>
   );
@@ -232,9 +202,7 @@ function RailButton({
 function Index() {
   const now = useClock();
   const [category, setCategory] = useState<Category>("Tudo");
-  const [liked, setLiked] = useState<Set<number>>(new Set());
   const [saved, setSaved] = useState<Set<number>>(new Set());
-  const [burst, setBurst] = useState<{ id: number; key: number } | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const filtered =
@@ -245,18 +213,6 @@ function Index() {
   useEffect(() => {
     feedRef.current?.scrollTo({ top: 0 });
   }, [category]);
-
-  const toggleLike = (id: number, forceLike = false) => {
-    setLiked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id) && !forceLike) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    if (forceLike || !liked.has(id)) {
-      setBurst({ id, key: Date.now() });
-    }
-  };
 
   const toggleSave = (id: number) => {
     setSaved((prev) => {
@@ -275,11 +231,9 @@ function Index() {
         className="h-full snap-y snap-mandatory overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {filtered.map((a, i) => {
-          const isLiked = liked.has(a.id);
           return (
             <article
               key={a.id}
-              onDoubleClick={() => toggleLike(a.id, true)}
               className="relative h-[100dvh] w-full snap-start snap-always overflow-hidden"
             >
               {/* Background */}
@@ -301,14 +255,6 @@ function Index() {
               )}
               <div className="absolute inset-0 feed-scrim" />
 
-              {/* Double-tap heart burst */}
-              {burst?.id === a.id && (
-                <Heart
-                  key={burst.key}
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-20 size-28 -translate-x-1/2 -translate-y-1/2 animate-heart-pop fill-live text-live"
-                />
-              )}
-
               {/* Urgent badge */}
               {a.urgent && (
                 <span className="absolute left-4 top-[104px] z-10 rounded-md bg-live px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-live-foreground">
@@ -316,38 +262,10 @@ function Index() {
                 </span>
               )}
 
-              {/* Right action rail */}
-              <div className="absolute bottom-28 right-3 z-10 flex flex-col items-center gap-5">
-                <RailButton
-                  icon={
-                    <Heart
-                      className={`size-6 ${isLiked ? "animate-heart-pop fill-live-foreground" : ""}`}
-                    />
-                  }
-                  label={formatCount(a.likes + (isLiked ? 1 : 0))}
-                  ariaLabel="Gostar"
-                  active={isLiked}
-                  onClick={() => toggleLike(a.id)}
-                />
-                <RailButton
-                  icon={<MessageCircle className="size-6" />}
-                  label={formatCount(a.comments)}
-                  ariaLabel="Comentar"
-                />
-                <RailButton
-                  icon={<Share2 className="size-6" />}
-                  label="Partilhar"
-                  ariaLabel="Partilhar"
-                />
-                <RailButton
-                  icon={
-                    <Bookmark
-                      className={`size-6 ${saved.has(a.id) ? "fill-feed-fg" : ""}`}
-                    />
-                  }
-                  label={saved.has(a.id) ? "Guardado" : "Guardar"}
-                  ariaLabel="Guardar"
-                  active={saved.has(a.id)}
+              {/* Save button */}
+              <div className="absolute bottom-28 right-3 z-10 flex flex-col items-center">
+                <SaveButton
+                  saved={saved.has(a.id)}
                   onClick={() => toggleSave(a.id)}
                 />
               </div>

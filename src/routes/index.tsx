@@ -325,14 +325,20 @@ function Index() {
                     />
                   }
                   label={formatCount(a.likes + (isLiked ? 1 : 0))}
+                  ariaLabel="Gostar"
                   active={isLiked}
                   onClick={() => toggleLike(a.id)}
                 />
                 <RailButton
                   icon={<MessageCircle className="size-6" />}
                   label={formatCount(a.comments)}
+                  ariaLabel="Comentar"
                 />
-                <RailButton icon={<Share2 className="size-6" />} label="Partilhar" />
+                <RailButton
+                  icon={<Share2 className="size-6" />}
+                  label="Partilhar"
+                  ariaLabel="Partilhar"
+                />
                 <RailButton
                   icon={
                     <Bookmark
@@ -340,6 +346,7 @@ function Index() {
                     />
                   }
                   label={saved.has(a.id) ? "Guardado" : "Guardar"}
+                  ariaLabel="Guardar"
                   active={saved.has(a.id)}
                   onClick={() => toggleSave(a.id)}
                 />

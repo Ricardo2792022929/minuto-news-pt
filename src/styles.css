@@ -116,3 +116,56 @@
 @utility animate-rise {
   animation: rise-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+
+@keyframes heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-heart-pop {
+  animation: heart-pop 0.35s ease-out;
+}
+
+/* Feed tokens */
+:root {
+  --feed-bg: oklch(0.14 0.02 60);
+  --feed-fg: oklch(0.98 0.005 90);
+}
+
+@theme inline {
+  --color-feed-bg: var(--feed-bg);
+  --color-feed-fg: var(--feed-fg);
+}
+
+@utility feed-scrim {
+  background: linear-gradient(
+    to top,
+    oklch(0.14 0.02 60 / 0.92) 0%,
+    oklch(0.14 0.02 60 / 0.55) 35%,
+    oklch(0.14 0.02 60 / 0.12) 65%,
+    oklch(0.14 0.02 60 / 0.35) 100%
+  );
+}
+
+@utility feed-grad-a {
+  background: linear-gradient(
+    160deg,
+    oklch(0.32 0.08 45),
+    oklch(0.16 0.03 60)
+  );
+}
+
+@utility feed-grad-b {
+  background: linear-gradient(
+    160deg,
+    oklch(0.3 0.06 250),
+    oklch(0.15 0.03 260)
+  );
+}

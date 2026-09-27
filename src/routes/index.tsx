@@ -199,11 +199,13 @@ function formatDate(d: Date) {
 function RailButton({
   icon,
   label,
+  ariaLabel,
   onClick,
   active,
 }: {
   icon: React.ReactNode;
   label: string;
+  ariaLabel: string;
   onClick?: () => void;
   active?: boolean;
 }) {
@@ -211,7 +213,7 @@ function RailButton({
     <button
       onClick={onClick}
       className="flex flex-col items-center gap-1 text-feed-fg transition-transform active:scale-90"
-      aria-label={label}
+      aria-label={ariaLabel}
     >
       <span
         className={`flex size-11 items-center justify-center rounded-full backdrop-blur-sm ${

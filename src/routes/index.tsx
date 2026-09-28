@@ -171,7 +171,7 @@ function Index() {
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) loadMoreRef.current();
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
       },
       { root: feedRef.current, rootMargin: "600px" },
     );

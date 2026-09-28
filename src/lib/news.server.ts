@@ -40,7 +40,9 @@ const parser = new XMLParser({
   attributeNamePrefix: "@_",
 });
 
-function arrayify<T>(value: T | T[] | undefined): T[] {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+function arrayify(value: any): any[] {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
 }
@@ -50,7 +52,7 @@ function stripHtml(html: string): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&/gi, "&")
-    .replace(/"/gi, '"')
+    .replace(/"|&#0?34;/gi, '"')
     .replace(/&#0?39;|'|&rsquo;/gi, "'")
     .replace(/</gi, "<")
     .replace(/>/gi, ">")
@@ -66,26 +68,22 @@ function firstImg(html: string | undefined): string | undefined {
   return m ? m[1].replace(/&/g, "&") : undefined;
 }
 
-function extractImage(item: Record<string, unknown>): string | undefined {
-  const media = arrayify(item["media:content"] as Record<string, unknown>);
-  for (const m of media) {
+function extractImage(item: any): string | undefined {
+  for (const m of arrayify(item["media:content"])) {
     const url = m?.["@_url"];
     if (typeof url === "string") return url;
   }
-  const thumbs = arrayify(item["media:thumbnail"] as Record<string, unknown>);
-  for (const t of thumbs) {
+  for (const t of arrayify(item["media:thumbnail"])) {
     const url = t?.["@_url"];
     if (typeof url === "string") return url;
   }
-  const enclosures = arrayify(item.enclosure as Record<string, unknown>);
-  for (const e of enclosures) {
+  for (const e of arrayify(item["enclosure"])) {
     const type = e?.["@_type"] as string | undefined;
     const url = e?.["@_url"];
     if (typeof url === "string" && (!type || type.startsWith("image"))) return url;
   }
   return (
-    firstImg(item["content:encoded"] as string) ??
-    firstImg(item.description as string)
+    firstImg(item["content:encoded"]) ?? firstImg(item["description"])
   );
 }
 
@@ -101,7 +99,7 @@ function classify(text: string, fallback: string): string {
       "desporto", "futebol", "sporting", "benfica", "porto", "golo", "liga ",
       "taça", "seleção", "ronaldo", "ténis", "fórmula 1", "nba", "ciclismo",
       "atletismo", "voleibol", "basquetebol", "treinador", "jogador", "clássico",
-      "champions", "crl", "futsal", "rally", "volar", "estádio",
+      "champions", "futsal", "rally", "estádio",
     )
   )
     return "Desporto";
@@ -128,7 +126,7 @@ function classify(text: string, fallback: string): string {
       "tecnologia", "inteligência artificial", "inteligencia artificial",
       "smartphone", "cyber", "cibersegurança", "ciberseguranca", "nvidia",
       "openai", "chatgpt", "google", "apple", "samsung", "huawei", "facebook",
-      "instagram", "tiktok", "chip", "semicondutor", "startup", "app ",
+      "instagram", "tiktok", "chip", "semicondutor", "startup",
       "aplicação", "aplicacao",
     )
   )
@@ -137,7 +135,7 @@ function classify(text: string, fallback: string): string {
     has(
       "festival", "cinema", "filme", "música", "musica", "concerto", "livro",
       "exposição", "exposicao", "teatro", "gala", "artista", "prémio nobel",
-      "premio nobel", "espetaáculo", "espetaculo", "cultura",
+      "premio nobel", "espetáculo", "espetaculo", "cultura",
     )
   )
     return "Cultura";
@@ -145,7 +143,7 @@ function classify(text: string, fallback: string): string {
     has(
       "ucrânia", "ucrania", "israel", "gaza", "bruxelas", "eua", "trump",
       "china", "rússia", "russia", "onu", "nato", "união europeia", "uniao europeia",
-      "guerra", "cimeira", "mundo", "global",
+      "guerra", "cimeira",
     )
   )
     return "Mundo";
@@ -159,38 +157,30 @@ function hashId(s: string): string {
 }
 
 function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
-  let parsed: Record<string, unknown>;
+  let parsed: any;
   try {
-    parsed = parser.parse(xml) as Record<string, unknown>;
+    parsed = parser.parse(xml);
   } catch {
     return [];
   }
-  const rss = parsed.rss as { channel?: { item?: unknown } } | undefined;
-  const atom = parsed.feed as { entry?: unknown } | undefined;
-  const rawItems = arrayify(rss?.channel?.item ?? atom?.entry) as Record<
-    string,
-    unknown
-  >[];
+  const rawItems = arrayify(
+    parsed?.rss?.channel?.item ?? parsed?.feed?.entry,
+  );
 
   const items: NewsItem[] = [];
   for (const item of rawItems) {
-    const title = stripHtml((item.title as string) ?? "");
-    const link = (item.link as string) ?? item["@_href"] ?? "";
+    const title = stripHtml(String(item?.["title"] ?? ""));
+    const link = String(item?.["link"] ?? item?.["@_href"] ?? "");
     if (!title || !link) continue;
 
     const dateStr =
-      (item.pubDate as string) ??
-      (item.published as string) ??
-      (item.updated as string) ??
-      (item["dc:date"] as string) ??
-      "";
-    const publishedAt = dateStr ? new Date(dateStr) : new Date();
+      item?.["pubDate"] ?? item?.["published"] ?? item?.["updated"] ?? item?.["dc:date"] ?? "";
+    const publishedAt = dateStr ? new Date(String(dateStr)) : new Date();
     if (Number.isNaN(publishedAt.getTime())) continue;
     // Descarta notícias com mais de 72 horas
     if (Date.now() - publishedAt.getTime() > 72 * 3600_000) continue;
 
-    const rawExcerpt =
-      (item.description as string) ?? (item.summary as string) ?? "";
+    const rawExcerpt = String(item?.["description"] ?? item?.["summary"] ?? "");
     const excerpt = stripHtml(rawExcerpt).slice(0, 320);
     const url = link.replace(/&/g, "&");
 
@@ -237,10 +227,7 @@ export async function getAllNews(): Promise<NewsItem[]> {
   for (const r of results) {
     if (r.status !== "fulfilled") continue;
     for (const item of r.value) {
-      const existing = byId.get(item.id);
-      if (!existing || item.source.length < existing.source.length) {
-        byId.set(item.id, item);
-      }
+      if (!byId.has(item.id)) byId.set(item.id, item);
     }
   }
   const items = [...byId.values()].sort(

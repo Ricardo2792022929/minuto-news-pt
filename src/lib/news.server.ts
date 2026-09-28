@@ -65,7 +65,8 @@ function stripHtml(html: string): string {
 function firstImg(html: string | undefined): string | undefined {
   if (!html) return undefined;
   const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m ? m[1].replace(/&/g, "&") : undefined;
+  const src = m?.[1];
+  return src ? src.replace(/&/g, "&") : undefined;
 }
 
 function extractImage(item: any): string | undefined {
@@ -184,7 +185,7 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
     const excerpt = stripHtml(rawExcerpt).slice(0, 320);
     const url = link.replace(/&/g, "&");
 
-    items.push({
+    const entry: NewsItem = {
       id: hashId(url),
       source: feed.source,
       category: classify(title + " " + excerpt, feed.fallbackCategory),
@@ -192,8 +193,10 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
       excerpt,
       url,
       publishedAt: publishedAt.toISOString(),
-      image: extractImage(item),
-    });
+    };
+    const image = extractImage(item);
+    if (image) entry.image = image;
+    items.push(entry);
   }
   return items;
 }

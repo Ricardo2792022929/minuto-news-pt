@@ -118,8 +118,8 @@ function classify(text: string, fallback: string): string {
     has(
       "parlamento", "governo", "ministro", "primeiro-ministro", "eleições",
       "eleicoes", "deputados", "orçamento do estado", "presidente da república",
-      "assembly", "política", "politica", "psd", "chega", "cdu", "bloco de esquerda",
-      "paneleiro", "parliament", "presidência", "presidencia", "assembleia",
+      "política", "politica", "psd", "chega", "cdu", "bloco de esquerda",
+      "presidência", "presidencia", "assembleia",
     )
   )
     return "Política";

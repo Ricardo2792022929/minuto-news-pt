@@ -138,10 +138,8 @@ function Index() {
     queryFn: ({ pageParam }) =>
       fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category } }) as Promise<GetNewsResult>,
     initialPageParam: 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.hasMore
-        ? (lastPage.items.length ? undefined : undefined)
-        : undefined,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasMore ? allPages.length * PAGE_SIZE : undefined,
   });
 
   // Página seguinte: offset = nº de itens já carregados (sem duplicados)
@@ -165,11 +163,7 @@ function Index() {
 
   const queryRef = useRef(query);
   queryRef.current = query;
-  queryRef.current = query;
-  queryRef.current = query;
   const loadMoreRef = useRef(loadMore);
-  loadMoreRef.current = loadMore;
-  loadMoreRef.current = loadMore;
   loadMoreRef.current = loadMore;
 
   useEffect(() => {

@@ -1,15 +1,8 @@
 import { XMLParser } from "fast-xml-parser";
+import type { NewsItem } from "./news.types";
 
-export interface NewsItem {
-  id: string;
-  source: string;
-  category: string;
-  title: string;
-  excerpt: string;
-  url: string;
-  publishedAt: string;
-  image?: string;
-}
+export type { NewsItem };
+
 
 interface FeedConfig {
   url: string;

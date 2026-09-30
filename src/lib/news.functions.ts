@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAllNews } from "./news.server";
 
 export const getNews = createServerFn({ method: "GET" })
-  .inputValidator(
+  .validator(
     (data) =>
       z
         .object({

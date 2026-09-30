@@ -16,7 +16,7 @@ function clean(s: string): string {
 
 // Frases típicas de rodapé/partilha que não fazem parte da notícia
 const NOISE =
-  /^(partilhe|partilhar|leia também|leia mais|veja também|subscreva|siga-nos|publicidade|comentários|newsletter|clique aqui|ler mais|saiba mais)/i;
+  /^(não perca|nao perca|receba|assine|partilhe|partilhar|leia também|leia mais|veja também|subscreva|siga-nos|publicidade|comentários|newsletter|clique aqui|ler mais|saiba mais)/i;
 
 export async function fetchArticle(url: string): Promise<ArticleContent> {
   const hit = cache.get(url);

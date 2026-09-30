@@ -648,9 +648,15 @@ function Index() {
                   )}
 
                   {/* Save button */}
-                  <div className="absolute bottom-32 right-3 z-10 flex flex-col items-center">
+                  <div
+                    className="absolute bottom-32 right-3 z-30 flex flex-col items-center"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     <button
+                      type="button"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         toggleSave(a);
                       }}

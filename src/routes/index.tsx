@@ -6,13 +6,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Bookmark,
   ChevronDown,
   Cpu,
-  ExternalLink,
   Globe,
   Landmark,
   Loader2,
@@ -22,6 +21,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
+import { getArticle } from "@/lib/article.functions";
 import type { NewsItem } from "@/lib/news.types";
 
 export const Route = createFileRoute("/")({
@@ -244,6 +244,13 @@ function ArticleDetail({
   onToggleSave: () => void;
   onClose: () => void;
 }) {
+  const fetchArticleFn = useServerFn(getArticle);
+  const article = useQuery({
+    queryKey: ["article", item.url],
+    queryFn: () => fetchArticleFn({ data: { url: item.url } }),
+    staleTime: 30 * 60_000,
+  });
+  const paragraphs = article.data?.paragraphs ?? [];
   return (
     <div className="fixed inset-0 z-40 mx-auto max-w-xl overflow-y-auto bg-background text-foreground animate-rise">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
@@ -293,25 +300,50 @@ function ArticleDetail({
           />
         )}
 
-        {item.excerpt && (
-          <p className="mt-5 text-base leading-relaxed text-pretty text-foreground/85">
-            {item.excerpt}
+        {article.data?.author && (
+          <p className="mt-4 text-sm font-semibold text-muted-foreground">
+            Por {article.data.author}
           </p>
         )}
 
-        <div className="mt-8 border-t border-border pt-6">
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between rounded-xl bg-secondary px-5 py-4 transition-colors hover:bg-secondary/70"
-          >
-            <span className="text-sm font-semibold">
-              Ler a notícia completa no {item.source}
-            </span>
-            <ExternalLink className="size-4 text-muted-foreground" />
-          </a>
+        <div className="mt-5 space-y-4">
+          {article.isLoading ? (
+            <>
+              {item.excerpt && (
+                <p className="text-lg font-medium leading-relaxed text-pretty text-foreground/90">
+                  {item.excerpt}
+                </p>
+              )}
+              <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />A carregar o texto
+                completo…
+              </div>
+            </>
+          ) : paragraphs.length ? (
+            paragraphs.map((p, idx) => (
+              <p
+                key={idx}
+                className={`leading-relaxed text-pretty ${
+                  idx === 0
+                    ? "font-display text-xl font-semibold text-foreground first-letter:float-left first-letter:mr-2 first-letter:text-5xl first-letter:font-black first-letter:leading-none first-letter:text-live"
+                    : "text-base text-foreground/85"
+                }`}
+              >
+                {p}
+              </p>
+            ))
+          ) : (
+            item.excerpt && (
+              <p className="text-lg leading-relaxed text-pretty text-foreground/90">
+                {item.excerpt}
+              </p>
+            )
+          )}
         </div>
+
+        <p className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
+          Fonte: {item.source}
+        </p>
       </article>
     </div>
   );

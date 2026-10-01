@@ -57,6 +57,12 @@ export const summarizeArticle = createServerFn({ method: "POST" })
         .split("\n")
         .map((l) => l.replace(/^\s*[•\-\*]\s*/, "").trim())
         .filter((l) => l.length > 0)
+        .filter(
+          (l) =>
+            !/não foi fornecido|corpo de texto|informação disponível|texto fornecido|pontos-chave baseados/i.test(
+              l,
+            ),
+        )
         .slice(0, 3);
       cache.set(data.id, { bullets, at: Date.now() });
       return { bullets };

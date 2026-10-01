@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
 import { getArticle } from "@/lib/article.functions";
+import { summarizeArticle } from "@/lib/summary.functions";
 import type { NewsItem } from "@/lib/news.types";
 
 export const Route = createFileRoute("/")({

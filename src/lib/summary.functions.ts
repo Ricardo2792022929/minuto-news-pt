@@ -11,6 +11,7 @@ REGRAS:
 2. Extrai exatamente 3 pontos-chave factuais (bullet points) em português de Portugal.
 3. Cada ponto deve ter no máximo 15 palavras.
 4. Baseia-te ESTRITAMENTE no texto fornecido. Não adiciones factos externos nem opiniões.
+5. NUNCA comentes a quantidade ou a falta de texto. Mesmo com pouco texto, devolve exatamente 3 pontos factuais sobre o assunto da notícia.
 
 FORMATO DE SAÍDA:
 • [Facto principal 1]

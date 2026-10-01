@@ -341,37 +341,10 @@ function ArticleDetail({
               ) : null}
             </section>
           )}
-          {article.isLoading ? (
-            <>
-              {item.excerpt && (
-                <p className="text-lg font-medium leading-relaxed text-pretty text-foreground/90">
-                  {item.excerpt}
-                </p>
-              )}
-              <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />A carregar o texto
-                completo…
-              </div>
-            </>
-          ) : paragraphs.length ? (
-            paragraphs.map((p, idx) => (
-              <p
-                key={idx}
-                className={`leading-relaxed text-pretty ${
-                  idx === 0
-                    ? "font-display text-xl font-semibold text-foreground first-letter:float-left first-letter:mr-2 first-letter:text-5xl first-letter:font-black first-letter:leading-none first-letter:text-live"
-                    : "text-base text-foreground/85"
-                }`}
-              >
-                {p}
-              </p>
-            ))
-          ) : (
-            item.excerpt && (
-              <p className="text-lg leading-relaxed text-pretty text-foreground/90">
-                {item.excerpt}
-              </p>
-            )
+          {!article.isLoading && !summary.isLoading && bullets.length === 0 && item.excerpt && (
+            <p className="text-lg leading-relaxed text-pretty text-foreground/90">
+              {item.excerpt}
+            </p>
           )}
         </div>
 

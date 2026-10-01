@@ -320,6 +320,27 @@ function ArticleDetail({
         )}
 
         <div className="mt-5 space-y-4">
+          {!article.isLoading && summaryText.length > 0 && (
+            <section className="rounded-xl border border-border bg-secondary/60 p-4 space-y-2">
+              <h2 className="font-display font-bold text-sm uppercase tracking-wide text-live">
+                Em resumo
+              </h2>
+              {summary.isLoading ? (
+                <p className="text-sm text-muted-foreground italic">
+                  A resumir a notícia…
+                </p>
+              ) : bullets.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {bullets.map((b, i) => (
+                    <li key={i} className="text-sm leading-relaxed flex gap-2">
+                      <span className="text-live font-bold">•</span>
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          )}
           {article.isLoading ? (
             <>
               {item.excerpt && (
@@ -354,9 +375,20 @@ function ArticleDetail({
           )}
         </div>
 
-        <p className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
-          Fonte: {item.source}
-        </p>
+        <div className="mt-10 border-t border-border pt-4 space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Fonte: {item.source}
+          </p>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-live text-live-foreground px-5 py-2.5 text-sm font-semibold"
+          >
+            <ExternalLink className="size-4" />
+            Ver no {item.source}
+          </a>
+        </div>
       </article>
     </div>
   );

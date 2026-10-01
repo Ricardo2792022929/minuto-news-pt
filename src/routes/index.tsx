@@ -12,6 +12,7 @@ import {
   Bookmark,
   ChevronDown,
   Cpu,
+  ExternalLink,
   Globe,
   Landmark,
   Loader2,
@@ -252,6 +253,17 @@ function ArticleDetail({
     staleTime: 30 * 60_000,
   });
   const paragraphs = article.data?.paragraphs ?? [];
+  const summarizeFn = useServerFn(summarizeArticle);
+  const summaryText = paragraphs.length
+    ? paragraphs.join("\n")
+    : (item.excerpt ?? "");
+  const summary = useQuery({
+    queryKey: ["summary", item.id],
+    queryFn: () => summarizeFn({ data: { id: item.id, text: summaryText } }),
+    enabled: !article.isLoading && summaryText.length > 0,
+    staleTime: 60 * 60_000,
+  });
+  const bullets = summary.data?.bullets ?? [];
   return (
     <div className="fixed inset-0 z-40 mx-auto max-w-xl overflow-y-auto bg-background text-foreground animate-rise">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">

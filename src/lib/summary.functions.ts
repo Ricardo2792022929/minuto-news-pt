@@ -9,7 +9,7 @@ const cache = new Map<string, { publication: GeneratedPublication; at: number }>
 const TTL = 60 * 60_000;
 
 export const summarizeArticle = createServerFn({ method: "POST" })
-  .inputValidator((data) =>
+  .validator((data) =>
     z
       .object({
         id: z.string(),

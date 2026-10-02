@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep AI news transformation in server-only modules and return validated structured publications; this protects prompts and guarantees the UI contract.

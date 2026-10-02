@@ -259,11 +259,21 @@ function ArticleDetail({
     : (item.excerpt ?? "");
   const summary = useQuery({
     queryKey: ["summary", item.id],
-    queryFn: () => summarizeFn({ data: { id: item.id, text: summaryText } }),
+    queryFn: () =>
+      summarizeFn({
+        data: {
+          id: item.id,
+          originalTitle: item.title,
+          text: summaryText,
+          source: item.source,
+          imageUrl: item.image ?? null,
+        },
+      }),
     enabled: !article.isLoading && summaryText.length > 0,
     staleTime: 60 * 60_000,
   });
   const bullets = summary.data?.bullets ?? [];
+  const generatedTitle = summary.data?.titulo_inedito;
   return (
     <div className="fixed inset-0 z-40 mx-auto max-w-xl overflow-y-auto bg-background text-foreground animate-rise">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
@@ -301,13 +311,13 @@ function ArticleDetail({
         </div>
 
         <h1 className="mt-3 font-display text-3xl font-black leading-tight text-balance">
-          {item.title}
+          {generatedTitle ?? item.title}
         </h1>
 
         {item.image && (
           <img
             src={item.image}
-            alt={item.title}
+            alt={generatedTitle ?? item.title}
             referrerPolicy="no-referrer"
             className="mt-5 aspect-[16/9] w-full rounded-xl object-cover"
           />
@@ -338,13 +348,14 @@ function ArticleDetail({
                     </li>
                   ))}
                 </ul>
+              ) : summary.isError ? (
+                <p className="text-sm text-muted-foreground">
+                  {summary.error instanceof Error
+                    ? summary.error.message
+                    : "Não foi possível gerar esta publicação."}
+                </p>
               ) : null}
             </section>
-          )}
-          {!article.isLoading && !summary.isLoading && bullets.length === 0 && item.excerpt && (
-            <p className="text-lg leading-relaxed text-pretty text-foreground/90">
-              {item.excerpt}
-            </p>
           )}
         </div>
 

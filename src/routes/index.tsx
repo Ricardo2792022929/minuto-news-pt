@@ -19,7 +19,6 @@ import {
   Palette,
   TrendingUp,
   Trophy,
-  X,
 } from "lucide-react";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
 import type { NewsItem } from "@/lib/news.types";
@@ -508,7 +507,7 @@ function Index() {
               return (
                 <article
                   key={a.id}
-                  onClick={() => setDetail(a)}
+                  onClick={() => void openArticle(a.url)}
                   className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden"
                 >
                   {a.image ? (
@@ -701,7 +700,7 @@ function Index() {
           </div>
           <SavedList
             items={savedItems}
-            onOpen={(item) => setDetail(item)}
+            onOpen={(item) => void openArticle(item.url)}
             onRemove={(id) =>
               persistSaved(
                 Object.fromEntries(

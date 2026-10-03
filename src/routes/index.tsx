@@ -6,13 +6,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Bookmark,
   ChevronDown,
   Cpu,
-  ExternalLink,
   Globe,
   Landmark,
   Loader2,
@@ -20,10 +19,9 @@ import {
   Palette,
   TrendingUp,
   Trophy,
+  X,
 } from "lucide-react";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
-import { getArticle } from "@/lib/article.functions";
-import { summarizeArticle } from "@/lib/summary.functions";
 import type { NewsItem } from "@/lib/news.types";
 
 export const Route = createFileRoute("/")({

@@ -231,66 +231,26 @@ function Onboarding({
   );
 }
 
-/* ---------- In-app browser (webview) ---------- */
+/* ---------- Abertura de artigos ---------- */
 
-function ArticleDetail({
-  item,
-  saved,
-  onToggleSave,
-  onClose,
-}: {
-  item: NewsItem;
-  saved: boolean;
-  onToggleSave: () => void;
-  onClose: () => void;
-}) {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <div className="fixed inset-0 z-40 mx-auto flex max-w-xl flex-col bg-background text-foreground animate-rise">
-      <div className="flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
-        <button
-          onClick={onClose}
-          aria-label="Fechar"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-secondary"
-        >
-          <X className="size-5" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold">{item.source}</p>
-          <p className="truncate text-[11px] text-muted-foreground">
-            {item.url}
-          </p>
-        </div>
-        <button
-          onClick={onToggleSave}
-          aria-label={saved ? "Remover dos guardados" : "Guardar notícia"}
-          className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-            saved
-              ? "bg-live text-live-foreground"
-              : "bg-secondary text-foreground hover:bg-secondary/70"
-          }`}
-        >
-          <Bookmark className={`size-4 ${saved ? "fill-live-foreground" : ""}`} />
-        </button>
-      </div>
-
-      <div className="relative flex-1">
-        {!loaded && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-            <Loader2 className="size-6 animate-spin" />
-            <p className="text-sm">A abrir {item.source}…</p>
-          </div>
-        )}
-        <iframe
-          src={item.url}
-          title={item.title}
-          onLoad={() => setLoaded(true)}
-          className="size-full border-0"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-        />
-      </div>
-    </div>
-  );
+/**
+ * Abre o artigo no site de origem.
+ * - Web: novo separador (evita bloqueios X-Frame-Options de iframes).
+ * - Nativo (Capacitor): Chrome Custom Tabs / Safari View Controller,
+ *   que já incluem a barra nativa com o botão "X" para voltar à app.
+ */
+async function openArticle(url: string): Promise<void> {
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.isNativePlatform()) {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url });
+      return;
+    }
+  } catch {
+    /* pacotes Capacitor não instalados — ambiente web */
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 /* ---------- Saved list ---------- */

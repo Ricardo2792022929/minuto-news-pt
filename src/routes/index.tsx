@@ -334,7 +334,6 @@ function Index() {
   const [category, setCategory] = useState<Category>("Tudo");
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
-  const [detail, setDetail] = useState<NewsItem | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -493,15 +492,6 @@ function Index() {
             setShowOnboarding(false);
           }}
           onLater={() => setShowOnboarding(false)}
-        />
-      )}
-
-      {detail && (
-        <ArticleDetail
-          item={detail}
-          saved={Boolean(savedMap[detail.id])}
-          onToggleSave={() => toggleSave(detail)}
-          onClose={() => setDetail(null)}
         />
       )}
 

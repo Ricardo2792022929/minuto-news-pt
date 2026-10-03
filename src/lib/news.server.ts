@@ -26,6 +26,21 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.nit.pt/rss", source: "NiT", fallbackCategory: "Cultura" },
   { url: "https://tek.sapo.pt/rss", source: "SAPO TEK", fallbackCategory: "Tech" },
   { url: "https://zap.aeiou.pt/rss", source: "ZAP.aeiou", fallbackCategory: "Tech" },
+  // Fontes adicionadas posteriormente (testadas e ativas)
+  { url: "https://www.iol.pt/rss", source: "IOL", fallbackCategory: "Mundo" },
+  { url: "https://rr.pt/rss", source: "Renascença", fallbackCategory: "Mundo" },
+  { url: "https://madremedia.pt/feed/", source: "MadreMedia", fallbackCategory: "Mundo" },
+  { url: "https://shifter.pt/feed/", source: "Shifter", fallbackCategory: "Mundo" },
+  { url: "https://fumaca.pt/feed/", source: "Fumaça", fallbackCategory: "Mundo" },
+  { url: "https://24noticias.sapo.pt/feed", source: "24 Notícias", fallbackCategory: "Mundo" },
+  { url: "https://executivedigest.sapo.pt/feed/", source: "Executive Digest", fallbackCategory: "Economia" },
+  { url: "https://www.sabado.pt/rss", source: "Sábado", fallbackCategory: "Cultura" },
+  { url: "https://visao.pt/feed/", source: "Visão", fallbackCategory: "Cultura" },
+  { url: "https://www.atelevisao.com/feed/", source: "A Televisão", fallbackCategory: "Cultura" },
+  { url: "https://www.hiper.fm/feed/", source: "Hiper FM", fallbackCategory: "Cultura" },
+  { url: "https://pplware.sapo.pt/feed/", source: "Pplware", fallbackCategory: "Tech" },
+  { url: "https://www.pcguia.pt/feed/", source: "PC Guia", fallbackCategory: "Tech" },
+  { url: "https://visao.pt/exameinformatica/feed/", source: "Exame Informática", fallbackCategory: "Tech" },
 ];
 
 const parser = new XMLParser({

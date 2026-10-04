@@ -366,7 +366,7 @@ function SavedList({
               <img
                 src={imageFor(item)}
                 onError={(e) => {
-                  const f = fallbackFor(item.category);
+                  const f = fallbackFor(item.category, item.id);
                   if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
                 }}
                 alt=""
@@ -587,7 +587,7 @@ function Index() {
                       loading={i === 0 ? "eager" : "lazy"}
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        const f = fallbackFor(a.category);
+                        const f = fallbackFor(a.category, a.id);
                         if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
                       }}
                       className="absolute inset-0 size-full object-cover"

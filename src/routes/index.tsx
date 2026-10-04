@@ -10,9 +10,27 @@ const CATEGORY_IMG: Record<string, string> = {
   Política: imgPolitica, Economia: imgEconomia, Desporto: imgDesporto,
   Mundo: imgMundo, Cultura: imgCultura, Tech: imgCalor,
 };
-const imageFor = (n: { image?: string; category: string }) =>
-  n.image ?? CATEGORY_IMG[n.category] ?? imgMundo;
-const fallbackFor = (category: string) => CATEGORY_IMG[category] ?? imgMundo;
+// Conjunto variado por categoria: notícias sem foto recebem imagens diferentes
+// entre si (escolhidas pelo id da notícia), começando pela imagem do tema.
+const ALL_IMGS = [imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor];
+const poolFor = (category: string) => {
+  const first = CATEGORY_IMG[category] ?? imgMundo;
+  return [first, ...ALL_IMGS.filter((i) => i !== first)];
+};
+const hashId = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+};
+const imageFor = (n: { id: string; image?: string; category: string }) => {
+  if (n.image) return n.image;
+  const pool = poolFor(n.category);
+  return pool[hashId(n.id) % pool.length];
+};
+const fallbackFor = (category: string, id = "") => {
+  const pool = poolFor(category);
+  return pool[hashId(id) % pool.length];
+};
 import {
   useCallback,
   useEffect,
@@ -252,7 +270,17 @@ function Onboarding({
  * - Nativo (Capacitor): Chrome Custom Tabs / Safari View Controller,
  *   que já incluem a barra nativa com o botão "X" para voltar à app.
  */
-async function openArticle(url: string): Promise<void> {
+// Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
+// inválidos no fim e garante que começa sempre por https://.
+function cleanUrl(raw: string): string {
+  let u = raw.trim().replace(/[\s"'<>]+$/g, "");
+  if (u.startsWith("http://")) u = "https://" + u.slice(7);
+  if (!u.startsWith("https://")) u = "https://" + u.replace(/^\/+/, "");
+  return u;
+}
+
+async function openArticle(rawUrl: string): Promise<void> {
+  const url = cleanUrl(rawUrl);
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
     .Capacitor;
   if (cap?.isNativePlatform?.()) {
@@ -265,18 +293,27 @@ async function openArticle(url: string): Promise<void> {
     }
   }
   // Abertura síncrona (dentro do clique) para não perder a permissão de popup.
-  // Com "noopener" o browser devolve sempre null, por isso abrimos sem ele e
-  // cortamos a ligação manualmente; se for bloqueado, redireciona.
-  const w = window.open(url, "_blank");
+  // "noopener,noreferrer" corta o Referer para os jornais não bloquearem a
+  // ligação; com noopener o browser devolve null, por isso também cortamos
+  // o opener manualmente quando possível.
+  const w = window.open(url, "_blank", "noopener,noreferrer");
   if (w) {
     try {
       w.opener = null;
     } catch {
       /* ignore */
     }
-  } else {
-    window.location.href = url;
+    return;
   }
+  // Fallback: popup bloqueado — simula um clique nativo num link invisível.
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /* ---------- Saved list ---------- */

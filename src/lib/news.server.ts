@@ -83,7 +83,7 @@ function decodeEntities(s: string): string {
           acute: "\u0301", grave: "\u0300", circ: "\u0302",
           tilde: "\u0303", uml: "\u0308", cedil: "\u0327",
         };
-        return (acc[1] + marks[acc[2]]).normalize("NFC");
+        return (acc[1] + marks[acc[2] as string]).normalize("NFC");
       }
       return m;
     });

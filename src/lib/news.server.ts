@@ -55,26 +55,86 @@ function arrayify(value: any): any[] {
   return Array.isArray(value) ? value : [value];
 }
 
+const NAMED: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  hellip: "…", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’",
+  ldquo: "“", rdquo: "”", laquo: "«", raquo: "»", euro: "€",
+  ordm: "º", ordf: "ª", deg: "°", middot: "·", bull: "•",
+};
+
+function decodeEntities(s: string): string {
+  // duas passagens para entidades duplamente codificadas (&amp;#8211;)
+  for (let i = 0; i < 2; i++) {
+    s = s.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (m, e: string) => {
+      if (e[0] === "#") {
+        const code = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        try {
+          return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+        } catch {
+          return m;
+        }
+      }
+      const low = e.toLowerCase();
+      if (NAMED[low]) return NAMED[low];
+      // letras acentuadas: aacute, ccedil, atilde, etc.
+      const acc = e.match(/^([a-zA-Z])(acute|grave|circ|tilde|uml|cedil)$/);
+      if (acc) {
+        const marks: Record<string, string> = {
+          acute: "\u0301", grave: "\u0300", circ: "\u0302",
+          tilde: "\u0303", uml: "\u0308", cedil: "\u0327",
+        };
+        return (acc[1] + marks[acc[2]]).normalize("NFC");
+      }
+      return m;
+    });
+  }
+  return s;
+}
+
 function stripHtml(html: string): string {
-  return html
+  return decodeEntities(html.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]*>/g, " "))
     .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&/gi, "&")
-    .replace(/"|&#0?34;/gi, '"')
-    .replace(/&#0?39;|'|&rsquo;/gi, "'")
-    .replace(/</gi, "<")
-    .replace(/>/gi, ">")
-    .replace(/&hellip;/gi, "…")
-    .replace(/&[a-z]+;/gi, " ")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function firstImg(html: string | undefined): string | undefined {
   if (!html) return undefined;
-  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  const src = m?.[1];
-  return src ? src.replace(/&/g, "&") : undefined;
+  const m = decodeEntities(String(html)).match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?.[1] ? decodeEntities(m[1]) : undefined;
+}
+
+const STOP = new Set(
+  "de da do das dos a o as os e em no na nos nas um uma por para com que se ao aos sobre mais após apos entre como sem foi ser são sao está esta diz the".split(" "),
+);
+const CATEGORY_EN: Record<string, string> = {
+  Política: "politics", Economia: "economy", Desporto: "sport",
+  Mundo: "world", Cultura: "culture", Tech: "technology",
+};
+
+function fallbackImage(title: string, category: string, id: string): string {
+  const words = normalize(title)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !STOP.has(w))
+    .slice(0, 2);
+  const tags = [CATEGORY_EN[category] ?? "news", ...words].join(",");
+  const lock = Math.abs(parseInt(id.slice(1), 36) || 1) % 100000;
+  return `https://loremflickr.com/800/1200/${encodeURIComponent(tags)}?lock=${lock}`;
+}
+
+function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
+  const head = new TextDecoder("latin1").decode(buf.slice(0, 300));
+  const cs =
+    contentType?.match(/charset=([\w-]+)/i)?.[1] ??
+    head.match(/encoding=["']([\w-]+)["']/i)?.[1] ??
+    "utf-8";
+  try {
+    return new TextDecoder(cs.toLowerCase()).decode(buf);
+  } catch {
+    return new TextDecoder("utf-8").decode(buf);
+  }
 }
 
 function extractImage(item: any): string | undefined {

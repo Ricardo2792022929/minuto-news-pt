@@ -239,17 +239,30 @@ function Onboarding({
  *   que já incluem a barra nativa com o botão "X" para voltar à app.
  */
 async function openArticle(url: string): Promise<void> {
-  try {
-    const { Capacitor } = await import("@capacitor/core");
-    if (Capacitor.isNativePlatform()) {
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  if (cap?.isNativePlatform?.()) {
+    try {
       const { Browser } = await import("@capacitor/browser");
       await Browser.open({ url });
       return;
+    } catch {
+      /* continua para a web */
     }
-  } catch {
-    /* pacotes Capacitor não instalados — ambiente web */
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+  // Abertura síncrona (dentro do clique) para não perder a permissão de popup.
+  // Com "noopener" o browser devolve sempre null, por isso abrimos sem ele e
+  // cortamos a ligação manualmente; se for bloqueado, redireciona.
+  const w = window.open(url, "_blank");
+  if (w) {
+    try {
+      w.opener = null;
+    } catch {
+      /* ignore */
+    }
+  } else {
+    window.location.href = url;
+  }
 }
 
 /* ---------- Saved list ---------- */

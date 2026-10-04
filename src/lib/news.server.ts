@@ -113,16 +113,6 @@ const CATEGORY_EN: Record<string, string> = {
   Mundo: "world", Cultura: "culture", Tech: "technology",
 };
 
-function fallbackImage(title: string, category: string, id: string): string {
-  const words = normalize(title)
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 3 && !STOP.has(w))
-    .slice(0, 2);
-  const tags = [CATEGORY_EN[category] ?? "news", ...words].join(",");
-  const lock = Math.abs(parseInt(id.slice(1), 36) || 1) % 100000;
-  return `https://loremflickr.com/800/1200/${encodeURIComponent(tags)}?lock=${lock}`;
-}
 
 function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
   const head = new TextDecoder("latin1").decode(buf.slice(0, 300));
@@ -265,7 +255,7 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
     const rawImage = extractImage(item);
     const decoded = rawImage ? decodeEntities(rawImage) : undefined;
     const image = decoded && !/default|placeholder|no-?image/i.test(decoded) ? decoded : undefined;
-    entry.image = image ?? fallbackImage(title, entry.category, entry.id);
+    if (image) entry.image = image;
     items.push(entry);
   }
   return items;

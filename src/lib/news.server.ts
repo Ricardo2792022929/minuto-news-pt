@@ -105,13 +105,6 @@ function firstImg(html: string | undefined): string | undefined {
   return m?.[1] ? decodeEntities(m[1]) : undefined;
 }
 
-const STOP = new Set(
-  "de da do das dos a o as os e em no na nos nas um uma por para com que se ao aos sobre mais após apos entre como sem foi ser são sao está esta diz the".split(" "),
-);
-const CATEGORY_EN: Record<string, string> = {
-  Política: "politics", Economia: "economy", Desporto: "sport",
-  Mundo: "world", Cultura: "culture", Tech: "technology",
-};
 
 
 function decodeBody(buf: ArrayBuffer, contentType: string | null): string {

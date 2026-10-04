@@ -251,7 +251,7 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
 
     const rawExcerpt = String(item?.["description"] ?? item?.["summary"] ?? "");
     const excerpt = stripHtml(rawExcerpt).slice(0, 320);
-    const url = link.replace(/&/g, "&");
+    const url = decodeEntities(link.trim());
 
     const entry: NewsItem = {
       id: hashId(url),
@@ -262,8 +262,9 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
       url,
       publishedAt: publishedAt.toISOString(),
     };
-    const image = extractImage(item);
-    if (image) entry.image = image;
+    const rawImage = extractImage(item);
+    const image = rawImage ? decodeEntities(rawImage) : undefined;
+    entry.image = image ?? fallbackImage(title, entry.category, entry.id);
     items.push(entry);
   }
   return items;
@@ -287,7 +288,10 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`);
-  return parseFeed(await res.text(), feed);
+  return parseFeed(
+    decodeBody(await res.arrayBuffer(), res.headers.get("content-type")),
+    feed,
+  );
 }
 
 export async function getAllNews(): Promise<NewsItem[]> {

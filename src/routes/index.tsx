@@ -1,4 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import imgPolitica from "@/assets/hero-parlamento.jpg";
+import imgEconomia from "@/assets/economia-mercado.jpg";
+import imgDesporto from "@/assets/desporto-estadio.jpg";
+import imgMundo from "@/assets/mundo-cimeira.jpg";
+import imgCultura from "@/assets/cultura-sintra.jpg";
+import imgCalor from "@/assets/mundo-calor.jpg";
+
+const CATEGORY_IMG: Record<string, string> = {
+  Política: imgPolitica, Economia: imgEconomia, Desporto: imgDesporto,
+  Mundo: imgMundo, Cultura: imgCultura, Tech: imgCalor,
+};
+const imageFor = (n: { image?: string; category: string }) =>
+  n.image ?? CATEGORY_IMG[n.category] ?? imgMundo;
+const fallbackFor = (category: string) => CATEGORY_IMG[category] ?? imgMundo;
 import {
   useCallback,
   useEffect,
@@ -311,9 +325,13 @@ function SavedList({
                 {formatClock(new Date(item.publishedAt))}
               </p>
             </div>
-            {item.image && (
+            {(
               <img
-                src={item.image}
+                src={imageFor(item)}
+                onError={(e) => {
+                  const f = fallbackFor(item.category);
+                  if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
+                }}
                 alt=""
                 referrerPolicy="no-referrer"
                 loading="lazy"
@@ -523,17 +541,18 @@ function Index() {
                   onClick={() => void openArticle(a.url)}
                   className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden"
                 >
-                  {a.image ? (
+                  {true ? (
                     <img
-                      src={a.image}
+                      src={imageFor(a)}
                       alt={a.title}
                       width={1024}
                       height={1024}
                       loading={i === 0 ? "eager" : "lazy"}
                       referrerPolicy="no-referrer"
-                      onError={(e) =>
-                        (e.currentTarget.style.display = "none")
-                      }
+                      onError={(e) => {
+                        const f = fallbackFor(a.category);
+                        if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
+                      }}
                       className="absolute inset-0 size-full object-cover"
                     />
                   ) : (

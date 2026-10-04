@@ -263,7 +263,8 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
       publishedAt: publishedAt.toISOString(),
     };
     const rawImage = extractImage(item);
-    const image = rawImage ? decodeEntities(rawImage) : undefined;
+    const decoded = rawImage ? decodeEntities(rawImage) : undefined;
+    const image = decoded && !/default|placeholder|no-?image/i.test(decoded) ? decoded : undefined;
     entry.image = image ?? fallbackImage(title, entry.category, entry.id);
     items.push(entry);
   }

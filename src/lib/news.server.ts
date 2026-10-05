@@ -150,11 +150,32 @@ function extractImage(item: any): string | undefined {
   }
   for (const t of arrayify(item["media:thumbnail"])) add(t?.["@_url"], t?.["@_width"], 1);
 
-  const sorted = candidates.sort((a, b) => b.w - a.w || b.prio - a.prio);
-  const raw =
-    sorted[0]?.url ?? firstImg(item["content:encoded"]) ?? firstImg(item["description"]);
-  if (!raw || isLowResImage(raw)) return undefined; // baixa resolução → sem imagem
-  return raw.trim();
+  // Ordem: enclosure / media:content (maior primeiro) → <img> em content:encoded / description.
+  const sorted = candidates.sort((a, b) => b.w - a.w || b.prio - a.prio).map((c) => c.url);
+  const html = [firstImg(item["content:encoded"]), firstImg(item["description"])];
+  for (const raw of [...sorted, ...html]) {
+    if (!raw) continue;
+    const url = upgradeImageUrl(raw.replace(/&amp;/g, "&").trim());
+    if (/_default\.|default_|placeholder|logo/i.test(url)) continue; // imagens genéricas
+    if (!isLowResImage(url)) return url;
+  }
+  return undefined;
+}
+
+// CDNs que redimensionam (RTP, imgix, WordPress Photon): pede a versão HD.
+function upgradeImageUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (/cdn-images\.rtp\.pt|imgix\.net|i\d\.wp\.com/.test(u.hostname)) {
+      for (const k of ["w", "width"]) if (u.searchParams.has(k)) u.searchParams.set(k, "1000");
+      if (u.searchParams.has("q")) u.searchParams.set("q", "80");
+      u.searchParams.delete("h");
+      return u.toString();
+    }
+  } catch {
+    /* URL inválido */
+  }
+  return url;
 }
 
 // ---------- Relevância ----------

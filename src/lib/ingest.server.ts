@@ -54,6 +54,28 @@ async function fromOpenverse(term: string, used: Set<string>) {
   return pickRandom((d.results ?? []).map((r) => ({ ...r, text: r.title })), used);
 }
 
+// Foto original do artigo: lê og:image / twitter:image da página da notícia.
+async function fromArticlePage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AoMinutoFeed/1.0)", "Accept-Language": "pt-PT" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 200_000);
+    const m =
+      html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*content=["']([^"']+)["']/i) ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+    const img = m?.[1]?.replace(/&amp;/g, "&").trim();
+    if (!img) return null;
+    const abs = new URL(img, url).toString().replace(/^http:/, "https:");
+    if (/thumb|small|150x150|300x|logo|default|placeholder|\.svg/i.test(abs)) return null;
+    return abs;
+  } catch {
+    return null;
+  }
+}
+
 // Wikipedia: foto oficial de figuras públicas / entidades.
 async function fromWikipedia(entity: string): Promise<string | null> {
   if (!entity) return null;
@@ -156,6 +178,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!g) continue;
         let image = n.image ?? null;
         let image_query: string | null = null;
+        if (!image) {
+          image = await fromArticlePage(n.url);
+        }
         if (!image) {
           image_query = g.termo;
           image = (await fromWikipedia(g.entidade)) ?? (await findHdImageAny(g.termo, n.category, used));

@@ -105,7 +105,17 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       const { data } = await db.from("articles").select("id").in("id", ids.slice(i, i + 200));
       for (const r of data ?? []) existing.add(r.id);
     }
-    const pending = news.filter((n) => !existing.has(n.id)).slice(0, BATCH * MAX_BATCHES);
+    // máx. 4 novas por fonte por ciclo; ordem já intercalada por fonte
+    const perSrc = new Map<string, number>();
+    const pending = news
+      .filter((n) => {
+        if (existing.has(n.id)) return false;
+        const c = perSrc.get(n.source) ?? 0;
+        if (c >= 4) return false;
+        perSrc.set(n.source, c + 1);
+        return true;
+      })
+      .slice(0, BATCH * MAX_BATCHES);
 
     // evita repetir a mesma foto de reserva
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);

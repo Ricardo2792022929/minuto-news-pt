@@ -317,7 +317,7 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
         "Mozilla/5.0 (compatible; AoMinutoFeed/1.0; +https://lovable.app)",
       Accept: "application/rss+xml, application/xml, text/xml, */*",
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`);
   return parseFeed(
@@ -329,17 +329,31 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
 export async function getAllNews(): Promise<NewsItem[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL) return cache.items;
 
+  // Cada feed isolado: falha/timeout regista e segue para os outros.
   const results = await Promise.allSettled(FEEDS.map(fetchFeed));
-  const byId = new Map<string, NewsItem>();
-  for (const r of results) {
-    if (r.status !== "fulfilled") continue;
-    for (const item of r.value) {
-      if (!byId.has(item.id)) byId.set(item.id, item);
+  const seen = new Set<string>();
+  const perSource = new Map<string, NewsItem[]>();
+  results.forEach((r, i) => {
+    if (r.status !== "fulfilled") {
+      console.error("feed falhou:", FEEDS[i]?.source, String(r.reason));
+      return;
     }
-  }
-  const items = [...byId.values()].sort(
-    (a, b) => relevanceScore(b) - relevanceScore(a),
+    for (const item of r.value) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      const list = perSource.get(item.source) ?? [];
+      list.push(item);
+      perSource.set(item.source, list);
+    }
+  });
+  // Round-robin: mais recentes de cada fonte, intercalados (1 de cada fonte por ronda).
+  const lists = [...perSource.values()].map((l) =>
+    l.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt)),
   );
+  const items: NewsItem[] = [];
+  for (let round = 0; lists.some((l) => l.length > round); round++) {
+    for (const l of lists) if (l[round]) items.push(l[round]!);
+  }
 
   cache = { items, fetchedAt: Date.now() };
   return items;

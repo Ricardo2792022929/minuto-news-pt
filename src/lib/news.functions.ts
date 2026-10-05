@@ -37,7 +37,7 @@ export const getNews = createServerFn({ method: "GET" })
       .select("id,source,category,url,image,titulo_inedito,published_at", { count: "exact" })
       .order("published_at", { ascending: false })
       .order("id", { ascending: true })
-      .range(data.offset, data.offset + data.limit - 1);
+      .range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
     if (data.category) q = q.eq("category", data.category);
     const { data: rows, error, count } = await q;
     if (error) {
@@ -55,7 +55,7 @@ export const getNews = createServerFn({ method: "GET" })
       publishedAt: r.published_at,
       ...(r.image ? { image: r.image } : {}),
     }));
-    return { items, total, hasMore: data.offset + data.limit < total };
+    return { items: spread(items).slice(data.offset, data.offset + data.limit), total, hasMore: data.offset + data.limit < total };
   });
 
 export type GetNewsResult = {
@@ -63,3 +63,16 @@ export type GetNewsResult = {
   total: number;
   hasMore: boolean;
 };
+
+// Reordena a página para evitar notícias seguidas da mesma fonte.
+function spread(items: NewsItem[]): NewsItem[] {
+  const rest = [...items];
+  const out: NewsItem[] = [];
+  while (rest.length) {
+    const recent = out.slice(-3).map((x) => x.source);
+    let i = rest.findIndex((x) => !recent.includes(x.source));
+    if (i < 0) i = rest.findIndex((x) => x.source !== recent[recent.length - 1]);
+    out.push(rest.splice(i < 0 ? 0 : i, 1)[0]!);
+  }
+  return out;
+}

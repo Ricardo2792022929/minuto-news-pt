@@ -389,20 +389,10 @@ async function openArticle(rawUrl: string): Promise<void> {
       /* continua para a web */
     }
   }
-  // Abertura síncrona (dentro do clique) para não perder a permissão de popup.
-  // "noopener,noreferrer" corta o Referer para os jornais não bloquearem a
-  // ligação; com noopener o browser devolve null, por isso também cortamos
-  // o opener manualmente quando possível.
-  const w = window.open(url, "_blank", "noopener,noreferrer");
-  if (w) {
-    try {
-      w.opener = null;
-    } catch {
-      /* ignore */
-    }
-    return;
-  }
-  // Fallback: popup bloqueado — simula um clique nativo num link invisível.
+  // Web: abre SEMPRE num separador novo, nunca dentro da app/iframe
+  // (os jornais bloqueiam ser carregados dentro de outra página).
+  // Um único link nativo com rel="noopener noreferrer" evita separadores
+  // duplicados (window.open com noopener devolve sempre null).
   const a = document.createElement("a");
   a.href = url;
   a.target = "_blank";

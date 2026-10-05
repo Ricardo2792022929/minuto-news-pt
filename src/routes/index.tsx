@@ -42,6 +42,60 @@ const fallbackFor = (category?: string, id = "") => {
   const pool = poolFor(category ?? "Mundo");
   return pool[hashId(id) % pool.length] ?? imgMundo;
 };
+// Optimize remote image URLs for mobile: max 800px wide, compressed.
+const optimizeImage = (url: string) => {
+  try {
+    const u = new URL(url);
+    if (
+      u.hostname.includes("unsplash.com") ||
+      u.hostname.includes("pexels.com") ||
+      u.hostname.includes("imgix.net")
+    ) {
+      u.searchParams.set("w", "800");
+      u.searchParams.set("q", "75");
+      u.searchParams.set("auto", "format");
+      u.searchParams.set("fit", "crop");
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
+// Image that stays hidden until fully downloaded, then fades in at once.
+function FadeImg({
+  src,
+  fallbackSrc,
+  className,
+  alt = "",
+  eager = false,
+}: {
+  src: string;
+  fallbackSrc: string;
+  className: string;
+  alt?: string;
+  eager?: boolean;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={optimizeImage(src)}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      loading={eager ? "eager" : "lazy"}
+      onLoad={() => setLoaded(true)}
+      onError={(e) => {
+        if (!e.currentTarget.src.endsWith(fallbackSrc)) {
+          setLoaded(false);
+          e.currentTarget.src = fallbackSrc;
+        }
+      }}
+      className={`${className} transition-opacity duration-300 ${
+        loaded ? "opacity-100" : "opacity-0"
+      }`}
+    />
+  );
+}
 import {
   useCallback,
   useEffect,

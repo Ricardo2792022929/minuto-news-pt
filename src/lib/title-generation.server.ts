@@ -22,7 +22,7 @@ REGRAS OBRIGATÓRIAS:
 Exemplo incorreto: "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"
 Exemplo correto: "Pedro Sánchez anuncia eleições antecipadas em Espanha"
 
-Para cada notícia, gera também "termo_pesquisa_imagem": 1 a 3 palavras em INGLÊS para procurar uma foto representativa (pessoa, local ou tema concreto, ex.: "Lionel Messi", "Lisbon parliament", "wildfire").
+Para cada notícia, gera também "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS com termos VISUAIS CONCRETOS que se possam fotografar (objetos, locais, pessoas conhecidas, veículos), nunca conceitos abstratos. Exemplos: notícia da GNR/PSP → "police car Portugal" ou "police car lights"; futebol → "football stadium"; incêndio → "wildfire firefighters"; inflação/preços → "supermarket prices"; parlamento → "Portuguese parliament"; hospital/SNS → "hospital emergency"; pessoa famosa → o nome dela ("Cristiano Ronaldo").
 
 Devolve um item por cada id recebido, mantendo o id exato.`;
 

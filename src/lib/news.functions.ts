@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getAllNews } from "./news.server";
+import { getAllNews, relevanceScore } from "./news.server";
 
 export const getNews = createServerFn({ method: "GET" })
   .validator(

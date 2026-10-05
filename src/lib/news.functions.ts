@@ -55,7 +55,7 @@ export const getNews = createServerFn({ method: "GET" })
       publishedAt: r.published_at,
       ...(r.image ? { image: r.image } : {}),
     }));
-    return { items, total, hasMore: data.offset + data.limit < total };
+    return { items: spread(items), total, hasMore: data.offset + data.limit < total };
   });
 
 export type GetNewsResult = {
@@ -63,3 +63,15 @@ export type GetNewsResult = {
   total: number;
   hasMore: boolean;
 };
+
+// Reordena a página para evitar notícias seguidas da mesma fonte.
+function spread(items: NewsItem[]): NewsItem[] {
+  const rest = [...items];
+  const out: NewsItem[] = [];
+  while (rest.length) {
+    const prev = out[out.length - 1]?.source;
+    const i = rest.findIndex((x) => x.source !== prev);
+    out.push(rest.splice(i < 0 ? 0 : i, 1)[0]!);
+  }
+  return out;
+}

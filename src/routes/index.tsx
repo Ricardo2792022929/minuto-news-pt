@@ -42,6 +42,60 @@ const fallbackFor = (category?: string, id = "") => {
   const pool = poolFor(category ?? "Mundo");
   return pool[hashId(id) % pool.length] ?? imgMundo;
 };
+// Optimize remote image URLs for mobile: max 800px wide, compressed.
+const optimizeImage = (url: string) => {
+  try {
+    const u = new URL(url);
+    if (
+      u.hostname.includes("unsplash.com") ||
+      u.hostname.includes("pexels.com") ||
+      u.hostname.includes("imgix.net")
+    ) {
+      u.searchParams.set("w", "800");
+      u.searchParams.set("q", "75");
+      u.searchParams.set("auto", "format");
+      u.searchParams.set("fit", "crop");
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
+// Image that stays hidden until fully downloaded, then fades in at once.
+function FadeImg({
+  src,
+  fallbackSrc,
+  className,
+  alt = "",
+  eager = false,
+}: {
+  src: string;
+  fallbackSrc: string;
+  className: string;
+  alt?: string;
+  eager?: boolean;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={optimizeImage(src)}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      loading={eager ? "eager" : "lazy"}
+      onLoad={() => setLoaded(true)}
+      onError={(e) => {
+        if (!e.currentTarget.src.endsWith(fallbackSrc)) {
+          setLoaded(false);
+          e.currentTarget.src = fallbackSrc;
+        }
+      }}
+      className={`${className} transition-opacity duration-300 ${
+        loaded ? "opacity-100" : "opacity-0"
+      }`}
+    />
+  );
+}
 import {
   useCallback,
   useEffect,
@@ -371,15 +425,9 @@ function SavedList({
               </p>
             </div>
             {(
-              <img
+              <FadeImg
                 src={imageFor(item)}
-                onError={(e) => {
-                  const f = fallbackFor(item.category, item.id);
-                  if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
-                }}
-                alt=""
-                referrerPolicy="no-referrer"
-                loading="lazy"
+                fallbackSrc={fallbackFor(item.category, item.id)}
                 className="size-20 shrink-0 rounded-lg object-cover"
               />
             )}
@@ -586,17 +634,11 @@ function Index() {
                   className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden"
                 >
                   {true ? (
-                    <img
+                    <FadeImg
                       src={imageFor(a)}
+                      fallbackSrc={fallbackFor(a.category, a.id)}
                       alt={a.title}
-                      width={1024}
-                      height={1024}
-                      loading={i === 0 ? "eager" : "lazy"}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const f = fallbackFor(a.category, a.id);
-                        if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
-                      }}
+                      eager={i === 0}
                       className="absolute inset-0 w-full h-full object-cover object-top"
                     />
                   ) : (

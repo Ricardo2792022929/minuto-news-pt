@@ -1,51 +1,76 @@
 import { createFileRoute } from "@tanstack/react-router";
-import imgPolitica from "@/assets/hero-parlamento.jpg";
-import imgEconomia from "@/assets/economia-mercado.jpg";
-import imgDesporto from "@/assets/desporto-estadio.jpg";
-import imgMundo from "@/assets/mundo-cimeira.jpg";
-import imgCultura from "@/assets/cultura-sintra.jpg";
-import imgCalor from "@/assets/mundo-calor.jpg";
-import imgBolsa from "@/assets/economia-bolsa.jpg";
-import imgDesportoNoite from "@/assets/desporto-noite.jpg";
-import imgConcerto from "@/assets/cultura-concerto.jpg";
-import imgCidade from "@/assets/mundo-cidade.jpg";
 
-// Conjunto variado por categoria: notícias sem foto recebem imagens diferentes
-// entre si (escolhidas pelo id da notícia), começando pelas imagens do tema.
-const CATEGORY_POOL: Record<string, string[]> = {
-  Política: [imgPolitica, imgCidade],
-  Economia: [imgEconomia, imgBolsa],
-  Desporto: [imgDesporto, imgDesportoNoite],
-  Mundo: [imgMundo, imgCidade, imgCalor],
-  Cultura: [imgCultura, imgConcerto],
-  Tech: [imgCalor, imgBolsa],
+// Banco de FOTOGRAFIAS REAIS (Wikimedia Commons) por tema — usado só quando a
+// notícia não tem foto ou a foto falha. Garante que nenhum cartão fica preto.
+const WM = (path: string) => `https://upload.wikimedia.org/wikipedia/commons/${path}`;
+const REAL_POOL: Record<string, string[]> = {
+  Crime: [
+    WM("4/4c/Police_car_lights.jpg"),
+    WM("3/3d/Police_Lights.jpg"),
+    WM("f/f0/2009-04-06_Scotts_Valley_Chase_07.jpg"),
+  ],
+  Política: [
+    WM("c/c4/Portuguese_Parliament_building_front_fachade.jpg"),
+    WM("1/18/Estonian_parliament_building.jpg"),
+    WM("1/1c/Malta%E2%80%99s_Parliament_building_in_Valletta_%28cropped%29.jpg"),
+    WM("e/e2/Old_Parliament_Building%2C_Colombo.JPG"),
+  ],
+  Economia: [
+    WM("8/86/10_euro_banknotes_and_10_euro_cent_coins_20180207.jpg"),
+    WM("5/55/Twenty_euro_banknote_and_coins.jpg"),
+  ],
+  Desporto: [
+    WM("0/05/Petrovskiy_football_stadium_in_SPB.jpg"),
+    WM("5/54/Laugardalsv%C3%B6llur%2C_Iceland%27s_national_football_stadium.jpg"),
+    WM("f/f4/Football_stadium_in_Tren%C4%8D%C3%ADn%2C_Slovakia.jpg"),
+    WM("4/4c/FC_Prishtina%2C_football_stadium.jpg"),
+  ],
+  Mundo: [
+    WM("3/3e/1_singapore_city_skyline_dusk_panorama_2011.jpg"),
+    WM("9/95/Ho_Chi_Minh_City_Skyline.jpg"),
+    WM("f/f6/Ho_Chi_Minh_City_Skyline_%28night%29.jpg"),
+    WM("d/df/Sharjah_city_skyline_in_2015.jpg"),
+  ],
+  Cultura: [
+    WM("b/bb/Concert_crowd_%28Unsplash%29.jpg"),
+    WM("2/2f/Bocelli-concert-crowd-in-abu-dhabi-du-arena-du-live.jpg"),
+    WM("c/c5/Home_Free_concert_crowd_%2843188702631%29.jpg"),
+    WM("d/de/Go_Between_Bridge_Concert_Crowd_%285160324936%29.jpg"),
+  ],
+  Tech: [
+    WM("f/f3/Digital_nomad_telecommuting_work_on_laptop_computer.jpg"),
+    WM("b/b8/X7200_laptop_computer.JPG"),
+    WM("d/d0/Young_people_texting_on_smartphones_using_thumbs.JPG"),
+    WM("9/96/Samsung_Galaxy_Android_Smartphone.jpg"),
+  ],
 };
-const ALL_IMGS = [
-  imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor,
-  imgBolsa, imgDesportoNoite, imgConcerto, imgCidade,
-];
-const poolFor = (category: string) => {
-  const themed = CATEGORY_POOL[category] ?? [imgMundo];
-  return [...themed, ...ALL_IMGS.filter((i) => !themed.includes(i))];
-};
+const ALL_REAL = Object.values(REAL_POOL).flat();
+const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso|roubo)/i;
 const hashId = (id: string) => {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h;
 };
-const imageFor = (n: { id?: string; image?: string; category?: string }) => {
-  if (n.image) return n.image;
-  const pool = poolFor(n.category ?? "Mundo");
-  return pool[hashId(n.id ?? "") % pool.length] ?? imgMundo;
+type ImgItem = { id?: string; image?: string; category?: string; title?: string };
+// Candidatas por ordem: foto da notícia → fotos reais do tema → resto do banco.
+const candidatesFor = (n: ImgItem) => {
+  const key = CRIME_RE.test(n.title ?? "") ? "Crime" : (n.category ?? "Mundo");
+  const themed = REAL_POOL[key] ?? REAL_POOL["Mundo"] ?? [];
+  const h = hashId(n.id ?? "");
+  const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length] as string);
+  const rest = ALL_REAL.filter((u) => !themed.includes(u));
+  return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest)];
 };
-const fallbackFor = (category?: string, id = "") => {
-  const pool = poolFor(category ?? "Mundo");
-  return pool[hashId(id) % pool.length] ?? imgMundo;
-};
-// Optimize remote image URLs for mobile: max 800px wide, compressed.
+// Tamanho otimizado para telemóvel (~800-960px, comprimido).
 const optimizeImage = (url: string) => {
   try {
     const u = new URL(url);
+    if (u.hostname === "upload.wikimedia.org" && !u.pathname.includes("/thumb/")) {
+      const m = u.pathname.match(/^\/wikipedia\/commons\/(\w\/\w\w)\/([^/]+)$/);
+      if (m && m[1] && m[2] && !/\.(svg|tiff?)$/i.test(m[2]))
+        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/960px-${m[2]}`;
+      return url;
+    }
     if (
       u.hostname.includes("unsplash.com") ||
       u.hostname.includes("pexels.com") ||
@@ -62,32 +87,38 @@ const optimizeImage = (url: string) => {
     return url;
   }
 };
-// Image that stays hidden until fully downloaded, then fades in at once.
+// Imagem oculta até descarregar por completo; se falhar passa à candidata seguinte.
 function FadeImg({
-  src,
-  fallbackSrc,
+  item,
   className,
   alt = "",
   eager = false,
 }: {
-  src: string;
-  fallbackSrc: string;
+  item: ImgItem;
   className: string;
   alt?: string;
   eager?: boolean;
 }) {
+  const list = useMemo(
+    () => candidatesFor(item),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item.id, item.image, item.category, item.title],
+  );
+  const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const src = list[Math.min(idx, list.length - 1)] ?? ALL_REAL[0] ?? "";
   return (
     <img
+      key={src}
       src={optimizeImage(src)}
       alt={alt}
       referrerPolicy="no-referrer"
       loading={eager ? "eager" : "lazy"}
       onLoad={() => setLoaded(true)}
-      onError={(e) => {
-        if (!e.currentTarget.src.endsWith(fallbackSrc)) {
+      onError={() => {
+        if (idx < list.length - 1) {
           setLoaded(false);
-          e.currentTarget.src = fallbackSrc;
+          setIdx(idx + 1);
         }
       }}
       className={`${className} transition-opacity duration-300 ${
@@ -426,8 +457,7 @@ function SavedList({
             </div>
             {(
               <FadeImg
-                src={imageFor(item)}
-                fallbackSrc={fallbackFor(item.category, item.id)}
+                item={item}
                 className="size-20 shrink-0 rounded-lg object-cover"
               />
             )}
@@ -635,8 +665,7 @@ function Index() {
                 >
                   {true ? (
                     <FadeImg
-                      src={imageFor(a)}
-                      fallbackSrc={fallbackFor(a.category, a.id)}
+                      item={a}
                       alt={a.title}
                       eager={i === 0}
                       className="absolute inset-0 w-full h-full object-cover object-top"

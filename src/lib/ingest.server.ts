@@ -4,30 +4,71 @@ import { generateTitles, GatewayError } from "./title-generation.server";
 const BATCH = 20; // títulos por chamada de IA
 const MAX_BATCHES = 3; // limite por execução
 
-// Procura uma imagem HD (≥1000px) num banco de imagens livre a partir do termo em inglês.
+type Hit = { url: string; width?: number };
+const pickRandom = (arr: Hit[], used: Set<string>) => {
+  const ok = arr.filter((r) => (r.width ?? 0) >= 1000 && /^https:\/\//.test(r.url) && !used.has(r.url));
+  const pick = ok[Math.floor(Math.random() * ok.length)]?.url ?? null;
+  if (pick) used.add(pick);
+  return pick;
+};
+
+// Unsplash (fotografias reais) — só se existir chave.
+async function fromUnsplash(term: string, used: Set<string>) {
+  const key = process.env["UNSPLASH_ACCESS_KEY"];
+  if (!key) return null;
+  const page = 1 + Math.floor(Math.random() * 3);
+  const res = await fetch(
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(term)}&orientation=portrait&per_page=20&page=${page}&content_filter=high`,
+    { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(8000) },
+  );
+  if (!res.ok) return null;
+  const d = (await res.json()) as { results?: { width: number; urls: { raw: string } }[] };
+  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=75&auto=format&fit=crop`, width: r.width })), used);
+}
+
+// Pexels (fotografias reais) — só se existir chave.
+async function fromPexels(term: string, used: Set<string>) {
+  const key = process.env["PEXELS_API_KEY"];
+  if (!key) return null;
+  const page = 1 + Math.floor(Math.random() * 3);
+  const res = await fetch(
+    `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=portrait&per_page=20&page=${page}`,
+    { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) },
+  );
+  if (!res.ok) return null;
+  const d = (await res.json()) as { photos?: { width: number; src: { large2x: string } }[] };
+  return pickRandom((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width })), used);
+}
+
+// Openverse / Wikimedia Commons (fotografias reais, sem conta). Página aleatória
+// + escolha aleatória para notícias do mesmo tema receberem fotos diferentes.
+async function fromOpenverse(term: string, used: Set<string>) {
+  const page = 1 + Math.floor(Math.random() * 3);
+  const res = await fetch(
+    `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&category=photograph&page_size=20&page=${page}&mature=false`,
+    { headers: { "User-Agent": "AoMinuto/1.0" }, signal: AbortSignal.timeout(8000) },
+  );
+  if (!res.ok) return null;
+  const d = (await res.json()) as { results?: Hit[] };
+  return pickRandom(d.results ?? [], used);
+}
+
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
   if (!term) return null;
-  try {
-    const res = await fetch(
-      `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&page_size=20&mature=false`,
-      { headers: { "User-Agent": "AoMinuto/1.0" }, signal: AbortSignal.timeout(8000) },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { results?: { url: string; width?: number }[] };
-    const ok = (data.results ?? []).filter(
-      (r) => (r.width ?? 0) >= 1000 && /^https:\/\//.test(r.url) && !used.has(r.url),
-    );
-    const pick = ok[0]?.url ?? null;
-    if (pick) used.add(pick);
-    return pick;
-  } catch {
-    return null;
+  for (const fn of [fromUnsplash, fromPexels, fromOpenverse]) {
+    try {
+      const img = await fn(term, used);
+      if (img) return img;
+    } catch {
+      /* tenta a fonte seguinte */
+    }
   }
+  return null;
 }
 
 const CATEGORY_EN: Record<string, string> = {
-  Política: "parliament politics", Economia: "stock market finance", Desporto: "football stadium",
-  Mundo: "world city", Cultura: "concert culture", Tech: "technology",
+  Política: "parliament building", Economia: "euro banknotes coins", Desporto: "football stadium",
+  Mundo: "city skyline", Cultura: "concert crowd", Tech: "laptop computer",
 };
 
 async function findHdImageAny(term: string, category: string, used: Set<string>) {

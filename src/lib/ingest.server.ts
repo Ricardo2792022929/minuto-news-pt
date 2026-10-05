@@ -23,7 +23,7 @@ async function fromUnsplash(term: string, used: Set<string>) {
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: { width: number; urls: { raw: string } }[] };
-  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=75&auto=format&fit=crop`, width: r.width })), used);
+  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=80&fit=crop`, width: r.width })), used);
 }
 
 // Pexels (fotografias reais) — só se existir chave.

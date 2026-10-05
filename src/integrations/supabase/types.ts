@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      articles: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          image: string | null
+          original_title: string
+          published_at: string
+          relevance: number
+          source: string
+          titulo_inedito: string
+          url: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id: string
+          image?: string | null
+          original_title: string
+          published_at: string
+          relevance?: number
+          source: string
+          titulo_inedito: string
+          url: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          image?: string | null
+          original_title?: string
+          published_at?: string
+          relevance?: number
+          source?: string
+          titulo_inedito?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      ingest_state: {
+        Row: {
+          id: number
+          locked_until: string | null
+          paused_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          locked_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          locked_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

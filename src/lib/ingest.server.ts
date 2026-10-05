@@ -25,6 +25,21 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
   }
 }
 
+const CATEGORY_EN: Record<string, string> = {
+  Política: "parliament politics", Economia: "stock market finance", Desporto: "football stadium",
+  Mundo: "world city", Cultura: "concert culture", Tech: "technology",
+};
+
+async function findHdImageAny(term: string, category: string, used: Set<string>) {
+  const words = term.split(/\s+/).filter(Boolean);
+  const tries = [term, words.slice(-1)[0] ?? "", CATEGORY_EN[category] ?? "news"];
+  for (const t of tries) {
+    const img = await findHdImage(t, used);
+    if (img) return img;
+  }
+  return null;
+}
+
 export async function runIngest(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
 
@@ -66,7 +81,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         let image_query: string | null = null;
         if (!image) {
           image_query = g.termo;
-          image = await findHdImage(g.termo, used);
+          image = await findHdImageAny(g.termo, n.category, used);
         }
         rows.push({
           id: n.id,
@@ -86,6 +101,13 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (error) throw error;
         inserted += rows.length;
       }
+    }
+
+    // reprocessa notícias que ficaram sem foto (limitado)
+    const { data: missing } = await db.from("articles").select("id,image_query,category").is("image", null).limit(20);
+    for (const m of missing ?? []) {
+      const img = await findHdImageAny(m.image_query ?? "", m.category, used);
+      if (img) await db.from("articles").update({ image: img }).eq("id", m.id);
     }
 
     await db.from("articles").delete().lt("published_at", new Date(Date.now() - 96 * 3600_000).toISOString());

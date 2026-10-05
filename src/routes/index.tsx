@@ -425,15 +425,9 @@ function SavedList({
               </p>
             </div>
             {(
-              <img
+              <FadeImg
                 src={imageFor(item)}
-                onError={(e) => {
-                  const f = fallbackFor(item.category, item.id);
-                  if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
-                }}
-                alt=""
-                referrerPolicy="no-referrer"
-                loading="lazy"
+                fallbackSrc={fallbackFor(item.category, item.id)}
                 className="size-20 shrink-0 rounded-lg object-cover"
               />
             )}

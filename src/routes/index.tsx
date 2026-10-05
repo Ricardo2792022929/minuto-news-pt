@@ -634,17 +634,11 @@ function Index() {
                   className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden"
                 >
                   {true ? (
-                    <img
+                    <FadeImg
                       src={imageFor(a)}
+                      fallbackSrc={fallbackFor(a.category, a.id)}
                       alt={a.title}
-                      width={1024}
-                      height={1024}
-                      loading={i === 0 ? "eager" : "lazy"}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const f = fallbackFor(a.category, a.id);
-                        if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
-                      }}
+                      eager={i === 0}
                       className="absolute inset-0 w-full h-full object-cover object-top"
                     />
                   ) : (

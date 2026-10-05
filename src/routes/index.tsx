@@ -188,7 +188,7 @@ type Category = (typeof CATEGORIES)[number];
 const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 function greeting(): string {
   const h = new Date().getHours();

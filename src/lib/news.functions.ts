@@ -31,27 +31,21 @@ export const getNews = createServerFn({ method: "GET" })
       },
     });
 
+    // Mais recentes primeiro, paginado na base de dados.
     let q = db
       .from("articles")
-      .select("id,source,category,url,image,titulo_inedito,relevance,published_at")
-      .gte("published_at", new Date(Date.now() - 72 * 3600_000).toISOString())
-      .order("relevance", { ascending: false })
-      .limit(600);
+      .select("id,source,category,url,image,titulo_inedito,published_at", { count: "exact" })
+      .order("published_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(data.offset, data.offset + data.limit - 1);
     if (data.category) q = q.eq("category", data.category);
-    const { data: rows, error } = await q;
+    const { data: rows, error, count } = await q;
     if (error) {
       console.error(error);
       return { items: [], total: 0, hasMore: false };
     }
-
-    const interests = data.interests ?? [];
-    const BONUS = 4 * 3600_000;
-    const sorted = [...(rows ?? [])].sort(
-      (a, b) =>
-        b.relevance + (interests.includes(b.category) ? BONUS : 0) -
-        (a.relevance + (interests.includes(a.category) ? BONUS : 0)),
-    );
-    const items: NewsItem[] = sorted.slice(data.offset, data.offset + data.limit).map((r) => ({
+    const total = count ?? 0;
+    const items: NewsItem[] = (rows ?? []).map((r) => ({
       id: r.id,
       source: r.source,
       category: r.category,
@@ -61,7 +55,7 @@ export const getNews = createServerFn({ method: "GET" })
       publishedAt: r.published_at,
       ...(r.image ? { image: r.image } : {}),
     }));
-    return { items, total: sorted.length, hasMore: data.offset + data.limit < sorted.length };
+    return { items, total, hasMore: data.offset + data.limit < total };
   });
 
 export type GetNewsResult = {

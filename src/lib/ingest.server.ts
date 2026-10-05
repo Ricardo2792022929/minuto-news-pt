@@ -151,7 +151,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       if (img) await db.from("articles").update({ image: img }).eq("id", m.id);
     }
 
-    await db.from("articles").delete().lt("published_at", new Date(Date.now() - 96 * 3600_000).toISOString());
+    // histórico mantido: nunca apagamos notícias antigas
     return { inserted, pending: pending.length };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {

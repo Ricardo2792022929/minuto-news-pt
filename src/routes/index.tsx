@@ -542,7 +542,6 @@ function Index() {
     [articles],
   );
 
-  const isLoading = query.isLoading;
   const isError = query.isError;
 
   if (!mounted) {

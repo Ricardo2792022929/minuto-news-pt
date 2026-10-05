@@ -223,7 +223,7 @@ function timeAgo(iso: string): string {
     0,
     Math.round((Date.now() - new Date(iso).getTime()) / 60000),
   );
-  if (mins < 1) return "Agora";
+  if (mins < 1) return "Agora mesmo";
   if (mins < 60) return `Há ${mins} min`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `Há ${hours} h`;

@@ -597,7 +597,7 @@ function Index() {
                         const f = fallbackFor(a.category, a.id);
                         if (!e.currentTarget.src.endsWith(f)) e.currentTarget.src = f;
                       }}
-                      className="absolute inset-0 size-full object-cover object-center"
+                      className="absolute inset-0 w-full h-full object-cover object-top"
                     />
                   ) : (
                     <div

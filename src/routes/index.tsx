@@ -457,8 +457,7 @@ function SavedList({
             </div>
             {(
               <FadeImg
-                src={imageFor(item)}
-                fallbackSrc={fallbackFor(item.category, item.id)}
+                item={item}
                 className="size-20 shrink-0 rounded-lg object-cover"
               />
             )}
@@ -666,8 +665,7 @@ function Index() {
                 >
                   {true ? (
                     <FadeImg
-                      src={imageFor(a)}
-                      fallbackSrc={fallbackFor(a.category, a.id)}
+                      item={a}
                       alt={a.title}
                       eager={i === 0}
                       className="absolute inset-0 w-full h-full object-cover object-top"

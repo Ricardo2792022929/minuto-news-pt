@@ -137,6 +137,8 @@
 :root {
   --feed-bg: oklch(0.14 0.02 60);
   --feed-fg: oklch(0.98 0.005 90);
+  --image-placeholder: oklch(0.25 0.01 60 / 0.8);
+  --image-shimmer: oklch(0.42 0.01 60 / 0.55);
 }
 
 @theme inline {
@@ -168,4 +170,28 @@
     oklch(0.3 0.06 250),
     oklch(0.15 0.03 260)
   );
+}
+
+@keyframes image-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@utility image-shimmer {
+  background: linear-gradient(110deg, var(--image-placeholder) 25%, var(--image-shimmer) 45%, var(--image-placeholder) 65%);
+  background-size: 200% 100%;
+  animation: image-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes photo-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@utility animate-photo-in {
+  animation: photo-in 300ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-shimmer, .animate-photo-in { animation: none; }
 }

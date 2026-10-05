@@ -24,12 +24,10 @@ export const getNews = createServerFn({ method: "GET" })
     // recebem um "empurrão" de 6 horas, mantendo a ordem cronológica.
     const interests = data.interests ?? [];
     if (interests.length) {
-      const BONUS = 6 * 3600_000;
-      const score = (iso: string, cat: string) =>
-        new Date(iso).getTime() + (interests.includes(cat) ? BONUS : 0);
-      filtered = [...filtered].sort(
-        (a, b) => score(b.publishedAt, b.category) - score(a.publishedAt, a.category),
-      );
+      const BONUS = 4 * 3600_000;
+      const score = (a: (typeof filtered)[number]) =>
+        relevanceScore(a) + (interests.includes(a.category) ? BONUS : 0);
+      filtered = [...filtered].sort((a, b) => score(b) - score(a));
     }
 
     const items = filtered.slice(data.offset, data.offset + data.limit);

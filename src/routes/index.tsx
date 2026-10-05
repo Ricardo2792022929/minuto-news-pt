@@ -5,17 +5,28 @@ import imgDesporto from "@/assets/desporto-estadio.jpg";
 import imgMundo from "@/assets/mundo-cimeira.jpg";
 import imgCultura from "@/assets/cultura-sintra.jpg";
 import imgCalor from "@/assets/mundo-calor.jpg";
+import imgBolsa from "@/assets/economia-bolsa.jpg";
+import imgDesportoNoite from "@/assets/desporto-noite.jpg";
+import imgConcerto from "@/assets/cultura-concerto.jpg";
+import imgCidade from "@/assets/mundo-cidade.jpg";
 
-const CATEGORY_IMG: Record<string, string> = {
-  Política: imgPolitica, Economia: imgEconomia, Desporto: imgDesporto,
-  Mundo: imgMundo, Cultura: imgCultura, Tech: imgCalor,
-};
 // Conjunto variado por categoria: notícias sem foto recebem imagens diferentes
-// entre si (escolhidas pelo id da notícia), começando pela imagem do tema.
-const ALL_IMGS = [imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor];
+// entre si (escolhidas pelo id da notícia), começando pelas imagens do tema.
+const CATEGORY_POOL: Record<string, string[]> = {
+  Política: [imgPolitica, imgCidade],
+  Economia: [imgEconomia, imgBolsa],
+  Desporto: [imgDesporto, imgDesportoNoite],
+  Mundo: [imgMundo, imgCidade, imgCalor],
+  Cultura: [imgCultura, imgConcerto],
+  Tech: [imgCalor, imgBolsa],
+};
+const ALL_IMGS = [
+  imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor,
+  imgBolsa, imgDesportoNoite, imgConcerto, imgCidade,
+];
 const poolFor = (category: string) => {
-  const first = CATEGORY_IMG[category] ?? imgMundo;
-  return [first, ...ALL_IMGS.filter((i) => i !== first)];
+  const themed = CATEGORY_POOL[category] ?? [imgMundo];
+  return [...themed, ...ALL_IMGS.filter((i) => !themed.includes(i))];
 };
 const hashId = (id: string) => {
   let h = 0;
@@ -25,11 +36,11 @@ const hashId = (id: string) => {
 const imageFor = (n: { id?: string; image?: string; category?: string }) => {
   if (n.image) return n.image;
   const pool = poolFor(n.category ?? "Mundo");
-  return pool[hashId(n.id ?? "") % pool.length];
+  return pool[hashId(n.id ?? "") % pool.length] ?? imgMundo;
 };
 const fallbackFor = (category?: string, id = "") => {
   const pool = poolFor(category ?? "Mundo");
-  return pool[hashId(id) % pool.length];
+  return pool[hashId(id) % pool.length] ?? imgMundo;
 };
 import {
   useCallback,
@@ -351,12 +362,9 @@ function SavedList({
               <div className="text-[10px] font-bold uppercase tracking-widest text-live">
                 {item.source} · {item.category}
               </div>
-              <h3 className="mt-1 font-display text-lg font-bold leading-snug text-balance">
+              <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
                 {item.title}
               </h3>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                {item.excerpt}
-              </p>
               <p className="mt-2 text-[11px] font-medium text-muted-foreground">
                 {timeAgo(item.publishedAt)} ·{" "}
                 {formatClock(new Date(item.publishedAt))}
@@ -653,15 +661,10 @@ function Index() {
                       <span className="text-feed-fg/60">·</span>
                       <span className="text-feed-fg/80">{a.category}</span>
                     </div>
-                    <h2 className="mt-1.5 font-display text-2xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
+                    <h2 className="mt-2 font-display text-3xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
                       {a.title}
                     </h2>
-                    {a.excerpt && (
-                      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-feed-fg/85 text-pretty">
-                        {a.excerpt}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs font-medium text-feed-fg/70">
+                    <p className="mt-3 text-xs font-medium text-feed-fg/70">
                       <span className="font-bold text-live">
                         {timeAgo(a.publishedAt)}
                       </span>{" "}

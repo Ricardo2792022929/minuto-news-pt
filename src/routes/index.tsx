@@ -58,7 +58,8 @@ const candidatesFor = (n: ImgItem) => {
   const themed = REAL_POOL[key] ?? REAL_POOL["Mundo"] ?? [];
   const h = hashId(n.id ?? "");
   const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length] as string);
-  const rest = ALL_REAL.filter((u) => !themed.includes(u));
+  // Desporto nunca recorre a outros temas (sem mapas/cidades)
+  const rest = key === "Desporto" ? [] : ALL_REAL.filter((u) => !themed.includes(u));
   return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest)];
 };
 // Tamanho otimizado para telemóvel (~800-960px, comprimido).

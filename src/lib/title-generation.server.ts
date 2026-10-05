@@ -7,7 +7,7 @@ const MODEL = "openai/gpt-6-astra";
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1";
 
 const schema = z.object({
-  titulos: z.array(z.object({ id: z.string(), titulo: z.string(), termo_pesquisa_imagem: z.string() })),
+  titulos: z.array(z.object({ id: z.string(), titulo: z.string(), termo_pesquisa_imagem: z.string(), entidade_wikipedia: z.string() })),
 });
 
 const SYSTEM = `És um editor de títulos de notícias em português de Portugal. Para cada notícia recebida, escreve um título novo, curto e cativante.
@@ -23,6 +23,10 @@ Exemplo incorreto: "Crise política em Espanha: Pedro Sánchez dissolve parlamen
 Exemplo correto: "Pedro Sánchez anuncia eleições antecipadas em Espanha"
 
 Para cada notícia, gera também "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS com termos VISUAIS CONCRETOS que se possam fotografar (objetos, locais, pessoas conhecidas, veículos), nunca conceitos abstratos. Exemplos: notícia da GNR/PSP → "police car Portugal" ou "police car lights"; futebol → "football stadium"; incêndio → "wildfire firefighters"; inflação/preços → "supermarket prices"; parlamento → "Portuguese parliament"; hospital/SNS → "hospital emergency"; pessoa famosa → o nome dela ("Cristiano Ronaldo").
+
+O "termo_pesquisa_imagem", quando a notícia é sobre uma pessoa, deve ser NOME + PROFISSÃO em inglês, sem acentos (ex.: "Goncalo Ramos football player", "Luis Montenegro politician"), nunca "news".
+
+Gera também "entidade_wikipedia": se a notícia for sobre uma pessoa famosa, jogador, político, clube ou entidade (ex.: GNR, Benfica), escreve o título EXATO da página na Wikipedia em INGLÊS (ex.: "Gonçalo Ramos", "Cristiano Ronaldo", "Luís Montenegro", "Guarda Nacional Republicana", "S.L. Benfica"). Caso contrário, devolve "".
 
 Devolve um item por cada id recebido, mantendo o id exato.`;
 
@@ -47,7 +51,7 @@ export class GatewayError extends Error {
 
 export async function generateTitles(
   items: { id: string; title: string; excerpt: string }[],
-): Promise<Map<string, { titulo: string; termo: string }>> {
+): Promise<Map<string, { titulo: string; termo: string; entidade: string }>> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new GatewayError("LOVABLE_API_KEY em falta", 401);
 
@@ -86,10 +90,10 @@ export async function generateTitles(
 
   try {
     const out = await result.output;
-    const map = new Map<string, { titulo: string; termo: string }>();
+    const map = new Map<string, { titulo: string; termo: string; entidade: string }>();
     for (const t of out.titulos) {
       const clean = cleanTitle(t.titulo);
-      if (clean) map.set(t.id, { titulo: clean, termo: t.termo_pesquisa_imagem.trim().slice(0, 60) });
+      if (clean) map.set(t.id, { titulo: clean, termo: t.termo_pesquisa_imagem.trim().slice(0, 60), entidade: t.entidade_wikipedia.trim().slice(0, 80) });
     }
     return map;
   } catch (error) {

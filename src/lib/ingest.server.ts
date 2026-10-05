@@ -4,9 +4,10 @@ import { generateTitles, GatewayError } from "./title-generation.server";
 const BATCH = 20; // títulos por chamada de IA
 const MAX_BATCHES = 3; // limite por execução
 
-type Hit = { url: string; width?: number };
+type Hit = { url: string; width?: number; text?: string };
+const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
 const pickRandom = (arr: Hit[], used: Set<string>) => {
-  const ok = arr.filter((r) => (r.width ?? 0) >= 1000 && /^https:\/\//.test(r.url) && !used.has(r.url));
+  const ok = arr.filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url));
   const pick = ok[Math.floor(Math.random() * ok.length)]?.url ?? null;
   if (pick) used.add(pick);
   return pick;
@@ -22,8 +23,8 @@ async function fromUnsplash(term: string, used: Set<string>) {
     { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
-  const d = (await res.json()) as { results?: { width: number; urls: { raw: string } }[] };
-  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=80&fit=crop`, width: r.width })), used);
+  const d = (await res.json()) as { results?: { width: number; alt_description?: string; description?: string; urls: { raw: string } }[] };
+  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=80&fit=crop`, width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` })), used);
 }
 
 // Pexels (fotografias reais) — só se existir chave.
@@ -36,8 +37,8 @@ async function fromPexels(term: string, used: Set<string>) {
     { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
-  const d = (await res.json()) as { photos?: { width: number; src: { large2x: string } }[] };
-  return pickRandom((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width })), used);
+  const d = (await res.json()) as { photos?: { width: number; alt?: string; src: { large2x: string } }[] };
+  return pickRandom((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width, text: p.alt })), used);
 }
 
 // Openverse / Wikimedia Commons (fotografias reais, sem conta). Página aleatória
@@ -49,8 +50,31 @@ async function fromOpenverse(term: string, used: Set<string>) {
     { headers: { "User-Agent": "AoMinuto/1.0" }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
-  const d = (await res.json()) as { results?: Hit[] };
-  return pickRandom(d.results ?? [], used);
+  const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
+  return pickRandom((d.results ?? []).map((r) => ({ ...r, text: r.title })), used);
+}
+
+// Wikipedia: foto oficial de figuras públicas / entidades.
+async function fromWikipedia(entity: string): Promise<string | null> {
+  if (!entity) return null;
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entity.trim().replace(/\s+/g, "_"))}?redirect=true`,
+      { headers: { "User-Agent": "AoMinuto/1.0 (news app)" }, signal: AbortSignal.timeout(5000) },
+    );
+    if (!res.ok) return null;
+    const d = (await res.json()) as {
+      type?: string;
+      originalimage?: { source: string; width: number };
+      thumbnail?: { source: string; width: number };
+    };
+    if (d.type === "disambiguation") return null;
+    const img = d.originalimage ?? d.thumbnail;
+    if (!img || img.width < 500 || !/^https:\/\//.test(img.source) || /\.svg/i.test(img.source) || MAP_RE.test(img.source)) return null;
+    return img.source;
+  } catch {
+    return null;
+  }
 }
 
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
@@ -73,7 +97,9 @@ const CATEGORY_EN: Record<string, string> = {
 
 async function findHdImageAny(term: string, category: string, used: Set<string>) {
   const words = term.split(/\s+/).filter(Boolean);
-  const tries = [term, words.slice(-1)[0] ?? "", CATEGORY_EN[category] ?? "news"];
+  const tries = category === "Desporto"
+    ? [term, "football stadium", "football pitch grass"]
+    : [term, words.slice(-1)[0] ?? "", CATEGORY_EN[category] ?? "news"];
   for (const t of tries) {
     const img = await findHdImage(t, used);
     if (img) return img;
@@ -132,7 +158,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         let image_query: string | null = null;
         if (!image) {
           image_query = g.termo;
-          image = await findHdImageAny(g.termo, n.category, used);
+          image = (await fromWikipedia(g.entidade)) ?? (await findHdImageAny(g.termo, n.category, used));
         }
         rows.push({
           id: n.id,

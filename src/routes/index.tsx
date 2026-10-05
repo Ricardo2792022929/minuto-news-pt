@@ -10,10 +10,6 @@ import imgDesportoNoite from "@/assets/desporto-noite.jpg";
 import imgConcerto from "@/assets/cultura-concerto.jpg";
 import imgCidade from "@/assets/mundo-cidade.jpg";
 
-const CATEGORY_IMG: Record<string, string> = {
-  Política: imgPolitica, Economia: imgEconomia, Desporto: imgDesporto,
-  Mundo: imgMundo, Cultura: imgCultura, Tech: imgCalor,
-};
 // Conjunto variado por categoria: notícias sem foto recebem imagens diferentes
 // entre si (escolhidas pelo id da notícia), começando pelas imagens do tema.
 const CATEGORY_POOL: Record<string, string[]> = {
@@ -665,15 +661,10 @@ function Index() {
                       <span className="text-feed-fg/60">·</span>
                       <span className="text-feed-fg/80">{a.category}</span>
                     </div>
-                    <h2 className="mt-1.5 font-display text-2xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
+                    <h2 className="mt-2 font-display text-3xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
                       {a.title}
                     </h2>
-                    {a.excerpt && (
-                      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-feed-fg/85 text-pretty">
-                        {a.excerpt}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs font-medium text-feed-fg/70">
+                    <p className="mt-3 text-xs font-medium text-feed-fg/70">
                       <span className="font-bold text-live">
                         {timeAgo(a.publishedAt)}
                       </span>{" "}

@@ -4,7 +4,7 @@ import { generateTitles, GatewayError } from "./title-generation.server";
 const BATCH = 20; // títulos por chamada de IA
 const MAX_BATCHES = 3; // limite por execução
 
-type Hit = { url: string; width?: number; text?: string };
+type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
 const pickRandom = (arr: Hit[], used: Set<string>) => {
   const ok = arr.filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url));

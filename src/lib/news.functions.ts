@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { getAllNews, relevanceScore } from "./news.server";
+import type { NewsItem } from "./news.types";
 
+// Lê apenas notícias já pré-processadas (com título final pronto) da base de dados.
 export const getNews = createServerFn({ method: "GET" })
   .validator(
     (data) =>
@@ -14,32 +16,56 @@ export const getNews = createServerFn({ method: "GET" })
         })
         .parse(data ?? {}),
   )
-  .handler(async ({ data }) => {
-    const all = await getAllNews();
-    let filtered = data.category
-      ? all.filter((a) => a.category === data.category)
-      : all;
+  .handler(async ({ data }): Promise<GetNewsResult> => {
+    const url = process.env["SUPABASE_URL"]!;
+    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+    const db = createClient(url, key, {
+      auth: { persistSession: false },
+      global: {
+        fetch: (input, init) => {
+          const h = new Headers(init?.headers);
+          if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+          h.set("apikey", key);
+          return fetch(input, { ...init, headers: h });
+        },
+      },
+    });
 
-    // Notícias variadas mas centradas nos gostos: categorias preferidas
-    // recebem um "empurrão" de 6 horas, mantendo a ordem cronológica.
-    const interests = data.interests ?? [];
-    if (interests.length) {
-      const BONUS = 4 * 3600_000;
-      const score = (a: (typeof filtered)[number]) =>
-        relevanceScore(a) + (interests.includes(a.category) ? BONUS : 0);
-      filtered = [...filtered].sort((a, b) => score(b) - score(a));
+    let q = db
+      .from("articles")
+      .select("id,source,category,url,image,titulo_inedito,relevance,published_at")
+      .gte("published_at", new Date(Date.now() - 72 * 3600_000).toISOString())
+      .order("relevance", { ascending: false })
+      .limit(600);
+    if (data.category) q = q.eq("category", data.category);
+    const { data: rows, error } = await q;
+    if (error) {
+      console.error(error);
+      return { items: [], total: 0, hasMore: false };
     }
 
-    const items = filtered.slice(data.offset, data.offset + data.limit);
-    return {
-      items,
-      total: filtered.length,
-      hasMore: data.offset + data.limit < filtered.length,
-    };
+    const interests = data.interests ?? [];
+    const BONUS = 4 * 3600_000;
+    const sorted = [...(rows ?? [])].sort(
+      (a, b) =>
+        b.relevance + (interests.includes(b.category) ? BONUS : 0) -
+        (a.relevance + (interests.includes(a.category) ? BONUS : 0)),
+    );
+    const items: NewsItem[] = sorted.slice(data.offset, data.offset + data.limit).map((r) => ({
+      id: r.id,
+      source: r.source,
+      category: r.category,
+      title: r.titulo_inedito,
+      excerpt: "",
+      url: r.url,
+      publishedAt: r.published_at,
+      ...(r.image ? { image: r.image } : {}),
+    }));
+    return { items, total: sorted.length, hasMore: data.offset + data.limit < sorted.length };
   });
 
 export type GetNewsResult = {
-  items: import("./news.types").NewsItem[];
+  items: NewsItem[];
   total: number;
   hasMore: boolean;
 };

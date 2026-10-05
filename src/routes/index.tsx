@@ -542,7 +542,6 @@ function Index() {
     [articles],
   );
 
-  const isLoading = query.isLoading;
   const isError = query.isError;
 
   if (!mounted) {
@@ -681,16 +680,6 @@ function Index() {
               );
             })}
 
-            {isLoading && !articles.length && (
-              <div className="flex h-[100dvh] w-full snap-start items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-feed-fg/70">
-                  <Loader2 className="size-8 animate-spin" />
-                  <span className="text-sm font-medium">
-                    A carregar notícias…
-                  </span>
-                </div>
-              </div>
-            )}
 
             {isError && !articles.length && (
               <div className="flex h-[100dvh] w-full snap-start items-center justify-center px-8 text-center">

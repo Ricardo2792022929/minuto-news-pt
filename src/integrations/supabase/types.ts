@@ -55,18 +55,21 @@ export type Database = {
       }
       ingest_state: {
         Row: {
+          cron_token: string | null
           id: number
           locked_until: string | null
           paused_reason: string | null
           updated_at: string
         }
         Insert: {
+          cron_token?: string | null
           id?: number
           locked_until?: string | null
           paused_reason?: string | null
           updated_at?: string
         }
         Update: {
+          cron_token?: string | null
           id?: number
           locked_until?: string | null
           paused_reason?: string | null

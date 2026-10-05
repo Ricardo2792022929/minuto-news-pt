@@ -7,7 +7,7 @@ const MODEL = "openai/gpt-6-astra";
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1";
 
 const schema = z.object({
-  titulos: z.array(z.object({ id: z.string(), titulo: z.string() })),
+  titulos: z.array(z.object({ id: z.string(), titulo: z.string(), termo_pesquisa_imagem: z.string() })),
 });
 
 const SYSTEM = `És um editor de títulos de notícias em português de Portugal. Para cada notícia recebida, escreve um título novo, curto e cativante.
@@ -22,7 +22,9 @@ REGRAS OBRIGATÓRIAS:
 Exemplo incorreto: "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"
 Exemplo correto: "Pedro Sánchez anuncia eleições antecipadas em Espanha"
 
-Devolve um título por cada id recebido, mantendo o id exato.`;
+Para cada notícia, gera também "termo_pesquisa_imagem": 1 a 3 palavras em INGLÊS para procurar uma foto representativa (pessoa, local ou tema concreto, ex.: "Lionel Messi", "Lisbon parliament", "wildfire").
+
+Devolve um item por cada id recebido, mantendo o id exato.`;
 
 const PREFIX = /^\s*(urgente|aten[cç][aã]o|[uú]ltima hora|breaking|exclusivo|direto|v[ií]deo)\s*[:\-–—]\s*/i;
 
@@ -45,7 +47,7 @@ export class GatewayError extends Error {
 
 export async function generateTitles(
   items: { id: string; title: string; excerpt: string }[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, { titulo: string; termo: string }>> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new GatewayError("LOVABLE_API_KEY em falta", 401);
 
@@ -84,10 +86,10 @@ export async function generateTitles(
 
   try {
     const out = await result.output;
-    const map = new Map<string, string>();
+    const map = new Map<string, { titulo: string; termo: string }>();
     for (const t of out.titulos) {
       const clean = cleanTitle(t.titulo);
-      if (clean) map.set(t.id, clean);
+      if (clean) map.set(t.id, { titulo: clean, termo: t.termo_pesquisa_imagem.trim().slice(0, 60) });
     }
     return map;
   } catch (error) {

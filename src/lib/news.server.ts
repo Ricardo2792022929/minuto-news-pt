@@ -120,25 +120,18 @@ function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
   }
 }
 
-// Converte URLs de miniatura em versões de alta resolução quando possível
-function upscaleImage(url: string): string {
-  let u = url.trim();
-  // WordPress: foto-300x200.jpg -> foto.jpg
-  u = u.replace(/-\d{2,4}x\d{2,4}(\.(?:jpe?g|png|webp))(\?|$)/i, "$1$2");
-  // Parâmetros de redimensionamento comuns
-  u = u.replace(/([?&](?:w|width|resize|h|height)=)\d{2,3}(?=&|$)/gi, (_m, p) =>
-    /h|height/i.test(p) ? `${p}900` : `${p}1200`,
-  );
-  // RTP / outros: _thumb, _small, /thumb/
-  u = u.replace(/_(?:thumb|small|s|mini)(\.(?:jpe?g|png|webp))/i, "$1");
-  return u;
+// Deteta miniaturas / imagens de baixa resolução pelo URL
+export function isLowResImage(url: string): boolean {
+  return /thumb|small|mini|150x150|300x|[-_x]\d{2,3}x\d{2,3}(?!\d)|[?&](w|width|h|height)=\d{1,3}(&|$)/i.test(url);
 }
 
 function extractImage(item: any): string | undefined {
   const candidates: { url: string; w: number; prio: number }[] = [];
   const add = (url: unknown, w: unknown, prio: number) => {
     if (typeof url !== "string" || !url) return;
-    candidates.push({ url, w: Number(w) || 0, prio });
+    const width = Number(w) || 0;
+    if (width && width < 600) return; // largura conhecida e baixa → descarta
+    candidates.push({ url, w: width, prio });
   };
   const media = [
     ...arrayify(item["media:content"]),
@@ -157,11 +150,11 @@ function extractImage(item: any): string | undefined {
   }
   for (const t of arrayify(item["media:thumbnail"])) add(t?.["@_url"], t?.["@_width"], 1);
 
-  // Preferir largura > 600px; senão, enclosure/media:content (originais); depois o resto
-  const big = candidates.filter((c) => c.w > 600).sort((a, b) => b.w - a.w)[0];
-  const best = big ?? candidates.sort((a, b) => b.prio - a.prio || b.w - a.w)[0];
-  const raw = best?.url ?? firstImg(item["content:encoded"]) ?? firstImg(item["description"]);
-  return raw ? upscaleImage(raw) : undefined;
+  const sorted = candidates.sort((a, b) => b.w - a.w || b.prio - a.prio);
+  const raw =
+    sorted[0]?.url ?? firstImg(item["content:encoded"]) ?? firstImg(item["description"]);
+  if (!raw || isLowResImage(raw)) return undefined; // baixa resolução → sem imagem
+  return raw.trim();
 }
 
 // ---------- Relevância ----------

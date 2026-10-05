@@ -5,17 +5,32 @@ import imgDesporto from "@/assets/desporto-estadio.jpg";
 import imgMundo from "@/assets/mundo-cimeira.jpg";
 import imgCultura from "@/assets/cultura-sintra.jpg";
 import imgCalor from "@/assets/mundo-calor.jpg";
+import imgBolsa from "@/assets/economia-bolsa.jpg";
+import imgDesportoNoite from "@/assets/desporto-noite.jpg";
+import imgConcerto from "@/assets/cultura-concerto.jpg";
+import imgCidade from "@/assets/mundo-cidade.jpg";
 
 const CATEGORY_IMG: Record<string, string> = {
   Política: imgPolitica, Economia: imgEconomia, Desporto: imgDesporto,
   Mundo: imgMundo, Cultura: imgCultura, Tech: imgCalor,
 };
 // Conjunto variado por categoria: notícias sem foto recebem imagens diferentes
-// entre si (escolhidas pelo id da notícia), começando pela imagem do tema.
-const ALL_IMGS = [imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor];
+// entre si (escolhidas pelo id da notícia), começando pelas imagens do tema.
+const CATEGORY_POOL: Record<string, string[]> = {
+  Política: [imgPolitica, imgCidade],
+  Economia: [imgEconomia, imgBolsa],
+  Desporto: [imgDesporto, imgDesportoNoite],
+  Mundo: [imgMundo, imgCidade, imgCalor],
+  Cultura: [imgCultura, imgConcerto],
+  Tech: [imgCalor, imgBolsa],
+};
+const ALL_IMGS = [
+  imgMundo, imgPolitica, imgEconomia, imgDesporto, imgCultura, imgCalor,
+  imgBolsa, imgDesportoNoite, imgConcerto, imgCidade,
+];
 const poolFor = (category: string) => {
-  const first = CATEGORY_IMG[category] ?? imgMundo;
-  return [first, ...ALL_IMGS.filter((i) => i !== first)];
+  const themed = CATEGORY_POOL[category] ?? [imgMundo];
+  return [...themed, ...ALL_IMGS.filter((i) => !themed.includes(i))];
 };
 const hashId = (id: string) => {
   let h = 0;
@@ -351,12 +366,9 @@ function SavedList({
               <div className="text-[10px] font-bold uppercase tracking-widest text-live">
                 {item.source} · {item.category}
               </div>
-              <h3 className="mt-1 font-display text-lg font-bold leading-snug text-balance">
+              <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
                 {item.title}
               </h3>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                {item.excerpt}
-              </p>
               <p className="mt-2 text-[11px] font-medium text-muted-foreground">
                 {timeAgo(item.publishedAt)} ·{" "}
                 {formatClock(new Date(item.publishedAt))}

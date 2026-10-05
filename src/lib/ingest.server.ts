@@ -206,9 +206,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // reprocessa notícias que ficaram sem foto (limitado)
-    const { data: missing } = await db.from("articles").select("id,image_query,category").is("image", null).limit(20);
+    const { data: missing } = await db.from("articles").select("id,url,image_query,category").is("image", null).limit(20);
     for (const m of missing ?? []) {
-      const img = await findHdImageAny(m.image_query ?? "", m.category, used);
+      const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
       if (img) await db.from("articles").update({ image: img }).eq("id", m.id);
     }
 

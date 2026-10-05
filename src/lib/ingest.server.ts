@@ -171,7 +171,17 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     for (let i = 0; i < pending.length; i += BATCH) {
       const chunk = pending.slice(i, i + BATCH);
-      const gen = await generateTitles(chunk);
+      let gen: Awaited<ReturnType<typeof generateTitles>> | null = null;
+      for (let attempt = 0; attempt < 2 && !gen; attempt++) {
+        try {
+          gen = await generateTitles(chunk);
+        } catch (e) {
+          if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) throw e;
+          console.error(`titulos falharam (tentativa ${attempt + 1})`, e);
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 4000 + Math.random() * 2000));
+        }
+      }
+      if (!gen) continue; // salta este bloco; o próximo ciclo volta a tentar
       const rows = [];
       for (const n of chunk) {
         const g = gen.get(n.id);

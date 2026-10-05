@@ -1,5 +1,6 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
+import { finalImageUrl } from "./image-policy";
 
 const BATCH = 20; // títulos por chamada de IA
 const MAX_BATCHES = 3; // limite por execução
@@ -186,7 +187,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       for (const n of chunk) {
         const g = gen.get(n.id);
         if (!g) continue;
-        let image = n.image ?? null;
+        let image = n.image && !isLowResImage(n.image) ? n.image : null;
         let image_query: string | null = null;
         if (!image) {
           image = await fromArticlePage(n.url);
@@ -200,7 +201,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           source: n.source,
           category: n.category,
           url: n.url,
-          image,
+          image: finalImageUrl(image, n.category, n.title),
           image_query,
           original_title: n.title,
           titulo_inedito: g.titulo,
@@ -216,10 +217,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // reprocessa notícias que ficaram sem foto (limitado)
-    const { data: missing } = await db.from("articles").select("id,url,image_query,category").is("image", null).limit(20);
+    const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").is("image", null).limit(20);
     for (const m of missing ?? []) {
       const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
-      if (img) await db.from("articles").update({ image: img }).eq("id", m.id);
+      await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
     }
 
     // histórico mantido: nunca apagamos notícias antigas

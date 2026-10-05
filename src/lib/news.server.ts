@@ -122,7 +122,7 @@ function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
 
 // Deteta miniaturas / imagens de baixa resolução pelo URL
 export function isLowResImage(url: string): boolean {
-  return /thumb|small|mini|150x150|300x|[-_x]\d{2,3}x\d{2,3}(?!\d)|[?&](w|width|h|height)=\d{1,3}(&|$)/i.test(url);
+  return /emoji|s\.w\.org|\/\d{2,3}x\d{2,3}\/|\/\d{2,3}$|thumb|small|mini|150x150|300x|[-_x]\d{2,3}x\d{2,3}(?!\d)|[?&](w|width|h|height)=\d{1,3}(&|$)/i.test(url);
 }
 
 function extractImage(item: any): string | undefined {

@@ -1,4 +1,4 @@
-import { getAllNews, relevanceScore } from "./news.server";
+import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
 
 const BATCH = 20; // títulos por chamada de IA
@@ -52,6 +52,28 @@ async function fromOpenverse(term: string, used: Set<string>) {
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
   return pickRandom((d.results ?? []).map((r) => ({ ...r, text: r.title })), used);
+}
+
+// Foto original do artigo: lê og:image / twitter:image da página da notícia.
+async function fromArticlePage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AoMinutoFeed/1.0)", "Accept-Language": "pt-PT" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 200_000);
+    const m =
+      html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*content=["']([^"']+)["']/i) ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+    const img = m?.[1]?.replace(/&amp;/g, "&").trim();
+    if (!img) return null;
+    const abs = new URL(img, url).toString().replace(/^http:/, "https:");
+    if (isLowResImage(abs) || /logo|default|placeholder|\.svg/i.test(abs)) return null;
+    return abs;
+  } catch {
+    return null;
+  }
 }
 
 // Wikipedia: foto oficial de figuras públicas / entidades.
@@ -157,6 +179,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         let image = n.image ?? null;
         let image_query: string | null = null;
         if (!image) {
+          image = await fromArticlePage(n.url);
+        }
+        if (!image) {
           image_query = g.termo;
           image = (await fromWikipedia(g.entidade)) ?? (await findHdImageAny(g.termo, n.category, used));
         }
@@ -181,9 +206,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // reprocessa notícias que ficaram sem foto (limitado)
-    const { data: missing } = await db.from("articles").select("id,image_query,category").is("image", null).limit(20);
+    const { data: missing } = await db.from("articles").select("id,url,image_query,category").is("image", null).limit(20);
     for (const m of missing ?? []) {
-      const img = await findHdImageAny(m.image_query ?? "", m.category, used);
+      const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
       if (img) await db.from("articles").update({ image: img }).eq("id", m.id);
     }
 

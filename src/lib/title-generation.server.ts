@@ -24,7 +24,7 @@ Exemplo correto: "Pedro Sánchez anuncia eleições antecipadas em Espanha"
 
 Para cada notícia, gera também "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS com termos VISUAIS CONCRETOS que se possam fotografar (objetos, locais, pessoas conhecidas, veículos), nunca conceitos abstratos. Exemplos: notícia da GNR/PSP → "police car Portugal" ou "police car lights"; futebol → "football stadium"; incêndio → "wildfire firefighters"; inflação/preços → "supermarket prices"; parlamento → "Portuguese parliament"; hospital/SNS → "hospital emergency"; pessoa famosa → o nome dela ("Cristiano Ronaldo").
 
-O "termo_pesquisa_imagem", quando a notícia é sobre uma pessoa, deve ser NOME + PROFISSÃO em inglês, sem acentos (ex.: "Goncalo Ramos football player", "Luis Montenegro politician"), nunca "news".
+O "termo_pesquisa_imagem" deve focar SEMPRE primeiro o SUJEITO/PESSOA principal da notícia, nunca apenas o local genérico (ex.: "Gianni Infantino FIFA", nunca "Macau"). Quando a notícia é sobre uma pessoa, deve ser NOME + PROFISSÃO em inglês, sem acentos (ex.: "Goncalo Ramos football player", "Luis Montenegro politician"), nunca "news".
 
 Gera também "entidade_wikipedia": se a notícia for sobre uma pessoa famosa, jogador, político, clube ou entidade (ex.: GNR, Benfica), escreve o título EXATO da página na Wikipedia em INGLÊS (ex.: "Gonçalo Ramos", "Cristiano Ronaldo", "Luís Montenegro", "Guarda Nacional Republicana", "S.L. Benfica"). Caso contrário, devolve "".
 

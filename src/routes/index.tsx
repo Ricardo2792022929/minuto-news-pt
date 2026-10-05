@@ -22,13 +22,13 @@ const hashId = (id: string) => {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h;
 };
-const imageFor = (n: { id: string; image?: string; category: string }) => {
+const imageFor = (n: { id?: string; image?: string; category?: string }) => {
   if (n.image) return n.image;
-  const pool = poolFor(n.category);
-  return pool[hashId(n.id) % pool.length];
+  const pool = poolFor(n.category ?? "Mundo");
+  return pool[hashId(n.id ?? "") % pool.length];
 };
-const fallbackFor = (category: string, id = "") => {
-  const pool = poolFor(category);
+const fallbackFor = (category?: string, id = "") => {
+  const pool = poolFor(category ?? "Mundo");
   return pool[hashId(id) % pool.length];
 };
 import {

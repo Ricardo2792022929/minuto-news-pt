@@ -70,7 +70,11 @@ export async function generateTitles(
     },
   });
 
+  let streamError: unknown;
   const result = streamText({
+    onError: ({ error }) => {
+      streamError = error;
+    },
     model: provider.responses(MODEL),
     system: SYSTEM,
     prompt: JSON.stringify(
@@ -98,6 +102,11 @@ export async function generateTitles(
     return map;
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) return new Map();
+    // erro real do stream (ex.: 429/5xx), em vez do genérico "No output generated"
+    if (streamError) {
+      console.error("title stream error", streamError);
+      throw streamError instanceof GatewayError ? streamError : new Error(String((streamError as Error)?.message ?? streamError));
+    }
     throw error;
   }
 }

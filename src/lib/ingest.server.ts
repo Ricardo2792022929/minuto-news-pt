@@ -1,4 +1,4 @@
-import { getAllNews, relevanceScore } from "./news.server";
+import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
 
 const BATCH = 20; // títulos por chamada de IA
@@ -69,7 +69,7 @@ async function fromArticlePage(url: string): Promise<string | null> {
     const img = m?.[1]?.replace(/&amp;/g, "&").trim();
     if (!img) return null;
     const abs = new URL(img, url).toString().replace(/^http:/, "https:");
-    if (/thumb|small|150x150|300x|logo|default|placeholder|\.svg/i.test(abs)) return null;
+    if (isLowResImage(abs) || /logo|default|placeholder|\.svg/i.test(abs)) return null;
     return abs;
   } catch {
     return null;

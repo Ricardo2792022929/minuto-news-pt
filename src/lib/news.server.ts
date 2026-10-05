@@ -273,8 +273,10 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
 
     const dateStr =
       item?.["pubDate"] ?? item?.["published"] ?? item?.["updated"] ?? item?.["dc:date"] ?? "";
-    const publishedAt = dateStr ? new Date(String(dateStr)) : new Date();
+    let publishedAt = dateStr ? new Date(String(dateStr).trim()) : new Date();
     if (Number.isNaN(publishedAt.getTime())) continue;
+    // proteção contra datas no futuro (fusos mal indicados pelos jornais)
+    if (publishedAt.getTime() > Date.now()) publishedAt = new Date();
     // Descarta notícias com mais de 72 horas
     if (Date.now() - publishedAt.getTime() > 72 * 3600_000) continue;
 

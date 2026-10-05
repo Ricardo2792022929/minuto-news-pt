@@ -36,11 +36,11 @@ const hashId = (id: string) => {
 const imageFor = (n: { id?: string; image?: string; category?: string }) => {
   if (n.image) return n.image;
   const pool = poolFor(n.category ?? "Mundo");
-  return pool[hashId(n.id ?? "") % pool.length];
+  return pool[hashId(n.id ?? "") % pool.length] ?? imgMundo;
 };
 const fallbackFor = (category?: string, id = "") => {
   const pool = poolFor(category ?? "Mundo");
-  return pool[hashId(id) % pool.length];
+  return pool[hashId(id) % pool.length] ?? imgMundo;
 };
 import {
   useCallback,

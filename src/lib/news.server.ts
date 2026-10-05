@@ -120,23 +120,76 @@ function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
   }
 }
 
+// Converte URLs de miniatura em versões de alta resolução quando possível
+function upscaleImage(url: string): string {
+  let u = url.trim();
+  // WordPress: foto-300x200.jpg -> foto.jpg
+  u = u.replace(/-\d{2,4}x\d{2,4}(\.(?:jpe?g|png|webp))(\?|$)/i, "$1$2");
+  // Parâmetros de redimensionamento comuns
+  u = u.replace(/([?&](?:w|width|resize|h|height)=)\d{2,3}(?=&|$)/gi, (_m, p) =>
+    /h|height/i.test(p) ? `${p}900` : `${p}1200`,
+  );
+  // RTP / outros: _thumb, _small, /thumb/
+  u = u.replace(/_(?:thumb|small|s|mini)(\.(?:jpe?g|png|webp))/i, "$1");
+  return u;
+}
+
 function extractImage(item: any): string | undefined {
-  for (const m of arrayify(item["media:content"])) {
-    const url = m?.["@_url"];
-    if (typeof url === "string") return url;
-  }
-  for (const t of arrayify(item["media:thumbnail"])) {
-    const url = t?.["@_url"];
-    if (typeof url === "string") return url;
+  const candidates: { url: string; w: number; prio: number }[] = [];
+  const add = (url: unknown, w: unknown, prio: number) => {
+    if (typeof url !== "string" || !url) return;
+    candidates.push({ url, w: Number(w) || 0, prio });
+  };
+  const media = [
+    ...arrayify(item["media:content"]),
+    ...arrayify(item["media:group"]).flatMap((g: any) => arrayify(g?.["media:content"])),
+  ];
+  for (const m of media) {
+    const type = m?.["@_type"] as string | undefined;
+    const medium = m?.["@_medium"] as string | undefined;
+    if (type && !type.startsWith("image") && medium !== "image") continue;
+    add(m?.["@_url"], m?.["@_width"], 3);
+    for (const t of arrayify(m?.["media:thumbnail"])) add(t?.["@_url"], t?.["@_width"], 1);
   }
   for (const e of arrayify(item["enclosure"])) {
     const type = e?.["@_type"] as string | undefined;
-    const url = e?.["@_url"];
-    if (typeof url === "string" && (!type || type.startsWith("image"))) return url;
+    if (!type || type.startsWith("image")) add(e?.["@_url"], e?.["@_width"], 3);
   }
-  return (
-    firstImg(item["content:encoded"]) ?? firstImg(item["description"])
-  );
+  for (const t of arrayify(item["media:thumbnail"])) add(t?.["@_url"], t?.["@_width"], 1);
+
+  // Preferir largura > 600px; senão, enclosure/media:content (originais); depois o resto
+  const big = candidates.filter((c) => c.w > 600).sort((a, b) => b.w - a.w)[0];
+  const best = big ?? candidates.sort((a, b) => b.prio - a.prio || b.w - a.w)[0];
+  const raw = best?.url ?? firstImg(item["content:encoded"]) ?? firstImg(item["description"]);
+  return raw ? upscaleImage(raw) : undefined;
+}
+
+// ---------- Relevância ----------
+const MAJOR_SOURCES = new Set([
+  "RTP Notícias", "CNN Portugal", "Observador", "Lusa", "Notícias ao Minuto",
+  "SAPO Notícias", "Correio da Manhã", "Renascença", "Expresso", "ECO",
+]);
+const HOT = [
+  "ultima hora", "urgente", "morre", "morreu", "mortos", "ataque", "guerra", "explosao",
+  "incendio", "sismo", "detido", "tiroteio", "acidente", "governo", "primeiro-ministro",
+  "presidente", "montenegro", "marcelo", "parlamento", "eleicoes", "trump", "putin",
+  "ucrania", "israel", "gaza", "benfica", "porto", "sporting", "ronaldo", "selecao",
+  "inflacao", "impostos", "salario", "pensoes", "greve", "euromilhoes", "recorde",
+  "historico", "choque", "alerta", "ipma", "tempestade", "chuva", "calor", "precos",
+  "combustiveis", "habitacao", "sns", "hospital", "escandalo", "policia", "psp", "gnr",
+];
+const LOW = ["horoscopo", "receita", "passatempo", "publicidade", "patrocinado", "dica", "review", "podcast"];
+
+export function relevanceScore(a: NewsItem): number {
+  const t = normalize(a.title);
+  let bonus = 0;
+  for (const k of HOT) if (t.includes(k)) bonus += 2.5;
+  for (const k of LOW) if (t.includes(k)) bonus -= 6;
+  if (MAJOR_SOURCES.has(a.source)) bonus += 3;
+  if (a.category === "Mundo" || a.category === "Política") bonus += 1.5;
+  if (a.image) bonus += 1;
+  // pontuação em "horas de vantagem" somada ao tempo de publicação
+  return new Date(a.publishedAt).getTime() + Math.min(bonus, 10) * 3600_000;
 }
 
 function normalize(s: string): string {
@@ -290,8 +343,7 @@ export async function getAllNews(): Promise<NewsItem[]> {
     }
   }
   const items = [...byId.values()].sort(
-    (a, b) =>
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+    (a, b) => relevanceScore(b) - relevanceScore(a),
   );
 
   cache = { items, fetchedAt: Date.now() };

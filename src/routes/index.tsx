@@ -77,7 +77,7 @@ const optimizeImage = (url: string) => {
       u.hostname.includes("imgix.net")
     ) {
       u.searchParams.set("w", "800");
-      u.searchParams.set("q", "75");
+      u.searchParams.set("q", "80");
       u.searchParams.set("auto", "format");
       u.searchParams.set("fit", "crop");
       return u.toString();

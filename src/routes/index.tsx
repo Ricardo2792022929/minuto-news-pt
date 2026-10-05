@@ -55,9 +55,9 @@ type ImgItem = { id?: string; image?: string; category?: string; title?: string 
 // Candidatas por ordem: foto da notícia → fotos reais do tema → resto do banco.
 const candidatesFor = (n: ImgItem) => {
   const key = CRIME_RE.test(n.title ?? "") ? "Crime" : (n.category ?? "Mundo");
-  const themed = REAL_POOL[key] ?? REAL_POOL.Mundo;
+  const themed = REAL_POOL[key] ?? REAL_POOL["Mundo"] ?? [];
   const h = hashId(n.id ?? "");
-  const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length]);
+  const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length] as string);
   const rest = ALL_REAL.filter((u) => !themed.includes(u));
   return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest)];
 };
@@ -67,7 +67,7 @@ const optimizeImage = (url: string) => {
     const u = new URL(url);
     if (u.hostname === "upload.wikimedia.org" && !u.pathname.includes("/thumb/")) {
       const m = u.pathname.match(/^\/wikipedia\/commons\/(\w\/\w\w)\/([^/]+)$/);
-      if (m && !/\.(svg|tiff?)$/i.test(m[2]))
+      if (m && m[1] && m[2] && !/\.(svg|tiff?)$/i.test(m[2]))
         return `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/960px-${m[2]}`;
       return url;
     }
@@ -106,7 +106,7 @@ function FadeImg({
   );
   const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const src = list[Math.min(idx, list.length - 1)];
+  const src = list[Math.min(idx, list.length - 1)] ?? ALL_REAL[0] ?? "";
   return (
     <img
       key={src}

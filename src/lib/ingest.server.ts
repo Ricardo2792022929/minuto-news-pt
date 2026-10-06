@@ -134,7 +134,6 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
 
   const { data: state } = await db.from("ingest_state").select("paused_reason").eq("id", 1).single();
-  if (state?.paused_reason) return { skipped: "paused", reason: state.paused_reason };
 
   const nowIso = new Date().toISOString();
   const { data: lock } = await db
@@ -170,23 +169,24 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
     const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
 
+    const aiPaused = Boolean(state?.paused_reason);
     for (let i = 0; i < pending.length; i += BATCH) {
       const chunk = pending.slice(i, i + BATCH);
       let gen: Awaited<ReturnType<typeof generateTitles>> | null = null;
-      for (let attempt = 0; attempt < 2 && !gen; attempt++) {
+      if (!aiPaused) {
         try {
           gen = await generateTitles(chunk);
         } catch (e) {
-          if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) throw e;
-          console.error(`titulos falharam (tentativa ${attempt + 1})`, e);
-          if (attempt === 0) await new Promise((r) => setTimeout(r, 4000 + Math.random() * 2000));
+          console.error("IA de títulos falhou; a usar título original", e);
+          if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
+            await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);
+          }
         }
       }
-      if (!gen) continue; // salta este bloco; o próximo ciclo volta a tentar
       const rows = [];
       for (const n of chunk) {
-        const g = gen.get(n.id);
-        if (!g) continue;
+        // Fallback: se a IA falhar, guarda com o título original do RSS
+        const g = gen?.get(n.id) ?? { titulo: n.title, termo: "", entidade: "" };
         let image = n.image && !isLowResImage(n.image) ? n.image : null;
         let image_query: string | null = null;
         if (!image) {

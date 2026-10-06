@@ -1,0 +1,1 @@
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS resumo text; CREATE INDEX IF NOT EXISTS articles_url_idx ON public.articles(url); UPDATE public.ingest_state SET paused_reason = NULL WHERE id = 1;

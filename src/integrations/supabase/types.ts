@@ -24,6 +24,7 @@ export type Database = {
           original_title: string
           published_at: string
           relevance: number
+          resumo: string | null
           source: string
           titulo_inedito: string
           url: string
@@ -37,6 +38,7 @@ export type Database = {
           original_title: string
           published_at: string
           relevance?: number
+          resumo?: string | null
           source: string
           titulo_inedito: string
           url: string
@@ -50,6 +52,7 @@ export type Database = {
           original_title?: string
           published_at?: string
           relevance?: number
+          resumo?: string | null
           source?: string
           titulo_inedito?: string
           url?: string

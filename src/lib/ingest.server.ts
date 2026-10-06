@@ -147,17 +147,22 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   let inserted = 0;
   try {
     const news = await getAllNews(); // já ordenado por relevância
-    const ids = news.map((n) => n.id);
+    // deduplicação por id e por URL do artigo, antes de chamar o Gemini
     const existing = new Set<string>();
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await db.from("articles").select("id").in("id", ids.slice(i, i + 200));
-      for (const r of data ?? []) existing.add(r.id);
+    for (let i = 0; i < news.length; i += 100) {
+      const part = news.slice(i, i + 100);
+      const [byId, byUrl] = await Promise.all([
+        db.from("articles").select("id").in("id", part.map((n) => n.id)),
+        db.from("articles").select("url").in("url", part.map((n) => n.url)),
+      ]);
+      for (const r of byId.data ?? []) existing.add(r.id);
+      for (const r of byUrl.data ?? []) existing.add(r.url);
     }
     // máx. 4 novas por fonte por ciclo; ordem já intercalada por fonte
     const perSrc = new Map<string, number>();
     const pending = news
       .filter((n) => {
-        if (existing.has(n.id)) return false;
+        if (existing.has(n.id) || existing.has(n.url)) return false;
         const c = perSrc.get(n.source) ?? 0;
         if (c >= 4) return false;
         perSrc.set(n.source, c + 1);
@@ -169,24 +174,18 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
     const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
 
-    const aiPaused = Boolean(state?.paused_reason);
     for (let i = 0; i < pending.length; i += BATCH) {
       const chunk = pending.slice(i, i + BATCH);
       let gen: Awaited<ReturnType<typeof generateTitles>> | null = null;
-      if (!aiPaused) {
-        try {
-          gen = await generateTitles(chunk);
-        } catch (e) {
-          console.error("IA de títulos falhou; a usar título original", e);
-          if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
-            await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);
-          }
-        }
+      try {
+        gen = await generateTitles(chunk);
+      } catch (e) {
+        console.error("Gemini falhou; a usar título e descrição originais", e);
       }
       const rows = [];
       for (const n of chunk) {
-        // Fallback: se a IA falhar, guarda com o título original do RSS
-        const g = gen?.get(n.id) ?? { titulo: n.title, termo: "", entidade: "" };
+        // Fallback automático: título e descrição originais do RSS
+        const g = gen?.get(n.id) ?? { titulo: n.title, resumo: n.excerpt, termo: "", entidade: "" };
         let image = n.image && !isLowResImage(n.image) ? n.image : null;
         let image_query: string | null = null;
         if (!image) {
@@ -205,6 +204,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           image_query,
           original_title: n.title,
           titulo_inedito: g.titulo,
+          resumo: (g.resumo || n.excerpt || "").slice(0, 400) || null,
           relevance: Math.round(relevanceScore(n)),
           published_at: n.publishedAt,
         });

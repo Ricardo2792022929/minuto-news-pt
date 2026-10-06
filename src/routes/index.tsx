@@ -155,13 +155,13 @@ import type { NewsItem } from "@/lib/news.types";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Ao Minuto — Notícias de Portugal em direto" },
+      { title: "Flash Notícias — Notícias de Portugal em direto" },
       {
         name: "description",
         content:
           "Feed infinito com as últimas notícias de Portugal e do mundo, atualizadas ao minuto: política, economia, desporto, cultura e muito mais.",
       },
-      { property: "og:title", content: "Ao Minuto — Notícias de Portugal em direto" },
+      { property: "og:title", content: "Flash Notícias — Notícias de Portugal em direto" },
       {
         property: "og:description",
         content:
@@ -285,7 +285,7 @@ function Onboarding({
       {step === "welcome" ? (
         <div className="flex flex-1 animate-rise flex-col items-center justify-center px-8 text-center">
           <span className="text-xs font-bold uppercase tracking-[0.3em] text-live">
-            AoMinuto
+            FlashNotícias
           </span>
           <h1 className="mt-4 font-display text-4xl font-black leading-tight text-balance">
             {greeting()}, vamos personalizar a sua experiência
@@ -760,7 +760,7 @@ function Index() {
             <div className="pointer-events-auto bg-gradient-to-b from-feed-bg/85 to-transparent px-4 pb-6 pt-4 backdrop-blur-[2px]">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">
-                  Ao<span className="text-live">Minuto</span>
+                  Flash<span className="text-live">Notícias</span>
                 </h1>
                 <div className="flex items-center gap-2 pb-1">
                   <span className="relative flex size-2">

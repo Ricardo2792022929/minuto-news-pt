@@ -1,40 +1,19 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { NoObjectGeneratedError, Output, streamText } from "ai";
-import { z } from "zod";
-import { createLovableAiGatewayRunIdFetch } from "./ai-run-id.server.ts";
+// Geração de títulos e resumos com Google Gemini (chave própria GEMINI_API_KEY).
+const REQUESTED_MODEL = "gemini-1.5-flash";
+// gemini-1.5-flash foi retirado pela Google (404); usa o Flash atual nesse caso.
+const FALLBACK_MODEL = "gemini-flash-latest";
 
-const MODEL = "openai/gpt-6-astra";
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1";
-
-const schema = z.object({
-  titulos: z.array(z.object({ id: z.string(), titulo: z.string(), termo_pesquisa_imagem: z.string(), entidade_wikipedia: z.string() })),
-});
-
-const SYSTEM = `És um editor de títulos de notícias em português de Portugal. Para cada notícia recebida, escreve um título novo, curto e cativante.
-
-REGRAS OBRIGATÓRIAS:
-1. Entre 6 e 10 palavras, nunca mais de 10.
-2. Começa SEMPRE pelo SUJEITO ou pela AÇÃO principal.
-3. NUNCA uses prefixos explicativos ou de contexto (ex.: "Crise em...", "Urgente:", "Atenção:", "Última hora:"), nem dois-pontos a separar contexto.
-4. Reescreve o facto do zero. Não te limites a trocar palavras por sinónimos.
-5. Usa apenas factos presentes no título e resumo recebidos. Não inventes nem opines.
-
-Exemplo incorreto: "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"
-Exemplo correto: "Pedro Sánchez anuncia eleições antecipadas em Espanha"
-
-Para cada notícia, gera também "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS com termos VISUAIS CONCRETOS que se possam fotografar (objetos, locais, pessoas conhecidas, veículos), nunca conceitos abstratos. Exemplos: notícia da GNR/PSP → "police car Portugal" ou "police car lights"; futebol → "football stadium"; incêndio → "wildfire firefighters"; inflação/preços → "supermarket prices"; parlamento → "Portuguese parliament"; hospital/SNS → "hospital emergency"; pessoa famosa → o nome dela ("Cristiano Ronaldo").
-
-O "termo_pesquisa_imagem" deve focar SEMPRE primeiro o SUJEITO/PESSOA principal da notícia, nunca apenas o local genérico (ex.: "Gianni Infantino FIFA", nunca "Macau"). Quando a notícia é sobre uma pessoa, deve ser NOME + PROFISSÃO em inglês, sem acentos (ex.: "Goncalo Ramos football player", "Luis Montenegro politician"), nunca "news".
-
-Gera também "entidade_wikipedia": se a notícia for sobre uma pessoa famosa, jogador, político, clube ou entidade (ex.: GNR, Benfica), escreve o título EXATO da página na Wikipedia em INGLÊS (ex.: "Gonçalo Ramos", "Cristiano Ronaldo", "Luís Montenegro", "Guarda Nacional Republicana", "S.L. Benfica"). Caso contrário, devolve "".
-
+const SYSTEM = `És um editor de notícias em português de Portugal. Para cada notícia recebida:
+- "titulo": título novo, curto e cativante, 6 a 10 palavras, começa pelo SUJEITO ou AÇÃO, sem prefixos ("Urgente:", "Crise em...") nem dois-pontos. Reescreve do zero, só com factos recebidos.
+- "resumo": 1 a 2 frases curtas, objetivas e apelativas (máx. 30 palavras), só com factos recebidos.
+- "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS, visuais e concretas, focadas no sujeito principal (pessoa: NOME + profissão, sem acentos).
+- "entidade_wikipedia": título exato da página da Wikipedia em inglês se for pessoa/clube/entidade conhecida; caso contrário "".
 Devolve um item por cada id recebido, mantendo o id exato.`;
 
 const PREFIX = /^\s*(urgente|aten[cç][aã]o|[uú]ltima hora|breaking|exclusivo|direto|v[ií]deo)\s*[:\-–—]\s*/i;
 
 export function cleanTitle(raw: string): string | null {
   let t = raw.trim().replace(/^["'«“]+|["'»”.]+$/g, "").replace(PREFIX, "");
-  // remove "Contexto: " no início
   const colon = t.indexOf(":");
   if (colon > 0 && colon < 40) t = t.slice(colon + 1).trim();
   const words = t.split(/\s+/).filter(Boolean);
@@ -49,64 +28,72 @@ export class GatewayError extends Error {
   }
 }
 
-export async function generateTitles(
-  items: { id: string; title: string; excerpt: string }[],
-): Promise<Map<string, { titulo: string; termo: string; entidade: string }>> {
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) throw new GatewayError("LOVABLE_API_KEY em falta", 401);
+export type GeneratedTitle = { titulo: string; resumo: string; termo: string; entidade: string };
 
-  const runIdFetch = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAI({
-    baseURL: GATEWAY_URL,
-    apiKey,
-    headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: async (input, init) => {
-      const res = await runIdFetch.fetch(input, init);
-      if (res.status === 402 || res.status === 403 || res.status === 429) {
-        const text = await res.clone().text().catch(() => "");
-        throw new GatewayError(text.slice(0, 300) || `HTTP ${res.status}`, res.status);
-      }
-      return res;
-    },
-  });
-
-  let streamError: unknown;
-  const result = streamText({
-    onError: ({ error }) => {
-      streamError = error;
-    },
-    model: provider.responses(MODEL),
-    system: SYSTEM,
-    prompt: JSON.stringify(
-      items.map((i) => ({ id: i.id, titulo_original: i.title, resumo: i.excerpt.slice(0, 300) })),
-    ),
-    output: Output.object({ schema }),
-    providerOptions: {
-      openai: {
-        forceReasoning: true,
-        reasoningEffort: "low",
-        reasoningSummary: "auto",
-        store: false,
-        include: ["reasoning.encrypted_content"],
+const responseSchema = {
+  type: "OBJECT",
+  properties: {
+    titulos: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          id: { type: "STRING" },
+          titulo: { type: "STRING" },
+          resumo: { type: "STRING" },
+          termo_pesquisa_imagem: { type: "STRING" },
+          entidade_wikipedia: { type: "STRING" },
+        },
+        required: ["id", "titulo", "resumo", "termo_pesquisa_imagem", "entidade_wikipedia"],
       },
     },
-  });
+  },
+  required: ["titulos"],
+};
 
-  try {
-    const out = await result.output;
-    const map = new Map<string, { titulo: string; termo: string; entidade: string }>();
-    for (const t of out.titulos) {
-      const clean = cleanTitle(t.titulo);
-      if (clean) map.set(t.id, { titulo: clean, termo: t.termo_pesquisa_imagem.trim().slice(0, 60), entidade: t.entidade_wikipedia.trim().slice(0, 80) });
-    }
-    return map;
-  } catch (error) {
-    if (NoObjectGeneratedError.isInstance(error)) return new Map();
-    // erro real do stream (ex.: 429/5xx), em vez do genérico "No output generated"
-    if (streamError) {
-      console.error("title stream error", streamError);
-      throw streamError instanceof GatewayError ? streamError : new Error(String((streamError as Error)?.message ?? streamError));
-    }
-    throw error;
+async function callGemini(model: string, apiKey: string, prompt: string) {
+  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", responseSchema },
+    }),
+  });
+}
+
+export async function generateTitles(
+  items: { id: string; title: string; excerpt: string }[],
+): Promise<Map<string, GeneratedTitle>> {
+  const apiKey = process.env["GEMINI_API_KEY"];
+  if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
+
+  const prompt = JSON.stringify(
+    items.map((i) => ({ id: i.id, titulo_original: i.title, descricao: i.excerpt.slice(0, 400) })),
+  );
+  let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
+  if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new GatewayError(text.slice(0, 300) || `HTTP ${res.status}`, res.status);
   }
+  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  const parsed = JSON.parse(raw) as {
+    titulos?: { id: string; titulo: string; resumo: string; termo_pesquisa_imagem: string; entidade_wikipedia: string }[];
+  };
+  const map = new Map<string, GeneratedTitle>();
+  for (const t of parsed.titulos ?? []) {
+    const clean = cleanTitle(t.titulo ?? "");
+    if (!clean) continue;
+    map.set(t.id, {
+      titulo: clean,
+      resumo: (t.resumo ?? "").trim().slice(0, 300),
+      termo: (t.termo_pesquisa_imagem ?? "").trim().slice(0, 60),
+      entidade: (t.entidade_wikipedia ?? "").trim().slice(0, 80),
+    });
+  }
+  return map;
 }

@@ -335,7 +335,7 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
   const res = await fetch(feed.url, {
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (compatible; AoMinutoFeed/1.0; +https://lovable.app)",
+        "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0; +https://lovable.app)",
       Accept: "application/rss+xml, application/xml, text/xml, */*",
     },
     signal: AbortSignal.timeout(5000),

@@ -612,9 +612,9 @@ function Index() {
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       const idx = CATEGORIES.indexOf(category);
       if (dx < 0 && idx < CATEGORIES.length - 1) {
-        setCategory(CATEGORIES[idx + 1]);
+        setCategory(CATEGORIES[idx + 1]!);
       } else if (dx > 0 && idx > 0) {
-        setCategory(CATEGORIES[idx - 1]);
+        setCategory(CATEGORIES[idx - 1]!);
       }
     },
     [category],

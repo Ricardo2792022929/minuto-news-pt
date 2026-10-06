@@ -594,6 +594,32 @@ function Index() {
     feedRef.current?.scrollTo({ top: 0 });
   }, [category, tab]);
 
+  // Swipe horizontal: direita→esquerda = categoria seguinte, esquerda→direita = anterior
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (t) touchStart.current = { x: t.clientX, y: t.clientY };
+  }, []);
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = touchStart.current;
+      touchStart.current = null;
+      const t = e.changedTouches[0];
+      if (!start || !t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      // Só conta swipe horizontal dominante
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const idx = CATEGORIES.indexOf(category);
+      if (dx < 0 && idx < CATEGORIES.length - 1) {
+        setCategory(CATEGORIES[idx + 1]);
+      } else if (dx > 0 && idx > 0) {
+        setCategory(CATEGORIES[idx - 1]);
+      }
+    },
+    [category],
+  );
+
   const savedItems = useMemo(
     () =>
       Object.values(savedMap).sort(

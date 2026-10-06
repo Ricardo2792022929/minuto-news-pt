@@ -669,6 +669,8 @@ function Index() {
           {/* Feed */}
           <div
             ref={feedRef}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
             className="h-full snap-y snap-mandatory overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {articles.map((a, i) => {

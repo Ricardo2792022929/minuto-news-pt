@@ -78,7 +78,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ao Minuto — Notícias de Portugal em direto" },
+      { title: "Flash Notícias — Notícias de Portugal em direto" },
       {
         name: "description",
         content: "As últimas notícias de Portugal e do mundo, atualizadas ao minuto.",

@@ -155,13 +155,13 @@ import type { NewsItem } from "@/lib/news.types";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Ao Minuto — Notícias de Portugal em direto" },
+      { title: "Flash Notícias — Notícias de Portugal em direto" },
       {
         name: "description",
         content:
           "Feed infinito com as últimas notícias de Portugal e do mundo, atualizadas ao minuto: política, economia, desporto, cultura e muito mais.",
       },
-      { property: "og:title", content: "Ao Minuto — Notícias de Portugal em direto" },
+      { property: "og:title", content: "Flash Notícias — Notícias de Portugal em direto" },
       {
         property: "og:description",
         content:
@@ -285,7 +285,7 @@ function Onboarding({
       {step === "welcome" ? (
         <div className="flex flex-1 animate-rise flex-col items-center justify-center px-8 text-center">
           <span className="text-xs font-bold uppercase tracking-[0.3em] text-live">
-            AoMinuto
+            FlashNotícias
           </span>
           <h1 className="mt-4 font-display text-4xl font-black leading-tight text-balance">
             {greeting()}, vamos personalizar a sua experiência
@@ -594,6 +594,32 @@ function Index() {
     feedRef.current?.scrollTo({ top: 0 });
   }, [category, tab]);
 
+  // Swipe horizontal: direita→esquerda = categoria seguinte, esquerda→direita = anterior
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (t) touchStart.current = { x: t.clientX, y: t.clientY };
+  }, []);
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = touchStart.current;
+      touchStart.current = null;
+      const t = e.changedTouches[0];
+      if (!start || !t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      // Só conta swipe horizontal dominante
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const idx = CATEGORIES.indexOf(category);
+      if (dx < 0 && idx < CATEGORIES.length - 1) {
+        setCategory(CATEGORIES[idx + 1]!);
+      } else if (dx > 0 && idx > 0) {
+        setCategory(CATEGORIES[idx - 1]!);
+      }
+    },
+    [category],
+  );
+
   const savedItems = useMemo(
     () =>
       Object.values(savedMap).sort(
@@ -643,6 +669,8 @@ function Index() {
           {/* Feed */}
           <div
             ref={feedRef}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
             className="h-full snap-y snap-mandatory overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {articles.map((a, i) => {
@@ -760,7 +788,7 @@ function Index() {
             <div className="pointer-events-auto bg-gradient-to-b from-feed-bg/85 to-transparent px-4 pb-6 pt-4 backdrop-blur-[2px]">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">
-                  Ao<span className="text-live">Minuto</span>
+                  Flash<span className="text-live">Notícias</span>
                 </h1>
                 <div className="flex items-center gap-2 pb-1">
                   <span className="relative flex size-2">

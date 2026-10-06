@@ -48,7 +48,7 @@ async function fromOpenverse(term: string, used: Set<string>) {
   const page = 1 + Math.floor(Math.random() * 3);
   const res = await fetch(
     `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&category=photograph&page_size=20&page=${page}&mature=false`,
-    { headers: { "User-Agent": "AoMinuto/1.0" }, signal: AbortSignal.timeout(8000) },
+    { headers: { "User-Agent": "FlashNoticias/1.0" }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
@@ -59,7 +59,7 @@ async function fromOpenverse(term: string, used: Set<string>) {
 async function fromArticlePage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AoMinutoFeed/1.0)", "Accept-Language": "pt-PT" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0)", "Accept-Language": "pt-PT" },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
@@ -83,7 +83,7 @@ async function fromWikipedia(entity: string): Promise<string | null> {
   try {
     const res = await fetch(
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entity.trim().replace(/\s+/g, "_"))}?redirect=true`,
-      { headers: { "User-Agent": "AoMinuto/1.0 (news app)" }, signal: AbortSignal.timeout(5000) },
+      { headers: { "User-Agent": "FlashNoticias/1.0 (news app)" }, signal: AbortSignal.timeout(5000) },
     );
     if (!res.ok) return null;
     const d = (await res.json()) as {

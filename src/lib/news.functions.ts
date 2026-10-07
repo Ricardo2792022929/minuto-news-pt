@@ -35,6 +35,7 @@ export const getNews = createServerFn({ method: "GET" })
     let q = db
       .from("articles")
       .select("id,source,category,url,image,titulo_inedito,published_at", { count: "exact" })
+      .gte("published_at", new Date(Date.now() - 24 * 3600_000).toISOString()) // só últimas 24h
       .order("published_at", { ascending: false })
       .order("id", { ascending: true })
       .range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);

@@ -3,12 +3,21 @@ const REQUESTED_MODEL = "gemini-1.5-flash";
 // gemini-1.5-flash foi retirado pela Google (404); usa o Flash atual nesse caso.
 const FALLBACK_MODEL = "gemini-flash-latest";
 
-const SYSTEM = `És um editor de notícias em português de Portugal. Para cada notícia recebida:
-- "titulo": título novo, curto e cativante, 6 a 10 palavras, começa pelo SUJEITO ou AÇÃO, sem prefixos ("Urgente:", "Crise em...") nem dois-pontos. Reescreve do zero, só com factos recebidos.
-- "resumo": 1 a 2 frases curtas, objetivas e apelativas (máx. 30 palavras), só com factos recebidos.
-- "termo_pesquisa_imagem": 2 a 4 palavras em INGLÊS, visuais e concretas, focadas no sujeito principal (pessoa: NOME + profissão, sem acentos).
-- "entidade_wikipedia": título exato da página da Wikipedia em inglês se for pessoa/clube/entidade conhecida; caso contrário "".
-Devolve um item por cada id recebido, mantendo o id exato.`;
+const SYSTEM = `És um editor de notícias em Portugal especializado em títulos dopamínicos e ultra-rápidos de ler.
+REGRAS OBRIGATÓRIAS:
+- Escreve estritamente em Português de Portugal (PT-PT).
+- Comprimento: Entre 6 e 10 palavras no máximo.
+- Estrutura: Começa SEMPRE com o SUJEITO ou a AÇÃO principal.
+- Sem Prefixos: NUNCA uses prefixos explicativos ou de contexto (ex: 'Crise em...', 'Urgente:', 'Atenção:').
+- Reescrita Real: Não troques apenas palavras por sinónimos. Reescreve o facto do zero, focando na ação.
+- Formato: Responde APENAS em JSON válido com a chave 'titulo'. Nenhuma palavra antes ou depois.
+
+EXEMPLOS:
+INCORRETO (NÃO FAZER):
+{"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+
+CORRETO (FAZER EXATAMENTE ASSIM):
+{"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
 
 const PREFIX = /^\s*(urgente|aten[cç][aã]o|[uú]ltima hora|breaking|exclusivo|direto|v[ií]deo)\s*[:\-–—]\s*/i;
 
@@ -32,30 +41,15 @@ export type GeneratedTitle = { titulo: string; resumo: string; termo: string; en
 
 const responseSchema = {
   type: "OBJECT",
-  properties: {
-    titulos: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          id: { type: "STRING" },
-          titulo: { type: "STRING" },
-          resumo: { type: "STRING" },
-          termo_pesquisa_imagem: { type: "STRING" },
-          entidade_wikipedia: { type: "STRING" },
-        },
-        required: ["id", "titulo", "resumo", "termo_pesquisa_imagem", "entidade_wikipedia"],
-      },
-    },
-  },
-  required: ["titulos"],
+  properties: { titulo: { type: "STRING" } },
+  required: ["titulo"],
 };
 
 async function callGemini(model: string, apiKey: string, prompt: string) {
   return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -69,31 +63,25 @@ export async function generateTitles(
 ): Promise<Map<string, GeneratedTitle>> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
-
-  const prompt = JSON.stringify(
-    items.map((i) => ({ id: i.id, titulo_original: i.title, descricao: i.excerpt.slice(0, 400) })),
-  );
-  let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
-  if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new GatewayError(text.slice(0, 300) || `HTTP ${res.status}`, res.status);
-  }
-  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-  const parsed = JSON.parse(raw) as {
-    titulos?: { id: string; titulo: string; resumo: string; termo_pesquisa_imagem: string; entidade_wikipedia: string }[];
-  };
   const map = new Map<string, GeneratedTitle>();
-  for (const t of parsed.titulos ?? []) {
-    const clean = cleanTitle(t.titulo ?? "");
-    if (!clean) continue;
-    map.set(t.id, {
-      titulo: clean,
-      resumo: (t.resumo ?? "").trim().slice(0, 300),
-      termo: (t.termo_pesquisa_imagem ?? "").trim().slice(0, 60),
-      entidade: (t.entidade_wikipedia ?? "").trim().slice(0, 80),
-    });
+  for (const [idx, it] of items.entries()) {
+    if (idx > 0) await new Promise((r) => setTimeout(r, 2000)); // limite gratuito 15/min
+    try {
+      const prompt = `Título original a reescrever: ${it.title}`;
+      let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
+      if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
+      if (!res.ok) {
+        console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
+        if (res.status === 429) break;
+        continue;
+      }
+      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      const clean = cleanTitle((JSON.parse(raw) as { titulo?: string }).titulo ?? "");
+      if (clean) map.set(it.id, { titulo: clean, resumo: "", termo: "", entidade: "" });
+    } catch (e) {
+      console.error("Gemini falhou", e);
+    }
   }
   return map;
 }

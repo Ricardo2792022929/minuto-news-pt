@@ -229,7 +229,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
     }
 
-    // histórico mantido: nunca apagamos notícias antigas
+    // notícias com mais de 24h são apagadas no início de cada ciclo
     return { inserted, pending: pending.length };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {

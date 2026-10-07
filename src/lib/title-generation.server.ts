@@ -47,7 +47,7 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
   return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(8_000), // aborta ao fim de 8s e avança para a próxima
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],

@@ -2,7 +2,7 @@ import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
-const BATCH = 5; // títulos por chamada de IA
+const BATCH = 3; // lote de teste: apenas as 3 notícias mais recentes
 const MAX_BATCHES = 1; // limite por execução
 
 type Hit = { url: string; width?: number; text?: string | undefined };

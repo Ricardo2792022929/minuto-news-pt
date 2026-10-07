@@ -3,20 +3,18 @@ const REQUESTED_MODEL = "gemini-1.5-flash";
 // gemini-1.5-flash foi retirado pela Google (404); usa o Flash atual nesse caso.
 const FALLBACK_MODEL = "gemini-flash-latest";
 
-const SYSTEM = `És um editor de notícias em Portugal especializado em títulos dopamínicos e ultra-rápidos de ler.
+const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
 REGRAS OBRIGATÓRIAS:
 - Escreve estritamente em Português de Portugal (PT-PT).
 - Comprimento: Entre 6 e 10 palavras no máximo.
 - Estrutura: Começa SEMPRE com o SUJEITO ou a AÇÃO principal.
-- Sem Prefixos: NUNCA uses prefixos explicativos ou de contexto (ex: 'Crise em...', 'Urgente:', 'Atenção:').
-- Reescrita Real: Não troques apenas palavras por sinónimos. Reescreve o facto do zero, focando na ação.
-- Formato: Responde APENAS em JSON válido com a chave 'titulo'. Nenhuma palavra antes ou depois.
+- Sem Prefixos: NUNCA uses prefixos (ex: 'Crise em...', 'Urgente:', 'Atenção:').
+- Responde APENAS em formato JSON válido com a chave 'titulo'. Sem texto extra.
 
-EXEMPLOS:
-INCORRETO (NÃO FAZER):
+EXEMPLO INCORRETO:
 {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
 
-CORRETO (FAZER EXATAMENTE ASSIM):
+EXEMPLO CORRETO:
 {"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
 
 const PREFIX = /^\s*(urgente|aten[cç][aã]o|[uú]ltima hora|breaking|exclusivo|direto|v[ií]deo)\s*[:\-–—]\s*/i;
@@ -67,7 +65,7 @@ export async function generateTitles(
   for (const [idx, it] of items.entries()) {
     if (idx > 0) await new Promise((r) => setTimeout(r, 2000)); // limite gratuito 15/min
     try {
-      const prompt = `Título original a reescrever: ${it.title}`;
+      const prompt = `Título original: ${it.title}`;
       let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
       if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
       if (!res.ok) {

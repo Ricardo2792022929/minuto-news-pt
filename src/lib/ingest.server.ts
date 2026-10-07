@@ -2,7 +2,7 @@ import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
-const BATCH = 8; // títulos por chamada de IA
+const BATCH = 5; // títulos por chamada de IA
 const MAX_BATCHES = 1; // limite por execução
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -146,7 +146,13 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
   let inserted = 0;
   try {
-    const news = await getAllNews(); // já ordenado por relevância
+    // limpeza: apaga notícias com mais de 24 horas
+    const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
+    await db.from("articles").delete().lt("published_at", cutoff);
+    // só artigos das últimas 24h, mais recentes primeiro
+    const news = (await getAllNews())
+      .filter((n) => n.publishedAt >= cutoff)
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     // deduplicação por id e por URL do artigo, antes de chamar o Gemini
     const existing = new Set<string>();
     for (let i = 0; i < news.length; i += 100) {

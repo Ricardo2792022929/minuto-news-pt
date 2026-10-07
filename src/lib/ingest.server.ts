@@ -2,8 +2,8 @@ import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateTitles, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
-const BATCH = 20; // títulos por chamada de IA
-const MAX_BATCHES = 3; // limite por execução
+const BATCH = 8; // títulos por chamada de IA
+const MAX_BATCHES = 1; // limite por execução
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -184,8 +184,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       }
       const rows = [];
       for (const n of chunk) {
-        // Fallback automático: título e descrição originais do RSS
-        const g = gen?.get(n.id) ?? { titulo: n.title, resumo: n.excerpt, termo: "", entidade: "" };
+        // Só entram notícias com título já processado pelo Gemini
+        const g = gen?.get(n.id);
+        if (!g) continue;
         let image = n.image && !isLowResImage(n.image) ? n.image : null;
         let image_query: string | null = null;
         if (!image) {
@@ -204,7 +205,6 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           image_query,
           original_title: n.title,
           titulo_inedito: g.titulo,
-          resumo: (g.resumo || n.excerpt || "").slice(0, 400) || null,
           relevance: Math.round(relevanceScore(n)),
           published_at: n.publishedAt,
         });

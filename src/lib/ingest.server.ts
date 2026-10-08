@@ -180,45 +180,39 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
     const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
 
-    for (let i = 0; i < pending.length; i += BATCH) {
-      const chunk = pending.slice(i, i + BATCH);
-      let gen: Awaited<ReturnType<typeof generateTitles>> | null = null;
+    // Fila indiana: Gemini → guardar → esperar 2s → próxima
+    for (const [idx, n] of pending.entries()) {
+      if (idx > 0) await new Promise((r) => setTimeout(r, 2000));
+      const g = await generateOne(n.title);
+      if (!g) continue; // sem fallback para o título original
       try {
-        gen = await generateTitles(chunk);
-      } catch (e) {
-        console.error("Gemini falhou; a usar título e descrição originais", e);
-      }
-      const rows = [];
-      for (const n of chunk) {
-        // Só entram notícias com título já processado pelo Gemini
-        const g = gen?.get(n.id);
-        if (!g) continue;
         let image = n.image && !isLowResImage(n.image) ? n.image : null;
         let image_query: string | null = null;
+        if (!image) image = await fromArticlePage(n.url);
         if (!image) {
-          image = await fromArticlePage(n.url);
+          image_query = g.titulo;
+          image = await findHdImageAny(g.titulo, n.category, used);
         }
-        if (!image) {
-          image_query = g.termo;
-          image = (await fromWikipedia(g.entidade)) ?? (await findHdImageAny(g.termo, n.category, used));
-        }
-        rows.push({
-          id: n.id,
-          source: n.source,
-          category: n.category,
-          url: n.url,
-          image: finalImageUrl(image, n.category, n.title),
-          image_query,
-          original_title: n.title,
-          titulo_inedito: g.titulo,
-          relevance: Math.round(relevanceScore(n)),
-          published_at: n.publishedAt,
-        });
-      }
-      if (rows.length) {
-        const { error } = await db.from("articles").upsert(rows, { onConflict: "id" });
-        if (error) throw error;
-        inserted += rows.length;
+        const { error } = await db.from("articles").upsert(
+          {
+            id: n.id,
+            source: n.source,
+            category: n.category,
+            url: n.url,
+            image: finalImageUrl(image, n.category, n.title),
+            image_query,
+            original_title: n.title,
+            titulo_inedito: g.titulo,
+            resumo: g.resumo,
+            relevance: relevance100(n),
+            published_at: n.publishedAt,
+          },
+          { onConflict: "id" },
+        );
+        if (error) console.error("gravação falhou", error);
+        else inserted++;
+      } catch (e) {
+        console.error("notícia ignorada", e);
       }
     }
 

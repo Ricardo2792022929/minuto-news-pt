@@ -1,33 +1,28 @@
-// Geração de títulos e resumos com Google Gemini (chave própria GEMINI_API_KEY).
+// Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
 const REQUESTED_MODEL = "gemini-1.5-flash";
 // gemini-1.5-flash foi retirado pela Google (404); usa o Flash atual nesse caso.
 const FALLBACK_MODEL = "gemini-flash-latest";
+const TIMEOUT_MS = 8_000;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
+
 REGRAS OBRIGATÓRIAS:
 - Escreve estritamente em Português de Portugal (PT-PT).
-- Comprimento: Entre 6 e 10 palavras no máximo.
-- Estrutura: Começa SEMPRE com o SUJEITO ou a AÇÃO principal.
-- Sem Prefixos: NUNCA uses prefixos (ex: 'Crise em...', 'Urgente:', 'Atenção:').
-- Responde APENAS em formato JSON válido com a chave 'titulo'. Sem texto extra.
+- O título deve ter entre 6 e 10 palavras.
+- Começa SEMPRE pelo SUJEITO ou pela AÇÃO principal.
+- Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', etc.
+- Não inventes informação.
+- Mantém o significado factual da notícia original.
+- Não uses clickbait enganador.
+- O resumo tem 1 a 2 frases curtas em PT-PT, apenas com factos presentes na notícia.
+- Responde APENAS com JSON válido com as chaves 'titulo' e 'resumo'.
+- Não uses Markdown, nem \`\`\`json, nem texto fora do JSON.
 
-EXEMPLO INCORRETO:
-{"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+Exemplo incorreto:
+{"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas", "resumo": "..."}
 
-EXEMPLO CORRETO:
-{"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
-
-const PREFIX = /^\s*(urgente|aten[cç][aã]o|[uú]ltima hora|breaking|exclusivo|direto|v[ií]deo)\s*[:\-–—]\s*/i;
-
-export function cleanTitle(raw: string): string | null {
-  let t = raw.trim().replace(/^["'«“]+|["'»”.]+$/g, "").replace(PREFIX, "");
-  const colon = t.indexOf(":");
-  if (colon > 0 && colon < 40) t = t.slice(colon + 1).trim();
-  const words = t.split(/\s+/).filter(Boolean);
-  if (words.length < 4) return null;
-  t = words.slice(0, 10).join(" ");
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
+Exemplo correto:
+{"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha", "resumo": "O primeiro-ministro espanhol dissolveu o parlamento e marcou eleições antecipadas."}`;
 
 export class GatewayError extends Error {
   constructor(message: string, public status: number) {
@@ -35,51 +30,78 @@ export class GatewayError extends Error {
   }
 }
 
-export type GeneratedTitle = { titulo: string; resumo: string; termo: string; entidade: string };
+export type GeneratedTitle = { titulo: string; resumo: string };
 
 const responseSchema = {
   type: "OBJECT",
-  properties: { titulo: { type: "STRING" } },
-  required: ["titulo"],
+  properties: { titulo: { type: "STRING" }, resumo: { type: "STRING" } },
+  required: ["titulo", "resumo"],
 };
 
-async function callGemini(model: string, apiKey: string, prompt: string) {
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(8_000), // aborta ao fim de 8s e avança para a próxima
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", responseSchema },
-    }),
-  });
+const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-–—]/i;
+const MARKDOWN = /[*_`#>\[\]]|```/;
+
+export function validTitle(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.replace(/\s+/g, " ").trim().replace(/^["'«“]+|["'»”]+$/g, "").replace(/\.$/, "");
+  if (!t || MARKDOWN.test(t) || PREFIX.test(t) || /erro|error/i.test(t.slice(0, 12))) return null;
+  const n = t.split(" ").length;
+  if (n < 6 || n > 10) return null;
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-export async function generateTitles(
-  items: { id: string; title: string; excerpt: string }[],
-): Promise<Map<string, GeneratedTitle>> {
+function validSummary(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.replace(/\s+/g, " ").trim();
+  if (s.length < 20 || s.length > 300 || MARKDOWN.test(s)) return null;
+  return s;
+}
+
+async function callGemini(model: string, apiKey: string, prompt: string) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", responseSchema },
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Uma notícia por pedido. Devolve null em qualquer falha (sem fallback). */
+export async function generateOne(title: string): Promise<GeneratedTitle | null> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
-  const map = new Map<string, GeneratedTitle>();
-  for (const [idx, it] of items.entries()) {
-    if (idx > 0) await new Promise((r) => setTimeout(r, 2000)); // limite gratuito 15/min
-    try {
-      const prompt = `Título original: ${it.title}`;
-      let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
-      if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
-      if (!res.ok) {
-        console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
-        if (res.status === 429) break;
-        continue;
-      }
-      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-      const clean = cleanTitle((JSON.parse(raw) as { titulo?: string }).titulo ?? "");
-      if (clean) map.set(it.id, { titulo: clean, resumo: "", termo: "", entidade: "" });
-    } catch (e) {
-      console.error("Gemini falhou", e);
+  const started = Date.now();
+  try {
+    const prompt = `Título original: ${title}`;
+    let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
+    if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
+    if (!res.ok) {
+      console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
+      return null;
     }
+    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
+    const titulo = validTitle(parsed.titulo);
+    const resumo = validSummary(parsed.resumo);
+    if (!titulo || !resumo) {
+      console.error("Gemini resposta inválida", raw.slice(0, 200));
+      return null;
+    }
+    console.log(`Gemini OK em ${Date.now() - started}ms`);
+    return { titulo, resumo };
+  } catch (e) {
+    console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
+    return null;
   }
-  return map;
 }

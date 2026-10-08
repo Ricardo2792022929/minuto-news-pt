@@ -1,8 +1,8 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
-import { generateTitles, GatewayError } from "./title-generation.server";
+import { generateOne, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
-const BATCH = 3; // lote de teste: apenas as 3 notícias mais recentes
+const BATCH = 5; // máx. 5 notícias por execução
 const MAX_BATCHES = 1; // limite por execução
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -234,4 +234,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   } finally {
     await db.from("ingest_state").update({ locked_until: null }).eq("id", 1);
   }
+}
+
+// Relevância normalizada 0-100 a partir da lógica existente (bónus de horas sobre a data).
+function relevance100(n: Parameters<typeof relevanceScore>[0]): number {
+  const bonusH = (relevanceScore(n) - new Date(n.publishedAt).getTime()) / 3600_000;
+  return Math.max(0, Math.min(100, Math.round(50 + bonusH * 5)));
 }

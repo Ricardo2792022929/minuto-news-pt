@@ -780,6 +780,14 @@ function Index() {
               </div>
             )}
 
+            {query.isSuccess && !isError && !articles.length && (
+              <div className="flex h-[100dvh] w-full snap-start items-center justify-center px-8 text-center">
+                <p className="font-display text-lg font-bold text-feed-fg/80">
+                  Sem notícias recentes nas últimas 24h
+                </p>
+              </div>
+            )}
+
             <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
           </div>
 

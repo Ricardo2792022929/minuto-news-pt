@@ -294,7 +294,8 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
 
     const dateStr =
       item?.["pubDate"] ?? item?.["published"] ?? item?.["updated"] ?? item?.["dc:date"] ?? "";
-    let publishedAt = dateStr ? new Date(String(dateStr).trim()) : new Date();
+    if (!dateStr) continue;
+    let publishedAt = new Date(String(dateStr).trim());
     if (Number.isNaN(publishedAt.getTime())) continue;
     // proteção contra datas no futuro (fusos mal indicados pelos jornais)
     if (publishedAt.getTime() > Date.now()) publishedAt = new Date();

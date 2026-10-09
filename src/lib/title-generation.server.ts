@@ -1,8 +1,7 @@
 // Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
-const REQUESTED_MODEL = "gemini-1.5-flash";
-// gemini-1.5-flash foi retirado pela Google (404); usa o Flash atual nesse caso.
-const FALLBACK_MODEL = "gemini-flash-latest";
-const TIMEOUT_MS = 8_000;
+// Confirmado via API para esta chave; thinkingLevel "minimal" é o mínimo aceite (thinkingBudget 0 dá 400).
+const MODEL = "gemini-flash-lite-latest";
+const TIMEOUT_MS = 12_000;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
 
@@ -68,7 +67,7 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", responseSchema },
+        generationConfig: { responseMimeType: "application/json", responseSchema, thinkingConfig: { thinkingLevel: "minimal" } },
       }),
     });
   } finally {
@@ -83,8 +82,12 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   const started = Date.now();
   try {
     const prompt = `Título original: ${title}`;
-    let res = await callGemini(REQUESTED_MODEL, apiKey, prompt);
-    if (res.status === 404) res = await callGemini(FALLBACK_MODEL, apiKey, prompt);
+    let res = await callGemini(MODEL, apiKey, prompt);
+    if (res.status === 503) {
+      console.warn("Gemini 503; retry único em 2s");
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await callGemini(MODEL, apiKey, prompt);
+    }
     if (!res.ok) {
       console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
       return null;
@@ -98,7 +101,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
       console.error("Gemini resposta inválida", raw.slice(0, 200));
       return null;
     }
-    console.log(`Gemini OK em ${Date.now() - started}ms`);
+    console.log(`Gemini OK [${MODEL}] em ${Date.now() - started}ms`);
     return { titulo, resumo };
   } catch (e) {
     console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);

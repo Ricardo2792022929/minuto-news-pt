@@ -3,6 +3,7 @@ import { generateOne, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
 const BATCH = 5; // máx. 5 notícias por execução
+const TARGET = 150; // máx. de notícias recentes guardadas
 const MAX_BATCHES = 4; // até 20 notícias por execução (lotes de 5, sequenciais)
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -150,6 +151,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
     // só artigos das últimas 24h, mais recentes primeiro
+    // objetivo: manter até TARGET notícias recentes guardadas
+    const { count: stored } = await db.from("articles").select("id", { count: "exact", head: true }).gte("published_at", cutoff);
     const news = (await getAllNews())
       .filter((n) => n.publishedAt >= cutoff)
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
@@ -174,7 +177,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         perSrc.set(n.source, c + 1);
         return true;
       })
-      .slice(0, BATCH * MAX_BATCHES);
+      .slice(0, Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0))));
 
     // evita repetir a mesma foto de reserva
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);

@@ -189,7 +189,7 @@ type Category = (typeof CATEGORIES)[number];
 const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 10;
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -784,6 +784,14 @@ function Index() {
               <div className="flex h-[100dvh] w-full snap-start items-center justify-center px-8 text-center">
                 <p className="font-display text-lg font-bold text-feed-fg/80">
                   Sem notícias recentes nas últimas 24h
+                </p>
+              </div>
+            )}
+
+            {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
+              <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center">
+                <p className="text-sm font-medium text-feed-fg/70">
+                  Não há mais notícias recentes por agora. Volta daqui a pouco.
                 </p>
               </div>
             )}

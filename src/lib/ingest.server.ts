@@ -3,7 +3,7 @@ import { generateOne, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
 
 const BATCH = 5; // máx. 5 notícias por execução
-const MAX_BATCHES = 1; // limite por execução
+const MAX_BATCHES = 4; // até 20 notícias por execução (lotes de 5, sequenciais)
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;

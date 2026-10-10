@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Validar dimensões reais e selecionar fotos adequadas sem alterar o design ou executar ingestões manuais
+- [x] Validar dimensões reais e selecionar fotos adequadas sem alterar o design ou executar ingestões manuais
 
 - [x] Feed estilo TikTok (scroll infinito vertical, guardar apenas)
 - [x] Remover gostos, comentários e partilhar

@@ -29,6 +29,32 @@ async function fromUnsplash(term: string, used: Set<string>) {
   return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=80&fit=crop`, width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` })), used);
 }
 
+// Pixabay (fotografias reais) — só servidor; a chave nunca sai daqui nem é registada.
+// Termos da API: URLs só para exibição temporária (as notícias são apagadas às 24h), sem descarregar/alojar.
+const pixabayCache = new Map<string, Hit[]>();
+async function fromPixabay(term: string, used: Set<string>) {
+  const key = process.env["PIXABAY_API_KEY"];
+  if (!key || !term) return null;
+  const k = term.toLowerCase();
+  let hits = pixabayCache.get(k);
+  if (!hits) {
+    const res = await fetch(
+      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(term.slice(0, 100))}&lang=pt&image_type=photo&orientation=vertical&min_width=800&safesearch=true&per_page=20`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!res.ok) return null; // quota/erro: continua com as outras fontes
+    const d = (await res.json()) as { hits?: { largeImageURL: string; imageWidth: number; tags: string }[] };
+    // só aceita resultados cujas etiquetas partilhem uma palavra com o termo (evita correspondências inventadas)
+    const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3);
+    hits = (d.hits ?? [])
+      .filter((h) => { const t = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); return words.some((w) => t.includes(w)); })
+      .map((h) => ({ url: h.largeImageURL, width: h.imageWidth, text: h.tags }));
+    pixabayCache.set(k, hits);
+    if (pixabayCache.size > 200) pixabayCache.delete(pixabayCache.keys().next().value!);
+  }
+  return pickRandom(hits, used);
+}
+
 // Pexels (fotografias reais) — só se existir chave.
 async function fromPexels(term: string, used: Set<string>) {
   const key = process.env["PEXELS_API_KEY"];
@@ -103,7 +129,7 @@ async function fromWikipedia(entity: string): Promise<string | null> {
 
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
   if (!term) return null;
-  for (const fn of [fromUnsplash, fromPexels, fromOpenverse]) {
+  for (const fn of [fromPixabay, fromUnsplash, fromPexels, fromOpenverse]) {
     try {
       const img = await fn(term, used);
       if (img) return img;

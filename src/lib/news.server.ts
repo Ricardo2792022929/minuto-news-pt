@@ -125,12 +125,12 @@ export function isLowResImage(url: string): boolean {
   return /emoji|s\.w\.org|\/\d{2,3}x\d{2,3}\/|\/\d{2,3}$|thumb|small|mini|150x150|300x|[-_x]\d{2,3}x\d{2,3}(?!\d)|[?&](w|width|h|height)=\d{1,3}(&|$)/i.test(url);
 }
 
-function extractImage(item: any): string | undefined {
+function extractImages(item: any): string[] {
   const candidates: { url: string; w: number; prio: number }[] = [];
   const add = (url: unknown, w: unknown, prio: number) => {
     if (typeof url !== "string" || !url) return;
     const width = Number(w) || 0;
-    if (width && width < 600) return; // largura conhecida e baixa → descarta
+    if (width && width < 800) return;
     candidates.push({ url, w: width, prio });
   };
   const media = [
@@ -152,14 +152,23 @@ function extractImage(item: any): string | undefined {
 
   // Ordem: enclosure / media:content (maior primeiro) → <img> em content:encoded / description.
   const sorted = candidates.sort((a, b) => b.w - a.w || b.prio - a.prio).map((c) => c.url);
-  const html = [firstImg(item["content:encoded"]), firstImg(item["description"])];
+  const html = [item["content:encoded"], item["description"]].flatMap((value) => {
+    const content = decodeEntities(String(value ?? ""));
+    const srcset = content.match(/<img[^>]+srcset=["']([^"']+)["']/i)?.[1];
+    const variants = (srcset ?? "").split(",").map((part) => {
+      const [url, descriptor] = part.trim().split(/\s+/);
+      return { url, width: Number(descriptor?.replace(/w$/, "")) || 0 };
+    }).sort((a, b) => b.width - a.width).map((variant) => variant.url);
+    return [...variants, firstImg(value)];
+  });
+  const result: string[] = [];
   for (const raw of [...sorted, ...html]) {
     if (!raw) continue;
     const url = upgradeImageUrl(raw.replace(/&amp;/g, "&").trim());
     if (/_default\.|default_|placeholder|logo/i.test(url)) continue; // imagens genéricas
-    if (!isLowResImage(url)) return url;
+    if (!isLowResImage(url)) result.push(url);
   }
-  return undefined;
+  return [...new Set(result)];
 }
 
 // CDNs que redimensionam (RTP, imgix, WordPress Photon): pede a versão HD.
@@ -167,7 +176,8 @@ function upgradeImageUrl(url: string): string {
   try {
     const u = new URL(url);
     if (/cdn-images\.rtp\.pt|imgix\.net|i\d\.wp\.com/.test(u.hostname)) {
-      for (const k of ["w", "width"]) if (u.searchParams.has(k)) u.searchParams.set(k, "1000");
+      // Request the source's rendition, but actual pixels are checked before saving.
+      for (const k of ["w", "width"]) if (u.searchParams.has(k)) u.searchParams.set(k, "1200");
       if (u.searchParams.has("q")) u.searchParams.set("q", "80");
       u.searchParams.delete("h");
       return u.toString();
@@ -315,10 +325,11 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
       url,
       publishedAt: publishedAt.toISOString(),
     };
-    const rawImage = extractImage(item);
-    const decoded = rawImage ? decodeEntities(rawImage) : undefined;
+    const imageCandidates = extractImages(item).map(decodeEntities).filter((url) => !/default|placeholder|no-?image/i.test(url));
+    const decoded = imageCandidates[0];
     const image = decoded && !/default|placeholder|no-?image/i.test(decoded) ? decoded : undefined;
     if (image) entry.image = image;
+    if (imageCandidates.length) entry.imageCandidates = imageCandidates;
     items.push(entry);
   }
   return items;

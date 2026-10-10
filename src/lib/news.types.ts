@@ -7,4 +7,5 @@ export interface NewsItem {
   url: string;
   publishedAt: string;
   image?: string;
+  imageCandidates?: string[];
 }

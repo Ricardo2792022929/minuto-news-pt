@@ -26,7 +26,7 @@ export function finalImageUrl(raw: string | null | undefined, category?: string,
     const url = new URL(raw?.trim() ?? "");
     if (url.protocol !== "https:") return categoryImage(category, title);
     if (/(^|\.)(images\.unsplash\.com|images\.pexels\.com|[^.]+\.imgix\.net)$/.test(url.hostname)) {
-      url.searchParams.set("w", "800");
+      url.searchParams.set("w", "1200");
       url.searchParams.set("q", "80");
       url.searchParams.set("fit", "crop");
       url.searchParams.set("auto", "format");

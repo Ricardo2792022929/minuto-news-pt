@@ -1,6 +1,8 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateOne, GatewayError } from "./title-generation.server";
 import { finalImageUrl } from "./image-policy";
+import { chooseOriginal, inspectImage } from "./image-dimensions.server";
+import { adequateImage } from "./image-quality";
 
 const BATCH = 5; // máx. 5 notícias por execução
 const TARGET = 150; // máx. de notícias recentes guardadas
@@ -39,20 +41,31 @@ async function fromPixabay(term: string, used: Set<string>) {
   let hits = pixabayCache.get(k);
   if (!hits) {
     const res = await fetch(
-      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(term.slice(0, 100))}&lang=pt&image_type=photo&orientation=vertical&min_width=800&safesearch=true&per_page=20`,
+      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(term.slice(0, 100))}&lang=pt&image_type=photo&orientation=vertical&min_width=1000&min_height=600&safesearch=true&per_page=20`,
       { signal: AbortSignal.timeout(8000) },
     );
     if (!res.ok) return null; // quota/erro: continua com as outras fontes
-    const d = (await res.json()) as { hits?: { largeImageURL: string; imageWidth: number; tags: string }[] };
+    const d = (await res.json()) as { hits?: { largeImageURL: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
     // só aceita resultados cujas etiquetas partilhem uma palavra com o termo (evita correspondências inventadas)
-    const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3);
+    const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3 && !["para", "como", "mais", "sobre", "apos", "hoje", "anuncia", "portugal", "portugues", "noticias"].includes(w));
     hits = (d.hits ?? [])
-      .filter((h) => { const t = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); return words.some((w) => t.includes(w)); })
-      .map((h) => ({ url: h.largeImageURL, width: h.imageWidth, text: h.tags }));
+      .filter((h) => { const tags = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/); return words.some((w) => tags.includes(w)) && adequateImage({ width: h.imageWidth, height: h.imageHeight }); })
+      .map((h) => ({ url: h.imageURL ?? h.fullHDURL ?? h.largeImageURL, width: h.imageWidth, text: h.tags }));
     pixabayCache.set(k, hits);
-    if (pixabayCache.size > 200) pixabayCache.delete(pixabayCache.keys().next().value!);
+    if (pixabayCache.size > 200) {
+      const oldest = pixabayCache.keys().next().value;
+      if (oldest) pixabayCache.delete(oldest);
+    }
   }
-  return pickRandom(hits, used);
+  // imageWidth describes the original, NOT necessarily largeImageURL (often only 1280px).
+  const candidates = hits.filter((h) => !used.has(h.url)).sort((a, b) => Number((b.width ?? 0) >= 1200) - Number((a.width ?? 0) >= 1200));
+  for (const hit of candidates.slice(0, 3)) {
+    const size = await inspectImage(hit.url);
+    if (!size || !adequateImage(size)) continue;
+    used.add(hit.url);
+    return hit.url;
+  }
+  return null;
 }
 
 // Pexels (fotografias reais) — só se existir chave.
@@ -91,14 +104,21 @@ async function fromArticlePage(url: string): Promise<string | null> {
     });
     if (!res.ok) return null;
     const html = (await res.text()).slice(0, 200_000);
-    const m =
-      html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*content=["']([^"']+)["']/i) ??
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i);
-    const img = m?.[1]?.replace(/&amp;/g, "&").trim();
-    if (!img) return null;
-    const abs = new URL(img, url).toString().replace(/^http:/, "https:");
-    if (isLowResImage(abs) || /logo|default|placeholder|\.svg/i.test(abs)) return null;
-    return abs;
+    const candidates: string[] = [];
+    for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
+      if (!/(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["']/i.test(meta[0])) continue;
+      const value = meta[0].match(/content=["']([^"']+)["']/i)?.[1];
+      if (value) candidates.push(value);
+    }
+    // Only expand srcsets belonging to the same article photo, not unrelated page images.
+    for (const img of html.matchAll(/<img\b[^>]*>/gi)) {
+      const src = img[0].match(/\bsrc=["']([^"']+)["']/i)?.[1];
+      if (!src || !candidates.some((candidate) => candidate.split("?")[0] === src.split("?")[0])) continue;
+      const srcset = img[0].match(/\bsrcset=["']([^"']+)["']/i)?.[1];
+      const variants = (srcset ?? "").split(",").map((part) => part.trim().split(/\s+/)).sort((a, b) => (parseInt(b[1] ?? "0") || 0) - (parseInt(a[1] ?? "0") || 0));
+      candidates.unshift(...variants.flatMap((variant) => variant[0] ? [variant[0]] : []));
+    }
+    return await chooseOriginal(candidates.map((value) => new URL(value.replace(/&amp;/g, "&").trim(), url).toString().replace(/^http:/, "https:")).filter((value) => !isLowResImage(value) && !/logo|default|placeholder|\.svg/i.test(value)));
   } catch {
     return null;
   }
@@ -146,15 +166,12 @@ const CATEGORY_EN: Record<string, string> = {
 };
 
 async function findHdImageAny(term: string, category: string, used: Set<string>) {
-  const words = term.split(/\s+/).filter(Boolean);
-  const tries = category === "Desporto"
-    ? [term, "football stadium", "football pitch grass"]
-    : [term, words.slice(-1)[0] ?? "", CATEGORY_EN[category] ?? "news"];
-  for (const t of tries) {
-    const img = await findHdImage(t, used);
-    if (img) return img;
+  // Never broaden to a location/category that could misrepresent the article.
+  try {
+    return await fromPixabay(term, used);
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export async function runIngest(): Promise<Record<string, unknown>> {
@@ -215,7 +232,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       const g = await generateOne(n.title);
       if (!g) continue; // sem fallback para o título original
       try {
-        let image = n.image && !isLowResImage(n.image) ? n.image : null;
+        let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));
         let image_query: string | null = null;
         if (!image) image = await fromArticlePage(n.url);
         if (!image) {

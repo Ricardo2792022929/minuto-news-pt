@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { excessiveEnlargement } from "@/lib/image-quality";
 
 // Banco de FOTOGRAFIAS REAIS (Wikimedia Commons) por tema — usado só quando a
 // notícia não tem foto ou a foto falha. Garante que nenhum cartão fica preto.
@@ -69,7 +70,7 @@ const optimizeImage = (url: string) => {
     if (u.hostname === "upload.wikimedia.org" && !u.pathname.includes("/thumb/")) {
       const m = u.pathname.match(/^\/wikipedia\/commons\/(\w\/\w\w)\/([^/]+)$/);
       if (m && m[1] && m[2] && !/\.(svg|tiff?)$/i.test(m[2]))
-        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/960px-${m[2]}`;
+        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/1200px-${m[2]}`;
       return url;
     }
     if (
@@ -77,7 +78,7 @@ const optimizeImage = (url: string) => {
       u.hostname.includes("pexels.com") ||
       u.hostname.includes("imgix.net")
     ) {
-      u.searchParams.set("w", "800");
+      u.searchParams.set("w", "1200");
       u.searchParams.set("q", "80");
       u.searchParams.set("auto", "format");
       u.searchParams.set("fit", "crop");
@@ -111,11 +112,19 @@ function FadeImg({
   return (
     <img
       key={src}
-      src={optimizeImage(src)}
+      src={src === item.image ? src : optimizeImage(src)}
       alt={alt}
       referrerPolicy="no-referrer"
       loading={eager ? "eager" : "lazy"}
-      onLoad={() => setLoaded(true)}
+      onLoad={(event) => {
+        const image = event.currentTarget;
+        if (src === item.image && excessiveEnlargement({ width: image.naturalWidth, height: image.naturalHeight }, image.clientWidth, image.clientHeight)) {
+          setLoaded(false);
+          setIdx((current) => Math.min(current + 1, list.length - 1));
+          return;
+        }
+        setLoaded(true);
+      }}
       onError={() => {
         if (idx < list.length - 1) {
           setLoaded(false);

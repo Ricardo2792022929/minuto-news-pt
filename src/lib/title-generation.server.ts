@@ -8,7 +8,7 @@ const SYSTEM = `És um editor de notícias em Portugal especializado em títulos
 
 REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Escreve estritamente em Português de Portugal (PT-PT).
-- O título deve ter entre 6 e 10 palavras.
+- O título deve ter NO MÁXIMO 10 palavras (idealmente 6 a 10).
 - Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
 - Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
 - Não inventes informação.
@@ -38,16 +38,29 @@ const responseSchema = {
   required: ["titulo", "resumo"],
 };
 
-const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-\u2013—]/i;
+const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-–—]/i;
 const MARKDOWN = /[*_`#>\[\]]|```/;
+
+/** Força um título a ter no máximo 10 palavras, removendo prefixos e limpando. */
+export function forceMax10Words(raw: string): string {
+  let t = raw.replace(/\s+/g, " ").trim().replace(/^["«“]+|["'»”]+$/g, "").replace(/\.$/, "");
+  t = t.replace(PREFIX, "").trim();
+  // Remove estilo "Tema: resto"
+  if (t.includes(":") && t.split(":")[0].split(" ").length <= 4) {
+    t = t.split(":").slice(1).join(":").trim();
+  }
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length > 10) t = words.slice(0, 10).join(" ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 export function validTitle(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/\s+/g, " ").trim().replace(/^["«“]+|["'»”]+$/g, "").replace(/\.$/, "");
-  if (!t || MARKDOWN.test(t) || PREFIX.test(t) || /erro|error/i.test(t.slice(0, 12))) return null;
-  const n = t.split(" ").length;
-  if (n < 6 || n > 10) return null;
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  const forced = forceMax10Words(raw);
+  if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
+  const n = forced.split(" ").length;
+  if (n < 4 || n > 10) return null; // permite um pouco mais curto se for direto
+  return forced;
 }
 
 function validSummary(raw: unknown): string | null {
@@ -83,7 +96,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Reescreve o título de forma curta e direta, começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
+    const prompt = `Reescreve o título de forma curta e direta (máximo 10 palavras), começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

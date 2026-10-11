@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { NewsItem } from "./news.types";
-import { finalImageUrl } from "./image-policy";
+import { finalImageUrl, guaranteedImage } from "./image-policy";
 
 // Lê apenas notícias já pré-processadas (com título final pronto) da base de dados.
 export const getNews = createServerFn({ method: "GET" })
@@ -55,8 +55,8 @@ export const getNews = createServerFn({ method: "GET" })
       excerpt: (r.resumo ?? "").trim(),
       url: r.url,
       publishedAt: r.published_at,
-      // Nunca devolver imagem nula/inválida: a política escolhe uma fotografia local por categoria.
-      image: finalImageUrl(r.image, r.category, r.titulo_inedito),
+      // Sempre uma imagem válida: finalImageUrl devolve URL real ou Picsum garantido.
+      image: finalImageUrl(r.image, r.category, r.titulo_inedito, r.id) || guaranteedImage(r.id, r.category),
     }));
     const ordered = items.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt));
     return { items: ordered.slice(data.offset, data.offset + data.limit), total, hasMore: data.offset + data.limit < total };

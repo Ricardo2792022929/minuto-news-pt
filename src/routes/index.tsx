@@ -151,6 +151,7 @@ import {
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowLeft,
   Bookmark,
   ChevronDown,
   Cpu,
@@ -459,24 +460,34 @@ function SavedList({
   items,
   onOpen,
   onRemove,
+  onBack,
 }: {
   items: NewsItem[];
   onOpen: (item: NewsItem) => void;
   onRemove: (id: string) => void;
+  onBack: () => void;
 }) {
-  if (!items.length) {
-    return (
-      <div className="flex h-[calc(100dvh-44px)] flex-col items-center justify-center gap-3 px-8 text-center">
+  return (
+    <div className="flex h-full flex-col bg-feed-bg">
+      <div className="flex items-center gap-2 px-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-feed-fg"
+        >
+          <ArrowLeft className="size-5" />
+          Voltar
+        </button>
+      </div>
+      {!items.length ? (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
         <Bookmark className="size-10 text-muted-foreground/40" />
         <p className="font-display text-xl font-bold">Ainda sem guardadas</p>
         <p className="text-sm text-muted-foreground">
           Toca em "Guardar" numa notícia para a encontrares aqui.
         </p>
       </div>
-    );
-  }
-  return (
-    <div className="h-[calc(100dvh-44px)] overflow-y-auto px-4 pb-8 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      ) : (
+    <div className="flex-1 overflow-y-auto px-4 pb-8 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((item) => (
         <div
           key={item.id}
@@ -514,6 +525,8 @@ function SavedList({
           </button>
         </div>
       ))}
+    </div>
+      )}
     </div>
   );
 }
@@ -725,37 +738,20 @@ function Index() {
                     </span>
                   )}
 
-                  {/* Top right actions */}
-                  <div className="absolute right-4 top-[104px] z-10 flex flex-col items-end gap-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSave(a);
-                      }}
-                      className={`flex flex-col items-center gap-1 rounded-full p-2.5 transition-colors ${
-                        savedMap[a.id]
-                          ? "animate-heart-pop bg-live text-live-foreground"
-                          : "bg-feed-fg/15"
-                      }`}
-                    >
-                      <span
-                        className={`flex size-10 items-center justify-center rounded-full transition-colors ${
-                          savedMap[a.id]
-                            ? "animate-heart-pop bg-live text-live-foreground"
-                            : "bg-feed-fg/15"
-                        }`}
-                      >
-                        <Bookmark
-                          className={`size-6 ${
-                            savedMap[a.id] ? "fill-live-foreground" : ""
-                          }`}
-                        />
-                      </span>
-                      <span className="text-[11px] font-semibold drop-shadow">
-                        {savedMap[a.id] ? "Guardado" : "Guardar"}
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSave(a);
+                    }}
+                    aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
+                    className={`absolute right-4 top-1/2 z-10 flex size-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm ${
+                      savedMap[a.id] ? "border-live bg-live/70 text-live-foreground" : ""
+                    }`}
+                  >
+                    <Bookmark
+                      className={`size-6 ${savedMap[a.id] ? "fill-current" : ""}`}
+                    />
+                  </button>
 
                   {/* Bottom story */}
                   <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-12">
@@ -895,6 +891,7 @@ function Index() {
       ) : (
         <SavedList
           items={Object.values(savedMap)}
+          onBack={() => setTab("feed")}
           onOpen={(item) => void openArticle(item.url)}
           onRemove={(id) => {
             setSavedMap((prev) => {

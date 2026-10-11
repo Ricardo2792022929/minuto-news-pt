@@ -2,7 +2,7 @@ import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateOne, GatewayError } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { finalImageUrl } from "./image-policy";
-import { chooseOriginal, inspectImage } from "./image-dimensions.server";
+import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 4; // concorrência moderada para evitar picos de pedidos às APIs
@@ -252,7 +252,6 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       const batch = pending.slice(offset, offset + BATCH);
       const results = await Promise.all(batch.map(async (n) => {
         geminiAttempts++;
-        groqAttempts++;
         // Uma chamada de cada vez por notícia: Gemini primeiro, Groq apenas como fallback.
         // Limita picos de tráfego e evita gastar duas quotas quando a primeira API responde bem.
         let g: Awaited<ReturnType<typeof generateOne>> = null;
@@ -262,6 +261,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           console.warn("Gemini falhou; a tentar Groq", error instanceof Error ? error.message : error);
         }
         if (!g) {
+          groqAttempts++;
           try {
             g = await generateGroqOne(n.title);
           } catch (error) {

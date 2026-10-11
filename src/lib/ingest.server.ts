@@ -277,17 +277,11 @@ function normalizeTitle(title: string): string {
 }
 
 function cleanRssTitle(title: string): string {
-  let cleaned = title
+  const cleaned = title
     .replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "")
     .replace(/^(Crise|Urgente|Atenção|Última hora)\s*[:\-–—]\s*/i, "")
     .replace(/\s+/g, " ").trim();
-  if (cleaned.includes(":") && cleaned.split(":")[0].split(" ").length <= 4) {
-    cleaned = cleaned.split(":").slice(1).join(":").trim();
-  }
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length > 10) cleaned = words.slice(0, 10).join(" ");
-  const final = cleaned || title.trim();
-  return final.charAt(0).toUpperCase() + final.slice(1);
+  return forceMax10Words(cleaned || title.trim());
 }
 
 function firstSentence(text: string): string {

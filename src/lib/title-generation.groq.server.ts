@@ -1,14 +1,13 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-120b";
-const TIMEOUT_MS = 8_000;
+const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
+const TIMEOUT_MS = 6_000;
 let groqCooldownUntil = 0;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
-- Prioriza acontecimentos do presente e notícias dos últimos 15–30 minutos; usa linguagem de última hora apenas quando o título de entrada o comprova e nunca inventes atualizações.
 - Escreve estritamente em Português de Portugal (PT-PT).
-- O título deve ter entre 6 e 10 palavras e começar pelo sujeito ou ação principal.
-- Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
+- O título deve ter entre 6 e 10 palavras e começar SEMPRE pelo sujeito ou ação principal.
+- Nunca uses o estilo "Tema: descrição longa". Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
 - Não inventes informação nem uses clickbait enganador.
 - O resumo deve ter 1 a 2 frases curtas, apenas com factos presentes no título original.
 - Responde apenas com JSON válido com as chaves "titulo" e "resumo".`;
@@ -43,7 +42,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Prioriza acontecimentos atuais/últimos 30 minutos apenas se forem confirmados pelo título. Não apresentes notícias antigas como novas nem acrescentes factos.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Reescreve o título de forma curta e direta, começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
         ],
       }),
     });
@@ -51,7 +50,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
       const detail = (await response.text().catch(() => "")).slice(0, 200);
       if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
         const retryAfter = Number(response.headers.get("retry-after") ?? 0);
-        groqCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 300) * 1000 : 60_000);
+        groqCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 180) * 1000 : 30_000);
       }
       console.error("Groq HTTP", response.status, detail);
       if (response.status === 401 || response.status === 403 || response.status === 402) {

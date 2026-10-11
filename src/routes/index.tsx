@@ -536,33 +536,21 @@ function SavedList({
 function Index() {
   const now = useClock();
   const [mounted, setMounted] = useState(false);
-  const [showIntro, setShowIntro] = useState(true);
-  const [introKey, setIntroKey] = useState(0);
+  const [showIntro, setShowIntro] = useState(() => {
+    try {
+      return sessionStorage.getItem("flash:intro-seen") !== "1";
+    } catch {
+      return true;
+    }
+  });
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const closeIntro = useCallback(() => setShowIntro(false), []);
-  const introWasHidden = useRef(false);
-
-  useEffect(() => {
-    const replay = () => {
-      setShowIntro(true);
-      setIntroKey((k) => k + 1);
-    };
-    const onVis = () => {
-      if (document.visibilityState === "hidden") introWasHidden.current = true;
-      if (document.visibilityState === "visible" && introWasHidden.current) {
-        introWasHidden.current = false;
-        replay();
-      }
-    };
-    const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) replay();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pageshow", onPageShow);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pageshow", onPageShow);
-    };
+  const closeIntro = useCallback(() => {
+    try {
+      sessionStorage.setItem("flash:intro-seen", "1");
+    } catch {
+      /* ignora */
+    }
+    setShowIntro(false);
   }, []);
   const [interests, setInterests] = useState<string[]>([]);
   const [category, setCategory] = useState<Category>("Tudo");
@@ -698,14 +686,14 @@ function Index() {
       <div className="mx-auto flex h-[100dvh] w-full max-w-xl items-center justify-center bg-feed-bg">
         <Loader2 className="size-8 animate-spin text-feed-fg/50" />
       </div>
-      {showIntro && <Intro key={introKey} onDone={closeIntro} />}
+      {showIntro && <Intro onDone={closeIntro} />}
     </>
     );
   }
 
   return (
     <div className="relative mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
-      {showIntro && <Intro key={introKey} onDone={closeIntro} />}
+      {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && (
         <Onboarding
           onDone={(picked) => {

@@ -164,7 +164,7 @@ async function fromWikipedia(entity: string): Promise<string | null> {
 
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
   if (!term) return null;
-  for (const fn of [fromPixabay, fromUnsplash, fromPexels, fromOpenverse]) {
+  for (const fn of [fromUnsplash, fromPexels, fromOpenverse, fromPixabay]) {
     try {
       const img = await fn(term, used);
       if (img) return img;
@@ -179,15 +179,6 @@ const CATEGORY_EN: Record<string, string> = {
   Política: "parliament building", Economia: "euro banknotes coins", Desporto: "football stadium",
   Mundo: "city skyline", Cultura: "concert crowd", Tech: "laptop computer",
 };
-
-async function findHdImageAny(term: string, category: string, used: Set<string>) {
-  // Never broaden to a location/category that could misrepresent the article.
-  try {
-    return await fromPixabay(term, used);
-  } catch {
-    return null;
-  }
-}
 
 export async function runIngest(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
@@ -333,7 +324,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     // Corrige também artigos que receberam a foto genérica de categoria: image_query
     // assinala que ainda falta uma imagem específica. Antes, filtrar image IS NULL
     // nunca os apanhava porque finalImageUrl já devolvia uma imagem genérica.
-    // A página original é prioritária; depois tenta Pixabay e outras fontes de fotografias.
+    // A página original é prioritária; depois tenta bancos de fotografias e deixa Pixabay como último recurso.
     const { data: missing } = await db
       .from("articles")
       .select("id,url,image_query,category,titulo_inedito")

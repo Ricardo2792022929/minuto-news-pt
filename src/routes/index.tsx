@@ -890,7 +890,7 @@ function Index() {
         </>
       ) : (
         <SavedList
-          items={Object.values(savedMap)}
+          items={[...Object.values(savedMap)].reverse()}
           onBack={() => setTab("feed")}
           onOpen={(item) => void openArticle(item.url)}
           onRemove={(id) => {

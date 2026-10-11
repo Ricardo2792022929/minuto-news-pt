@@ -268,7 +268,17 @@ export async function runIngest(): Promise<Record<string, unknown>> {
             console.warn("Groq falhou", error instanceof Error ? error.message : error);
           }
         }
-        if (!g) return 0;
+        if (!g) {
+          // Se ambas as APIs estiverem limitadas/indisponíveis, não perder a notícia:
+          // usa o título e o resumo do feed, sem inventar informação.
+          const sourceTitle = n.title.trim();
+          if (!sourceTitle) return 0;
+          g = {
+            titulo: sourceTitle.slice(0, 180),
+            resumo: (n.excerpt?.trim() || sourceTitle).slice(0, 300),
+          };
+          console.warn("Publicado com título original: Gemini e Groq indisponíveis/limitados", n.source);
+        }
         try {
           // Não bloquear a ingestão à procura de imagens externas. Usar apenas imagem do feed;
           // as notícias sem imagem podem ser enriquecidas pelo processo de recuperação abaixo.
@@ -304,11 +314,11 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       inserted += results.reduce((sum, count) => sum + count, 0);
     }
 
-    // reprocessa notícias que ficaram sem foto (limitado)
-    const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").is("image", null).limit(20);
+    // Recupera algumas imagens originais sem deixar o enriquecimento bloquear o feed.
+    const { data: missing } = await db.from("articles").select("id,url,category,titulo_inedito").is("image", null).limit(3);
     for (const m of missing ?? []) {
-      const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
-      await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
+      const img = await fromArticlePage(m.url);
+      if (img) await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
     }
 
     // notícias com mais de 24h são apagadas no início de cada ciclo

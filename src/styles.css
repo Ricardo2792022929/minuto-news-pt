@@ -195,3 +195,6 @@
 @media (prefers-reduced-motion: reduce) {
   .image-shimmer, .animate-photo-in { animation: none; }
 }
+
+/* Selo injetado pelo alojamento, não faz parte da app. */
+#lovable-badge { display: none !important; visibility: hidden !important; pointer-events: none !important; }

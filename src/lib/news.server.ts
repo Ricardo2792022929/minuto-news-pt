@@ -373,7 +373,7 @@ interface Cache {
 }
 
 let cache: Cache | null = null;
-const CACHE_TTL = 2 * 60_000; // 2 minutos
+const CACHE_TTL = 60_000; // cache inferior ao ciclo de ingestão de 90 segundos
 
 async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
   const res = await fetch(feed.url, {

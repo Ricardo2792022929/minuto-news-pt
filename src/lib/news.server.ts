@@ -131,8 +131,20 @@ function stripHtml(html: string): string {
 
 function firstImg(html: string | undefined): string | undefined {
   if (!html) return undefined;
-  const m = decodeEntities(String(html)).match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m?.[1] ? decodeEntities(m[1]) : undefined;
+  const source = decodeEntities(String(html));
+  const tag = source.match(/<img\\b[^>]*>/i)?.[0];
+  if (!tag) return undefined;
+  // Muitos feeds usam lazy loading ou colocam src depois de outros atributos.
+  const srcset = tag.match(/\\b(?:srcset|data-srcset)=["']([^"']+)["']/i)?.[1];
+  if (srcset) {
+    const best = srcset.split(",").map((part) => {
+      const [url, descriptor] = part.trim().split(/\\s+/);
+      return { url, width: Number(descriptor?.replace(/w$/, "")) || 0 };
+    }).sort((a, b) => b.width - a.width)[0]?.url;
+    if (best) return decodeEntities(best);
+  }
+  const match = tag.match(/\\b(?:src|data-src|data-original|data-lazy-src)=["']([^"']+)["']/i);
+  return match?.[1] ? decodeEntities(match[1]) : undefined;
 }
 
 
@@ -176,7 +188,8 @@ function extractImages(item: any): string[] {
   }
   for (const e of arrayify(item["enclosure"])) {
     const type = e?.["@_type"] as string | undefined;
-    if (!type || type.startsWith("image")) add(e?.["@_url"], e?.["@_width"], 3);
+    const enclosureUrl = e?.["@_url"] as string | undefined;
+    if ((!type || type.startsWith("image")) && enclosureUrl) add(enclosureUrl, e?.["@_width"], 3);
   }
   for (const t of arrayify(item["media:thumbnail"])) add(t?.["@_url"], t?.["@_width"], 1);
 

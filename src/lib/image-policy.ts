@@ -15,16 +15,31 @@ export const CATEGORY_PHOTOS: Record<string, string> = {
   "Cultura": photo5.url,
   "Tech": photo6.url,
 };
+
 const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso|roubo)/i;
-export function categoryImage(category?: string, title = ""): string {
-  return CATEGORY_PHOTOS[CRIME_RE.test(title) ? "Crime" : category ?? "Mundo"] ?? photo4.url;
+
+/** Imagem garantida (Picsum seedado) — sempre carrega, estável por ID. */
+export function guaranteedImage(id: string, category?: string): string {
+  const seed = (id || category || "news").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "flash";
+  return `https://picsum.photos/seed/${seed}/1200/800`;
 }
 
-export function finalImageUrl(raw: string | null | undefined, category?: string, title = ""): string {
+export function categoryImage(category?: string, title = "", id = ""): string {
+  // Prefer local Lovable asset if available, otherwise guaranteed Picsum
+  const local = CATEGORY_PHOTOS[CRIME_RE.test(title) ? "Crime" : category ?? "Mundo"] ?? photo4.url;
+  if (local && local.startsWith("/")) return local;
+  return guaranteedImage(id || category || "cat", category);
+}
+
+export function finalImageUrl(raw: string | null | undefined, category?: string, title = "", id = ""): string {
   if (raw?.startsWith("/__l5e/assets-v1/")) return raw;
   try {
     const url = new URL(raw?.trim() ?? "");
-    if (url.protocol !== "https:") return categoryImage(category, title);
+    if (url.protocol !== "https:") return guaranteedImage(id, category);
+    // Reject known broken or low-quality patterns
+    if (/logo|placeholder|default|blank|pixel|1x1|spacer/i.test(url.pathname + url.search)) {
+      return guaranteedImage(id, category);
+    }
     if (/(^|\.)(images\.unsplash\.com|images\.pexels\.com|[^.]+\.imgix\.net)$/.test(url.hostname)) {
       url.searchParams.set("w", "1200");
       url.searchParams.set("q", "80");
@@ -33,6 +48,6 @@ export function finalImageUrl(raw: string | null | undefined, category?: string,
     }
     return url.toString();
   } catch {
-    return categoryImage(category, title);
+    return guaranteedImage(id, category);
   }
 }

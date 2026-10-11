@@ -13,7 +13,7 @@ const SYSTEM = `És um editor de notícias em Portugal especializado em títulos
 
 function validSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const s = raw.replace(/\\s+/g, " ").trim();
+  const s = raw.replace(/\s+/g, " ").trim();
   if (s.length < 20 || s.length > 300 || /[*_`#>\[\]]|\x60\x60\x60/.test(s)) return null;
   return s;
 }

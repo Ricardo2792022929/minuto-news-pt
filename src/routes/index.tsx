@@ -545,6 +545,7 @@ function Index() {
   const query = useInfiniteQuery({
     queryKey: ["news", category, interests.join(",")],
     enabled: mounted,
+    refetchInterval: 60_000,
     queryFn: ({ pageParam }) =>
       fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests } }),
     initialPageParam: 0,

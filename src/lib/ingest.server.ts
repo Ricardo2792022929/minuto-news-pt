@@ -6,7 +6,6 @@ import { chooseOriginal, inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 10; // lote de processamento ampliado
-const TARGET = 500; // maior arquivo recente; limpeza continua limitada às últimas 24h
 const MAX_BATCHES = 10; // até 100 notícias candidatas por ciclo, sujeito a quotas/tempo das APIs
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -194,9 +193,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     // limpeza: apaga notícias com mais de 24 horas
     const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
-    // só artigos das últimas 24h, mais recentes primeiro
-    // objetivo: manter até TARGET notícias recentes guardadas
-    const { count: stored } = await db.from("articles").select("id", { count: "exact", head: true }).gte("published_at", cutoff);
+    // só artigos das últimas 24h, mais recentes primeiro; não há limite global de arquivo.
     const news = (await getAllNews())
       .filter((n) => n.publishedAt >= cutoff)
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
@@ -217,22 +214,18 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       .filter((title): title is string => typeof title === "string" && title.trim().length > 0);
     // Prioridade rígida: consumir primeiro os últimos 30 minutos. Só ampliar
     // a janela quando faltarem artigos para preencher o lote, em etapas graduais.
-    const desired = Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0)));
+    const desired = BATCH * MAX_BATCHES;
     const fallbackWindows = [60, 180, 360, 720, 1440]; // minutos desde agora
     const candidates = news.filter((n) =>
       !existing.has(n.id) && !existing.has(normalizeArticleUrl(n.url)) && !hasSimilarTitle(n.title, knownTitles),
     );
-    const perSrc = new Map<string, number>();
     const pending: typeof news = [];
     const selected = new Set<string>();
     const addWindow = (olderThanMinutes: number, newerThanMinutes: number) => {
       for (const n of candidates) {
         const ageMinutes = (Date.now() - new Date(n.publishedAt).getTime()) / 60_000;
         if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id) || hasSimilarTitle(n.title, knownTitles)) continue;
-        const count = perSrc.get(n.source) ?? 0;
-        if (count >= 6) continue;
         selected.add(n.id);
-        perSrc.set(n.source, count + 1);
         pending.push(n);
         knownTitles.push(n.title);
         if (pending.length >= desired) return;

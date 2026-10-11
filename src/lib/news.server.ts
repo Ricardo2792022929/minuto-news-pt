@@ -4,6 +4,23 @@ import type { NewsItem } from "./news.types";
 export type { NewsItem };
 
 
+function canonicalArticleUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) url.searchParams.delete(key);
+    }
+    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, "");
+    url.pathname = url.pathname.replace(/\\/+$/, "") || "/";
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return raw.trim();
+  }
+}
+
+
 interface FeedConfig {
   url: string;
   source: string;
@@ -329,9 +346,10 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
     const rawExcerpt = String(item?.["description"] ?? item?.["summary"] ?? "");
     const excerpt = stripHtml(rawExcerpt).slice(0, 320);
     const url = decodeEntities(link.trim());
+    const canonicalUrl = canonicalArticleUrl(url);
 
     const entry: NewsItem = {
-      id: hashId(url),
+      id: hashId(canonicalUrl),
       source: feed.source,
       category: classify(title + " " + excerpt, feed.fallbackCategory),
       title,
@@ -386,8 +404,9 @@ export async function getAllNews(): Promise<NewsItem[]> {
       return;
     }
     for (const item of r.value) {
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
+      const canonicalUrl = canonicalArticleUrl(item.url);
+      if (seen.has(canonicalUrl)) continue;
+      seen.add(canonicalUrl);
       const list = perSource.get(item.source) ?? [];
       list.push(item);
       perSource.set(item.source, list);

@@ -8,6 +8,7 @@ const SYSTEM = `És um editor de notícias em Portugal especializado em títulos
 - Escreve estritamente em Português de Portugal (PT-PT).
 - O título deve ter NO MÁXIMO 10 palavras e começar SEMPRE pelo sujeito ou ação principal.
 - Nunca uses o estilo "Tema: descrição longa". Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
+- O título tem de ser uma frase completa. Nunca termines em preposição ou conjunção (por, de, em, com, para, e). Se o facto não couber em 10 palavras, reescreve mais curto em vez de cortar a meio.
 - Não inventes informação nem uses clickbait enganador.
 - O resumo deve ter 1 a 2 frases curtas, apenas com factos presentes no título original.
 - Responde apenas com JSON válido com as chaves "titulo" e "resumo".
@@ -47,7 +48,7 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Reescreve o título de forma curta e direta (máximo 10 palavras), começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Reescreve o título de forma curta, direta e completa (máximo 10 palavras), começando pelo sujeito ou ação principal. Nunca acabes em preposição ou conjunção. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
         ],
       }),
     });

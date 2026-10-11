@@ -11,15 +11,14 @@ function canonicalArticleUrl(raw: string): string {
     for (const key of [...url.searchParams.keys()]) {
       if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) url.searchParams.delete(key);
     }
-    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, "");
-    url.pathname = url.pathname.replace(/\\/+$/, "") || "/";
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
     url.searchParams.sort();
     return url.toString();
   } catch {
     return raw.trim();
   }
 }
-
 
 interface FeedConfig {
   url: string;

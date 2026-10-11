@@ -5,9 +5,9 @@ import { finalImageUrl } from "./image-policy";
 import { chooseOriginal, inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
-const BATCH = 5; // lote de 5 notícias
-const TARGET = 150; // máximo de notícias recentes guardadas
-const MAX_BATCHES = 6; // até 30 notícias por execução
+const BATCH = 10; // lote de processamento ampliado
+const TARGET = 500; // maior arquivo recente; limpeza continua limitada às últimas 24h
+const MAX_BATCHES = 10; // até 100 notícias candidatas por ciclo, sujeito a quotas/tempo das APIs
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -231,7 +231,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const addWindow = (olderThanMinutes: number, newerThanMinutes: number) => {
       for (const n of candidates) {
         const ageMinutes = (Date.now() - new Date(n.publishedAt).getTime()) / 60_000;
-        if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id)) continue;
+        if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id) || hasSimilarTitle(n.title, knownTitles)) continue;
         const count = perSrc.get(n.source) ?? 0;
         if (count >= 6) continue;
         selected.add(n.id);
@@ -255,54 +255,62 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
     const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
 
-    // Alterna os fornecedores para cada ciclo conter até 15 notícias de cada API.
-    // Uma falha de um fornecedor não bloqueia as notícias já processadas pelo outro.
+    // Consulta Gemini e Groq em paralelo para cada artigo. Se um falhar,
+    // usa o resultado válido do outro; não faz pedidos ilimitados nem contorna quotas.
     let geminiAttempts = 0;
     let groqAttempts = 0;
-    for (const [idx, n] of pending.entries()) {
-      if (idx > 0) await new Promise((r) => setTimeout(r, 2000));
-      const useGroq = idx % 2 === 1;
-      if (useGroq) groqAttempts++;
-      else geminiAttempts++;
-      let g: Awaited<ReturnType<typeof generateOne>> = null;
-      try {
-        g = useGroq ? await generateGroqOne(n.title) : await generateOne(n.title);
-      } catch (error) {
-        // Uma chave em falta/erro de fornecedor não deve interromper todo o ciclo.
-        console.error(useGroq ? "Groq indisponível para este artigo" : "Gemini indisponível para este artigo",
-          error instanceof Error ? error.message : error);
-        continue;
-      }
-      if (!g) continue; // sem fallback para o título original
-      try {
-        let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));
-        let image_query: string | null = null;
-        if (!image) image = await fromArticlePage(n.url);
-        if (!image) {
-          image_query = g.titulo;
-          image = await findHdImageAny(g.titulo, n.category, used);
+    for (let offset = 0; offset < pending.length; offset += BATCH) {
+      const batch = pending.slice(offset, offset + BATCH);
+      const results = await Promise.all(batch.map(async (n) => {
+        geminiAttempts++;
+        groqAttempts++;
+        const [geminiResult, groqResult] = await Promise.allSettled([
+          generateOne(n.title),
+          generateGroqOne(n.title),
+        ]);
+        const g = geminiResult.status === "fulfilled" && geminiResult.value
+          ? geminiResult.value
+          : groqResult.status === "fulfilled" ? groqResult.value : null;
+        if (!g) {
+          if (geminiResult.status === "rejected") console.error("Gemini indisponível", geminiResult.reason);
+          if (groqResult.status === "rejected") console.error("Groq indisponível", groqResult.reason);
+          return 0;
         }
-        const { error } = await db.from("articles").upsert(
-          {
-            id: n.id,
-            source: n.source,
-            category: n.category,
-            url: n.url,
-            image: finalImageUrl(image, n.category, n.title),
-            image_query,
-            original_title: n.title,
-            titulo_inedito: g.titulo,
-            resumo: g.resumo,
-            relevance: relevance100(n),
-            published_at: n.publishedAt,
-          },
-          { onConflict: "id" },
-        );
-        if (error) console.error("gravação falhou", error);
-        else inserted++;
-      } catch (e) {
-        console.error("notícia ignorada", e);
-      }
+        try {
+          let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));
+          let image_query: string | null = null;
+          if (!image) image = await fromArticlePage(n.url);
+          if (!image) {
+            image_query = g.titulo;
+            image = await findHdImageAny(g.titulo, n.category, used);
+          }
+          const { error } = await db.from("articles").upsert(
+            {
+              id: n.id,
+              source: n.source,
+              category: n.category,
+              url: n.url,
+              image: finalImageUrl(image, n.category, n.title),
+              image_query,
+              original_title: n.title,
+              titulo_inedito: g.titulo,
+              resumo: g.resumo,
+              relevance: relevance100(n),
+              published_at: n.publishedAt,
+            },
+            { onConflict: "id", ignoreDuplicates: true },
+          );
+          if (error) {
+            console.error("gravação falhou", error);
+            return 0;
+          }
+          return 1;
+        } catch (e) {
+          console.error("notícia ignorada", e);
+          return 0;
+        }
+      }));
+      inserted += results.reduce((sum, count) => sum + count, 0);
     }
 
     // reprocessa notícias que ficaram sem foto (limitado)

@@ -35,7 +35,7 @@ export const getNews = createServerFn({ method: "GET" })
     // Mais recentes primeiro, paginado na base de dados.
     let q = db
       .from("articles")
-      .select("id,source,category,url,image,titulo_inedito,published_at", { count: "exact" })
+      .select("id,source,category,url,image,titulo_inedito,resumo,published_at", { count: "exact" })
       .gte("published_at", new Date(Date.now() - 24 * 3600_000).toISOString()) // só últimas 24h
       .order("published_at", { ascending: false })
       .order("id", { ascending: true })
@@ -52,7 +52,7 @@ export const getNews = createServerFn({ method: "GET" })
       source: r.source,
       category: r.category,
       title: r.titulo_inedito,
-      excerpt: "",
+      excerpt: (r.resumo ?? "").trim(),
       url: r.url,
       publishedAt: r.published_at,
       // Nunca devolver imagem nula/inválida: a política escolhe uma fotografia local por categoria.
@@ -67,4 +67,3 @@ export type GetNewsResult = {
   total: number;
   hasMore: boolean;
 };
-

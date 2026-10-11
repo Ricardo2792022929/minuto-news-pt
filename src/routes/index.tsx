@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { excessiveEnlargement } from "@/lib/image-quality";
+import { categoryImage } from "@/lib/image-policy";
 
 // Banco de FOTOGRAFIAS REAIS (Wikimedia Commons) por tema — usado só quando a
 // notícia não tem foto ou a foto falha. Garante que nenhum cartão fica preto.
@@ -61,7 +62,8 @@ const candidatesFor = (n: ImgItem) => {
   const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length] as string);
   // Desporto nunca recorre a outros temas (sem mapas/cidades)
   const rest = key === "Desporto" ? [] : ALL_REAL.filter((u) => !themed.includes(u));
-  return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest)];
+  // Último recurso local empacotado: não depende de Unsplash/Wikimedia estarem disponíveis.
+  return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest), categoryImage(n.category, n.title)];
 };
 // Tamanho otimizado para telemóvel (~800-960px, comprimido).
 const optimizeImage = (url: string) => {
@@ -698,7 +700,7 @@ function Index() {
                 <article
                   key={a.id}
                   onClick={() => void openArticle(a.url)}
-                  className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden"
+                  className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950"
                 >
                   {true ? (
                     <FadeImg

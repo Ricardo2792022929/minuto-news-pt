@@ -41,6 +41,20 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://pplware.sapo.pt/feed/", source: "Pplware", fallbackCategory: "Tech" },
   { url: "https://www.pcguia.pt/feed/", source: "PC Guia", fallbackCategory: "Tech" },
   { url: "https://visao.pt/exameinformatica/feed/", source: "Exame Informática", fallbackCategory: "Tech" },
+  { url: "https://www.publico.pt/rss", source: "Público", fallbackCategory: "Mundo" },
+  { url: "https://www.dn.pt/rss", source: "Diário de Notícias", fallbackCategory: "Mundo" },
+  { url: "https://www.jn.pt/rss", source: "Jornal de Notícias", fallbackCategory: "Mundo" },
+  { url: "https://expresso.pt/rss", source: "Expresso", fallbackCategory: "Mundo" },
+  { url: "https://www.tsf.pt/rss", source: "TSF", fallbackCategory: "Mundo" },
+  { url: "https://sicnoticias.pt/rss/", source: "SIC Notícias", fallbackCategory: "Mundo" },
+  { url: "https://www.abola.pt/rss", source: "A Bola", fallbackCategory: "Desporto" },
+  { url: "https://www.ojogo.pt/rss", source: "O Jogo", fallbackCategory: "Desporto" },
+  { url: "https://www.acorianooriental.pt/feed/rss.xml", source: "Açoriano Oriental", fallbackCategory: "Mundo" },
+  { url: "https://ominho.pt/feed/", source: "O Minho", fallbackCategory: "Mundo" },
+  { url: "https://www.sulinformacao.pt/feed/", source: "Sul Informação", fallbackCategory: "Mundo" },
+  { url: "https://www.dnoticias.pt/rss", source: "Diário de Notícias da Madeira", fallbackCategory: "Mundo" },
+  { url: "https://www.diariocoimbra.pt/feed/", source: "Diário de Coimbra", fallbackCategory: "Mundo" },
+  { url: "https://www.avozdetrasosmontes.pt/feed/", source: "A Voz de Trás-os-Montes", fallbackCategory: "Mundo" },
 ];
 
 const parser = new XMLParser({

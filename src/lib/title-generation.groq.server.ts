@@ -6,11 +6,14 @@ let groqCooldownUntil = 0;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
 - Escreve estritamente em Português de Portugal (PT-PT).
-- O título deve ter entre 6 e 10 palavras e começar SEMPRE pelo sujeito ou ação principal.
+- O título deve ter NO MÁXIMO 10 palavras e começar SEMPRE pelo sujeito ou ação principal.
 - Nunca uses o estilo "Tema: descrição longa". Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
 - Não inventes informação nem uses clickbait enganador.
 - O resumo deve ter 1 a 2 frases curtas, apenas com factos presentes no título original.
-- Responde apenas com JSON válido com as chaves "titulo" e "resumo".`;
+- Responde apenas com JSON válido com as chaves "titulo" e "resumo".
+
+Exemplo incorreto: {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+Exemplo correto: {"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
 
 function validSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -42,7 +45,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Reescreve o título de forma curta e direta, começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Reescreve o título de forma curta e direta (máximo 10 palavras), começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
         ],
       }),
     });

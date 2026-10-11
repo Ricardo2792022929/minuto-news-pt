@@ -218,7 +218,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           g = { titulo: cleanRssTitle(sourceTitle).slice(0, 180), resumo: firstSentence(n.excerpt?.trim() || sourceTitle).slice(0, 300) };
         }
         try {
-          const image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+          // 1. Imagem do RSS (se boa)
+          let image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+          // 2. og:image da página do artigo (melhor relevância)
+          if (!image) image = await fromArticlePage(n.url);
           const image_query: string | null = image ? null : g.titulo;
           const { error } = await db.from("articles").upsert({
             id: n.id, source: n.source, category: n.category, url: n.url,
@@ -233,6 +236,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       inserted += results.reduce((sum, count) => sum + count, 0);
     }
 
+    // Enriquecer as que ainda não têm imagem
     const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(16);
     await Promise.all((missing ?? []).map(async (m) => {
       const term = (m.titulo_inedito ?? m.image_query ?? "").trim();

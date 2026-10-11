@@ -202,15 +202,12 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     // Deduplicação persistente por ID/URL e por semelhança de título.
     const existing = new Set<string>();
-    for (let i = 0; i < news.length; i += 100) {
-      const part = news.slice(i, i + 100);
-      const [byId, byUrl] = await Promise.all([
-        db.from("articles").select("id").in("id", part.map((n) => n.id)),
-        db.from("articles").select("url").in("url", part.map((n) => n.url)),
-      ]);
-      for (const r of byId.data ?? []) existing.add(r.id);
-      for (const r of byUrl.data ?? []) existing.add(r.url);
-    }
+    const [byId, byUrl] = await Promise.all([
+      db.from("articles").select("id").gte("published_at", cutoff).limit(1000),
+      db.from("articles").select("url").gte("published_at", cutoff).limit(1000),
+    ]);
+    for (const r of byId.data ?? []) existing.add(r.id);
+    for (const r of byUrl.data ?? []) existing.add(normalizeArticleUrl(r.url));
     const { data: savedTitles } = await db
       .from("articles")
       .select("original_title,titulo_inedito")
@@ -223,7 +220,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const desired = Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0)));
     const fallbackWindows = [60, 180, 360, 720, 1440]; // minutos desde agora
     const candidates = news.filter((n) =>
-      !existing.has(n.id) && !existing.has(n.url) && !hasSimilarTitle(n.title, knownTitles),
+      !existing.has(n.id) && !existing.has(normalizeArticleUrl(n.url)) && !hasSimilarTitle(n.title, knownTitles),
     );
     const perSrc = new Map<string, number>();
     const pending: typeof news = [];
@@ -333,6 +330,22 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   }
 }
 
+
+function normalizeArticleUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) url.searchParams.delete(key);
+    }
+    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, "");
+    url.pathname = url.pathname.replace(/\\/+$/, "") || "/";
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return raw.trim();
+  }
+}
 
 function normalizeTitle(title: string): string {
   return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()

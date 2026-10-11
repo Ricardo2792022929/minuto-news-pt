@@ -244,8 +244,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     // A ingestão principal não consulta APIs de imagens; isso evita atrasar a publicação das notícias.
     const used = new Set<string>();
 
-    // Consulta Gemini e Groq em paralelo para cada artigo. Se um falhar,
-    // usa o resultado válido do outro; não faz pedidos ilimitados nem contorna quotas.
+    // Gemini é primário e Groq é fallback sequencial. Cooldowns por processo evitam
+    // repetir pedidos a provedores que respondem com 429/erros de autenticação.
     let geminiAttempts = 0;
     let groqAttempts = 0;
     for (let offset = 0; offset < pending.length; offset += BATCH) {

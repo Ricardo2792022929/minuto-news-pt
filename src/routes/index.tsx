@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import introUrl from "@/assets/intro.mp4";
 import { excessiveEnlargement } from "@/lib/image-quality";
 import { categoryImage } from "@/lib/image-policy";
 
@@ -293,7 +294,7 @@ function Intro({ onDone }: { onDone: () => void }) {
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black">
       <video
         ref={ref}
-        src="/intro.mp4"
+        src={introUrl}
         playsInline
         autoPlay
         preload="auto"

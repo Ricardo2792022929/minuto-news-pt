@@ -11,6 +11,7 @@ REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - O título deve ter NO MÁXIMO 10 palavras (idealmente 6 a 10).
 - Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
 - Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
+- O título tem de ser uma frase completa. Nunca termines em preposição ou conjunção (por, de, em, com, para, e). Se o facto não couber em 10 palavras, reescreve mais curto em vez de cortar a meio.
 - Não inventes informação.
 - Mantém o significado factual da notícia original.
 - Não uses clickbait enganador.
@@ -40,18 +41,30 @@ const responseSchema = {
 
 const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-–—]/i;
 const MARKDOWN = /[*_`#>\[\]]|```/;
+/** Palavras que deixam o título incompleto se ficarem no fim. */
+const DANGLING = new Set([
+  "a", "o", "as", "os", "de", "da", "do", "das", "dos", "em", "no", "na", "nos", "nas",
+  "e", "ou", "que", "um", "uma", "uns", "umas", "por", "para", "com", "sem", "ao", "aos",
+  "se", "num", "numa", "pelo", "pela", "pelos", "pelas", "sobre", "entre", "ate", "desde", "como",
+]);
 
-/** Força um título a ter no máximo 10 palavras, removendo prefixos e limpando. */
+function wordKey(word: string): string {
+  return word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,;:!?]+$/g, "");
+}
+
+/** No máximo 10 palavras e nunca a acabar numa preposição ou conjunção. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^["«“]+|["'»”]+$/g, "").replace(/\.$/, "");
   t = t.replace(PREFIX, "").trim();
-  // Remove estilo "Tema: resto"
   if (t.includes(":") && t.split(":")[0].split(" ").length <= 4) {
     t = t.split(":").slice(1).join(":").trim();
   }
   const words = t.split(/\s+/).filter(Boolean);
-  if (words.length > 10) t = words.slice(0, 10).join(" ");
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  const capped = words.length > 10 ? words.slice(0, 10) : [...words];
+  while (capped.length > 4 && DANGLING.has(wordKey(capped[capped.length - 1] ?? ""))) capped.pop();
+  const out = capped.join(" ");
+  if (!out) return raw.trim();
+  return out.charAt(0).toUpperCase() + out.slice(1);
 }
 
 export function validTitle(raw: unknown): string | null {
@@ -96,7 +109,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Reescreve o título de forma curta e direta (máximo 10 palavras), começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
+    const prompt = `Reescreve o título de forma curta, direta e completa (máximo 10 palavras), começando pelo sujeito ou ação principal. Nunca acabes em preposição ou conjunção. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

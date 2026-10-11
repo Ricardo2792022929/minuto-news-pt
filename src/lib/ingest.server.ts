@@ -1,6 +1,7 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateOne, GatewayError, forceMax10Words } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
+import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
@@ -251,16 +252,15 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     // em paralelo após a gravação, para não bloquear a publicação das notícias.
     const used = new Set<string>();
 
-    // Gemini é primário e Groq é fallback sequencial. Cooldowns por processo evitam
-    // repetir pedidos a provedores que respondem com 429/erros de autenticação.
+    // Gemini é primário, Groq é fallback 1, OpenRouter é fallback 2.
+    // Cooldowns por processo evitam repetir pedidos a provedores que respondem com 429.
     let geminiAttempts = 0;
     let groqAttempts = 0;
+    let openrouterAttempts = 0;
     for (let offset = 0; offset < pending.length; offset += BATCH) {
       const batch = pending.slice(offset, offset + BATCH);
       const results = await Promise.all(batch.map(async (n) => {
         geminiAttempts++;
-        // Uma chamada de cada vez por notícia: Gemini primeiro, Groq apenas como fallback.
-        // Limita picos de tráfego e evita gastar duas quotas quando a primeira API responde bem.
         let g: Awaited<ReturnType<typeof generateOne>> = null;
         try {
           g = await generateOne(n.title);
@@ -272,11 +272,19 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           try {
             g = await generateGroqOne(n.title);
           } catch (error) {
-            console.warn("Groq falhou", error instanceof Error ? error.message : error);
+            console.warn("Groq falhou; a tentar OpenRouter", error instanceof Error ? error.message : error);
           }
         }
         if (!g) {
-          // Se ambas as APIs estiverem limitadas/indisponíveis, não perder a notícia:
+          openrouterAttempts++;
+          try {
+            g = await generateOpenRouterOne(n.title);
+          } catch (error) {
+            console.warn("OpenRouter falhou", error instanceof Error ? error.message : error);
+          }
+        }
+        if (!g) {
+          // Se as três APIs estiverem limitadas/indisponíveis, não perder a notícia:
           // limpa o título bruto do RSS e extrai a primeira frase como resumo.
           const sourceTitle = n.title.trim();
           if (!sourceTitle) return 0;
@@ -286,11 +294,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
             titulo: cleanedTitle.slice(0, 180),
             resumo: summary.slice(0, 300),
           };
-          console.warn("Publicado com título limpo (fallback RSS): Gemini e Groq indisponíveis/limitados", n.source);
+          console.warn("Publicado com título limpo (fallback RSS): Gemini, Groq e OpenRouter indisponíveis/limitados", n.source);
         }
         try {
-          // Não bloquear a ingestão à procura de imagens externas. Usar apenas imagem do feed;
-          // as notícias sem imagem podem ser enriquecidas pelo processo de recuperação abaixo.
           const image = (n.imageCandidates ?? (n.image ? [n.image] : []))
             .find((url) => url && !isLowResImage(url)) ?? null;
           const image_query: string | null = image ? null : g.titulo;
@@ -347,7 +353,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }));
 
     // notícias com mais de 24h são apagadas no início de cada ciclo
-    return { inserted, pending: pending.length, geminiAttempts, groqAttempts };
+    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

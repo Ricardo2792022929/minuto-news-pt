@@ -218,19 +218,38 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       .limit(500);
     const knownTitles = (savedTitles ?? []).flatMap((r) => [r.original_title, r.titulo_inedito])
       .filter((title): title is string => typeof title === "string" && title.trim().length > 0);
-    // Mantém a ordem cronológica decrescente: primeiro notícias da hora atual,
-    // depois recua progressivamente até às últimas 24 horas se necessário.
+    // Prioridade rígida: consumir primeiro os últimos 30 minutos. Só ampliar
+    // a janela quando faltarem artigos para preencher o lote, em etapas graduais.
+    const desired = Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0)));
+    const fallbackWindows = [60, 180, 360, 720, 1440]; // minutos desde agora
+    const candidates = news.filter((n) =>
+      !existing.has(n.id) && !existing.has(n.url) && !hasSimilarTitle(n.title, knownTitles),
+    );
     const perSrc = new Map<string, number>();
     const pending: typeof news = [];
-    for (const n of news) {
-      if (existing.has(n.id) || existing.has(n.url) || hasSimilarTitle(n.title, knownTitles)) continue;
-      const count = perSrc.get(n.source) ?? 0;
-      if (count >= 6) continue;
-      perSrc.set(n.source, count + 1);
-      pending.push(n);
-      knownTitles.push(n.title);
-      if (pending.length >= Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0)))) break;
+    const selected = new Set<string>();
+    const addWindow = (olderThanMinutes: number, newerThanMinutes: number) => {
+      for (const n of candidates) {
+        const ageMinutes = (Date.now() - new Date(n.publishedAt).getTime()) / 60_000;
+        if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id)) continue;
+        const count = perSrc.get(n.source) ?? 0;
+        if (count >= 6) continue;
+        selected.add(n.id);
+        perSrc.set(n.source, count + 1);
+        pending.push(n);
+        knownTitles.push(n.title);
+        if (pending.length >= desired) return;
+      }
+    };
+    addWindow(0, 30);
+    let lowerBound = 30;
+    for (const upperBound of fallbackWindows) {
+      if (pending.length >= desired) break;
+      addWindow(lowerBound, upperBound);
+      lowerBound = upperBound;
     }
+    if (pending.length < desired) addWindow(lowerBound, 72 * 60);
+    pending.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
     // evita repetir a mesma foto de reserva
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);

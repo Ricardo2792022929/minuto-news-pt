@@ -5,6 +5,7 @@ const TIMEOUT_MS = 12_000;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
 
+PRIORIDADE TEMPORAL: dá prioridade a acontecimentos atuais, publicados nos últimos 15–30 minutos; se não houver contexto temporal explícito no título, não inventes datas nem atualizes factos antigos. O título e resumo devem refletir apenas o que a notícia de entrada confirma.
 REGRAS OBRIGATÓRIAS:
 - Escreve estritamente em Português de Portugal (PT-PT).
 - O título deve ter entre 6 e 10 palavras.
@@ -81,7 +82,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
   const started = Date.now();
   try {
-    const prompt = `Título original: ${title}`;
+    const prompt = `Identifica e formula a notícia como um acontecimento do presente/últimos 30 minutos apenas quando isso estiver confirmado pela entrada. Prioriza notícias de última hora e acontecimentos em desenvolvimento; nunca afirmes que algo acabou de acontecer sem evidência no título original.\nTítulo original: ${title}`;
     let res = await callGemini(MODEL, apiKey, prompt);
     if (res.status === 503) {
       console.warn("Gemini 503; retry único em 2s");

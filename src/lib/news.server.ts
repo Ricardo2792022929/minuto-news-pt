@@ -379,14 +379,9 @@ export async function getAllNews(): Promise<NewsItem[]> {
       perSource.set(item.source, list);
     }
   });
-  // Round-robin: mais recentes de cada fonte, intercalados (1 de cada fonte por ronda).
-  const lists = [...perSource.values()].map((l) =>
-    l.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt)),
-  );
-  const items: NewsItem[] = [];
-  for (let round = 0; lists.some((l) => l.length > round); round++) {
-    for (const l of lists) if (l[round]) items.push(l[round]!);
-  }
+  // Ordenação global, sem round-robin: data de publicação sempre decrescente.
+  const items = [...perSource.values()].flat()
+    .sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt));
 
   cache = { items, fetchedAt: Date.now() };
   return items;

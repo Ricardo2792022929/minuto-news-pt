@@ -4,6 +4,7 @@ const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-120b";
 const TIMEOUT_MS = 12_000;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
+- Prioriza acontecimentos do presente e notícias dos últimos 15–30 minutos; usa linguagem de última hora apenas quando o título de entrada o comprova e nunca inventes atualizações.
 - Escreve estritamente em Português de Portugal (PT-PT).
 - O título deve ter entre 6 e 10 palavras e começar pelo sujeito ou ação principal.
 - Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
@@ -40,7 +41,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Título original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Prioriza acontecimentos atuais/últimos 30 minutos apenas se forem confirmados pelo título. Não apresentes notícias antigas como novas nem acrescentes factos.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
         ],
       }),
     });

@@ -1,17 +1,16 @@
 // Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
 // Confirmado via API para esta chave; thinkingLevel "minimal" é o mínimo aceite (thinkingBudget 0 dá 400).
 const MODEL = "gemini-flash-lite-latest";
-const TIMEOUT_MS = 8_000;
+const TIMEOUT_MS = 6_000;
 let geminiCooldownUntil = 0;
 
-const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
+const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
 
-PRIORIDADE TEMPORAL: dá prioridade a acontecimentos atuais, publicados nos últimos 15–30 minutos; se não houver contexto temporal explícito no título, não inventes datas nem atualizes factos antigos. O título e resumo devem refletir apenas o que a notícia de entrada confirma.
-REGRAS OBRIGATÓRIAS:
+REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Escreve estritamente em Português de Portugal (PT-PT).
 - O título deve ter entre 6 e 10 palavras.
-- Começa SEMPRE pelo SUJEITO ou pela AÇÃO principal.
-- Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', etc.
+- Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
+- Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
 - Não inventes informação.
 - Mantém o significado factual da notícia original.
 - Não uses clickbait enganador.
@@ -39,12 +38,12 @@ const responseSchema = {
   required: ["titulo", "resumo"],
 };
 
-const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-–—]/i;
+const PREFIX = /^\s*(urgente|aten[cç][aã]o|crise|[uú]ltima hora|breaking|exclusivo)\s*[:\-\u2013—]/i;
 const MARKDOWN = /[*_`#>\[\]]|```/;
 
 export function validTitle(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/\s+/g, " ").trim().replace(/^["'«“]+|["'»”]+$/g, "").replace(/\.$/, "");
+  const t = raw.replace(/\s+/g, " ").trim().replace(/^["«“]+|["'»”]+$/g, "").replace(/\.$/, "");
   if (!t || MARKDOWN.test(t) || PREFIX.test(t) || /erro|error/i.test(t.slice(0, 12))) return null;
   const n = t.split(" ").length;
   if (n < 6 || n > 10) return null;
@@ -84,15 +83,14 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Identifica e formula a notícia como um acontecimento do presente/últimos 30 minutos apenas quando isso estiver confirmado pela entrada. Prioriza notícias de última hora e acontecimentos em desenvolvimento; nunca afirmes que algo acabou de acontecer sem evidência no título original.\nTítulo original: ${title}`;
+    const prompt = `Reescreve o título de forma curta e direta, começando pelo sujeito ou ação principal. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);
       if (res.status === 429 || res.status === 401 || res.status === 403) {
-        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 300) * 1000 : 60_000);
+        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 180) * 1000 : 30_000);
       }
       console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
-      // Não repetir imediatamente: o Groq serve de fallback e evita duplicar a pressão na API.
       return null;
     }
     const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };

@@ -33,25 +33,40 @@ async function fromUnsplash(term: string, used: Set<string>) {
 
 // Pixabay (fotografias reais) — só servidor; a chave nunca sai daqui nem é registada.
 // Termos da API: URLs só para exibição temporária (as notícias são apagadas às 24h), sem descarregar/alojar.
-const pixabayCache = new Map<string, Hit[]>();
+const PIXABAY_CACHE_TTL = 20 * 60 * 60_000; // URLs do Pixabay expiram ao fim de 24h
+const pixabayCache = new Map<string, { expiresAt: number; hits: Hit[] }>();
 async function fromPixabay(term: string, used: Set<string>) {
-  const key = process.env["PIXABAY_API_KEY"];
+  const key = process.env["PIXABAY_API_KEY"] || process.env["PIXABAY_KEY"];
   if (!key || !term) return null;
   const k = term.toLowerCase();
-  let hits = pixabayCache.get(k);
+  const cached = pixabayCache.get(k);
+  let hits = cached && cached.expiresAt > Date.now() ? cached.hits : undefined;
   if (!hits) {
+    const params = new URLSearchParams({
+      key,
+      q: term.slice(0, 100),
+      lang: "pt",
+      image_type: "photo",
+      orientation: "horizontal",
+      min_width: "800",
+      min_height: "600",
+      safesearch: "true",
+      per_page: "20",
+    });
     const res = await fetch(
-      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(term.slice(0, 100))}&lang=pt&image_type=photo&orientation=vertical&min_width=1000&min_height=600&safesearch=true&per_page=20`,
-      { signal: AbortSignal.timeout(8000) },
+      `https://pixabay.com/api/?${params.toString()}`,
+      { signal: AbortSignal.timeout(5000) },
     );
     if (!res.ok) return null; // quota/erro: continua com as outras fontes
-    const d = (await res.json()) as { hits?: { largeImageURL: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
+    const d = (await res.json()) as { hits?: { webformatURL: string; largeImageURL?: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
     // só aceita resultados cujas etiquetas partilhem uma palavra com o termo (evita correspondências inventadas)
     const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3 && !["para", "como", "mais", "sobre", "apos", "hoje", "anuncia", "portugal", "portugues", "noticias"].includes(w));
     hits = (d.hits ?? [])
       .filter((h) => { const tags = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/); return words.some((w) => tags.includes(w)) && adequateImage({ width: h.imageWidth, height: h.imageHeight }); })
-      .map((h) => ({ url: h.imageURL ?? h.fullHDURL ?? h.largeImageURL, width: h.imageWidth, text: h.tags }));
-    pixabayCache.set(k, hits);
+      // webformatURL é a URL de exibição temporária documentada pelo Pixabay;
+      // as notícias são retidas por 24h e esta cache expira antes desse prazo.
+      .map((h) => ({ url: h.webformatURL, width: h.imageWidth, text: h.tags }));
+    pixabayCache.set(k, { hits, expiresAt: Date.now() + PIXABAY_CACHE_TTL });
     if (pixabayCache.size > 200) {
       const oldest = pixabayCache.keys().next().value;
       if (oldest) pixabayCache.delete(oldest);
@@ -241,7 +256,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     if (pending.length < desired) addWindow(lowerBound, 72 * 60);
     pending.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
-    // A ingestão principal não consulta APIs de imagens; isso evita atrasar a publicação das notícias.
+    // A ingestão principal usa primeiro imagens dos feeds; as restantes são enriquecidas
+    // em paralelo após a gravação, para não bloquear a publicação das notícias.
     const used = new Set<string>();
 
     // Gemini é primário e Groq é fallback sequencial. Cooldowns por processo evitam
@@ -314,12 +330,28 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       inserted += results.reduce((sum, count) => sum + count, 0);
     }
 
-    // Recupera algumas imagens originais sem deixar o enriquecimento bloquear o feed.
-    const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").is("image", null).limit(3);
-    for (const m of missing ?? []) {
-      const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
-      if (img) await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
-    }
+    // Corrige também artigos que receberam a foto genérica de categoria: image_query
+    // assinala que ainda falta uma imagem específica. Antes, filtrar image IS NULL
+    // nunca os apanhava porque finalImageUrl já devolvia uma imagem genérica.
+    // A página original é prioritária; depois tenta Pixabay e outras fontes de fotografias.
+    const { data: missing } = await db
+      .from("articles")
+      .select("id,url,image_query,category,titulo_inedito")
+      .not("image_query", "is", null)
+      .limit(8);
+    await Promise.all((missing ?? []).map(async (m) => {
+      const term = (m.image_query ?? m.titulo_inedito ?? "").trim();
+      try {
+        const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
+        if (!img) return;
+        const { error } = await db.from("articles")
+          .update({ image: finalImageUrl(img, m.category, m.titulo_inedito), image_query: null })
+          .eq("id", m.id);
+        if (error) console.warn("não foi possível guardar imagem", m.id, error.message);
+      } catch (error) {
+        console.warn("enriquecimento de imagem falhou", m.id, error instanceof Error ? error.message : error);
+      }
+    }));
 
     // notícias com mais de 24h são apagadas no início de cada ciclo
     return { inserted, pending: pending.length, geminiAttempts, groqAttempts };

@@ -1,7 +1,8 @@
 // Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
 // Confirmado via API para esta chave; thinkingLevel "minimal" é o mínimo aceite (thinkingBudget 0 dá 400).
 const MODEL = "gemini-flash-lite-latest";
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 8_000;
+let geminiCooldownUntil = 0;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e impactantes.
 
@@ -80,17 +81,18 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
 export async function generateOne(title: string): Promise<GeneratedTitle | null> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
+  if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
     const prompt = `Identifica e formula a notícia como um acontecimento do presente/últimos 30 minutos apenas quando isso estiver confirmado pela entrada. Prioriza notícias de última hora e acontecimentos em desenvolvimento; nunca afirmes que algo acabou de acontecer sem evidência no título original.\nTítulo original: ${title}`;
-    let res = await callGemini(MODEL, apiKey, prompt);
-    if (res.status === 503) {
-      console.warn("Gemini 503; retry único em 2s");
-      await new Promise((r) => setTimeout(r, 2000));
-      res = await callGemini(MODEL, apiKey, prompt);
-    }
+    const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
+      const retryAfter = Number(res.headers.get("retry-after") ?? 0);
+      if (res.status === 429 || res.status === 401 || res.status === 403) {
+        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 300) * 1000 : 60_000);
+      }
       console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
+      // Não repetir imediatamente: o Groq serve de fallback e evita duplicar a pressão na API.
       return null;
     }
     const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };

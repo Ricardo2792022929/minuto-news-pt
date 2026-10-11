@@ -5,8 +5,8 @@ import { finalImageUrl } from "./image-policy";
 import { chooseOriginal, inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
-const BATCH = 10; // lote de processamento ampliado
-const MAX_BATCHES = 10; // até 100 notícias candidatas por ciclo, sujeito a quotas/tempo das APIs
+const BATCH = 4; // concorrência moderada para evitar picos de pedidos às APIs
+const MAX_BATCHES = 10; // até 40 notícias por ciclo; ciclos frequentes mantêm o feed atualizado
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -241,9 +241,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     if (pending.length < desired) addWindow(lowerBound, 72 * 60);
     pending.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
-    // evita repetir a mesma foto de reserva
-    const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
-    const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
+    // A ingestão principal não consulta APIs de imagens; isso evita atrasar a publicação das notícias.
+    const used = new Set<string>();
 
     // Consulta Gemini e Groq em paralelo para cada artigo. Se um falhar,
     // usa o resultado válido do outro; não faz pedidos ilimitados nem contorna quotas.
@@ -254,26 +253,28 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       const results = await Promise.all(batch.map(async (n) => {
         geminiAttempts++;
         groqAttempts++;
-        const [geminiResult, groqResult] = await Promise.allSettled([
-          generateOne(n.title),
-          generateGroqOne(n.title),
-        ]);
-        const g = geminiResult.status === "fulfilled" && geminiResult.value
-          ? geminiResult.value
-          : groqResult.status === "fulfilled" ? groqResult.value : null;
-        if (!g) {
-          if (geminiResult.status === "rejected") console.error("Gemini indisponível", geminiResult.reason);
-          if (groqResult.status === "rejected") console.error("Groq indisponível", groqResult.reason);
-          return 0;
-        }
+        // Uma chamada de cada vez por notícia: Gemini primeiro, Groq apenas como fallback.
+        // Limita picos de tráfego e evita gastar duas quotas quando a primeira API responde bem.
+        let g: Awaited<ReturnType<typeof generateOne>> = null;
         try {
-          let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));
-          let image_query: string | null = null;
-          if (!image) image = await fromArticlePage(n.url);
-          if (!image) {
-            image_query = g.titulo;
-            image = await findHdImageAny(g.titulo, n.category, used);
+          g = await generateOne(n.title);
+        } catch (error) {
+          console.warn("Gemini falhou; a tentar Groq", error instanceof Error ? error.message : error);
+        }
+        if (!g) {
+          try {
+            g = await generateGroqOne(n.title);
+          } catch (error) {
+            console.warn("Groq falhou", error instanceof Error ? error.message : error);
           }
+        }
+        if (!g) return 0;
+        try {
+          // Não bloquear a ingestão à procura de imagens externas. Usar apenas imagem do feed;
+          // as notícias sem imagem podem ser enriquecidas pelo processo de recuperação abaixo.
+          const image = (n.imageCandidates ?? (n.image ? [n.image] : []))
+            .find((url) => url && !isLowResImage(url)) ?? null;
+          const image_query: string | null = null;
           const { error } = await db.from("articles").upsert(
             {
               id: n.id,

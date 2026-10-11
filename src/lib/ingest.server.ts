@@ -284,7 +284,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           // as notícias sem imagem podem ser enriquecidas pelo processo de recuperação abaixo.
           const image = (n.imageCandidates ?? (n.image ? [n.image] : []))
             .find((url) => url && !isLowResImage(url)) ?? null;
-          const image_query: string | null = null;
+          const image_query: string | null = image ? null : g.titulo;
           const { error } = await db.from("articles").upsert(
             {
               id: n.id,
@@ -315,9 +315,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // Recupera algumas imagens originais sem deixar o enriquecimento bloquear o feed.
-    const { data: missing } = await db.from("articles").select("id,url,category,titulo_inedito").is("image", null).limit(3);
+    const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").is("image", null).limit(3);
     for (const m of missing ?? []) {
-      const img = await fromArticlePage(m.url);
+      const img = (await fromArticlePage(m.url)) ?? (await findHdImageAny(m.image_query ?? "", m.category, used));
       if (img) await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito) }).eq("id", m.id);
     }
 

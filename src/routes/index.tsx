@@ -268,6 +268,43 @@ const INTEREST_OPTIONS: {
   { category: "Tech", label: "Tech", icon: <Cpu className="size-7" /> },
 ];
 
+function Intro({ onDone }: { onDone: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const done = useRef(false);
+  const finish = useCallback(() => {
+    if (done.current) return;
+    done.current = true;
+    onDone();
+  }, [onDone]);
+
+  useEffect(() => {
+    const video = ref.current;
+    const timer = setTimeout(finish, 4500);
+    if (video) {
+      video.play().catch(() => {
+        video.muted = true;
+        void video.play().catch(finish);
+      });
+    }
+    return () => clearTimeout(timer);
+  }, [finish]);
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black">
+      <video
+        ref={ref}
+        src="/intro.mp4"
+        playsInline
+        autoPlay
+        preload="auto"
+        className="h-full w-full bg-black object-contain"
+        onEnded={finish}
+        onError={finish}
+      />
+    </div>
+  );
+}
+
 function Onboarding({
   onDone,
   onLater,
@@ -485,7 +522,9 @@ function SavedList({
 function Index() {
   const now = useClock();
   const [mounted, setMounted] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const closeIntro = useCallback(() => setShowIntro(false), []);
   const [interests, setInterests] = useState<string[]>([]);
   const [category, setCategory] = useState<Category>("Tudo");
   const [tab, setTab] = useState<"feed" | "saved">("feed");
@@ -616,14 +655,18 @@ function Index() {
 
   if (!mounted) {
     return (
+      <>
       <div className="mx-auto flex h-[100dvh] w-full max-w-xl items-center justify-center bg-feed-bg">
         <Loader2 className="size-8 animate-spin text-feed-fg/50" />
       </div>
+      {showIntro && <Intro onDone={closeIntro} />}
+    </>
     );
   }
 
   return (
     <div className="relative mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
+      {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && (
         <Onboarding
           onDone={(picked) => {

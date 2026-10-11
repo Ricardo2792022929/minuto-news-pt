@@ -63,9 +63,9 @@ async function fromPixabay(term: string, used: Set<string>) {
     const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3 && !["para", "como", "mais", "sobre", "apos", "hoje", "anuncia", "portugal", "portugues", "noticias"].includes(w));
     hits = (d.hits ?? [])
       .filter((h) => { const tags = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/); return words.some((w) => tags.includes(w)) && adequateImage({ width: h.imageWidth, height: h.imageHeight }); })
-      // webformatURL é a URL de exibição temporária documentada pelo Pixabay;
-      // as notícias são retidas por 24h e esta cache expira antes desse prazo.
-      .map((h) => ({ url: h.webformatURL, width: h.imageWidth, text: h.tags }));
+      // Prefere largeImageURL (até 1280px); webformatURL é limitado a 640px e
+      // não satisfaz a qualidade mínima. Os artigos duram 24h e a cache expira antes disso.
+      .map((h) => ({ url: h.largeImageURL ?? h.fullHDURL ?? h.webformatURL, width: h.imageWidth, text: h.tags }));
     pixabayCache.set(k, { hits, expiresAt: Date.now() + PIXABAY_CACHE_TTL });
     if (pixabayCache.size > 200) {
       const oldest = pixabayCache.keys().next().value;

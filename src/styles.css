@@ -32,7 +32,7 @@
   --color-ring: var(--ring);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
-  --font-display: "Fraunces", Georgia, serif;
+  --font-display: "Schibsted Grotesk", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
 }
 

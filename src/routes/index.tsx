@@ -720,7 +720,7 @@ function Index() {
                       <span className="text-feed-fg/60">·</span>
                       <span className="text-feed-fg/80">{a.category}</span>
                     </div>
-                    <h2 className="mt-2 font-display text-3xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md line-clamp-3">
+                    <h2 className="mt-2 font-display text-3xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
                       {a.title}
                     </h2>
                     <p className="mt-3 text-xs font-medium text-feed-fg/70">

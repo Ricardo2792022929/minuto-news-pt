@@ -1,7 +1,8 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-120b";
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 8_000;
+let groqCooldownUntil = 0;
 
 const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
 - Prioriza acontecimentos do presente e notícias dos últimos 15–30 minutos; usa linguagem de última hora apenas quando o título de entrada o comprova e nunca inventes atualizações.
@@ -23,6 +24,7 @@ function validSummary(raw: unknown): string | null {
 export async function generateGroqOne(title: string): Promise<GeneratedTitle | null> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new GatewayError("GROQ_API_KEY em falta", 401);
+  if (Date.now() < groqCooldownUntil) return null;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -47,6 +49,10 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
     });
     if (!response.ok) {
       const detail = (await response.text().catch(() => "")).slice(0, 200);
+      if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+        const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+        groqCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 300) * 1000 : 60_000);
+      }
       console.error("Groq HTTP", response.status, detail);
       if (response.status === 401 || response.status === 403 || response.status === 402) {
         throw new GatewayError(`Groq HTTP ${response.status}`, response.status);

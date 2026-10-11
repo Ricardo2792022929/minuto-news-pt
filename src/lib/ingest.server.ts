@@ -245,7 +245,15 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       const useGroq = idx % 2 === 1;
       if (useGroq) groqAttempts++;
       else geminiAttempts++;
-      const g = useGroq ? await generateGroqOne(n.title) : await generateOne(n.title);
+      let g: Awaited<ReturnType<typeof generateOne>> = null;
+      try {
+        g = useGroq ? await generateGroqOne(n.title) : await generateOne(n.title);
+      } catch (error) {
+        // Uma chave em falta/erro de fornecedor não deve interromper todo o ciclo.
+        console.error(useGroq ? "Groq indisponível para este artigo" : "Gemini indisponível para este artigo",
+          error instanceof Error ? error.message : error);
+        continue;
+      }
       if (!g) continue; // sem fallback para o título original
       try {
         let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));

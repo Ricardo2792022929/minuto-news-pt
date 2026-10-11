@@ -566,7 +566,12 @@ function Index() {
         list.push(item);
       }
     }
-    return list;
+    // Ordenação global rígida: a publicação mais recente fica sempre no topo,
+    // independentemente da ordem em que as páginas foram carregadas.
+    return list.sort((a, b) => {
+      const dateDiff = new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      return dateDiff || a.id.localeCompare(b.id);
+    });
   }, [query.data]);
 
   const loadMore = useCallback(() => {
@@ -592,10 +597,14 @@ function Index() {
     return () => observer.disconnect();
   }, [tab, category, interests]);
 
-  // Refresca a cada 2 minutos para acompanhar o direto
+  // Força uma atualização assim que a interface está montada e mantém
+  // o ciclo de atualização em intervalos regulares de 90 segundos.
   useEffect(() => {
     if (!mounted) return;
-    const id = setInterval(() => queryRef.current.refetch(), 120_000);
+    void queryRef.current.refetch();
+    const id = setInterval(() => {
+      void queryRef.current.refetch();
+    }, 90_000);
     return () => clearInterval(id);
   }, [mounted]);
 

@@ -1,12 +1,13 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
 import { generateOne, GatewayError } from "./title-generation.server";
+import { generateGroqOne } from "./title-generation.groq.server";
 import { finalImageUrl } from "./image-policy";
 import { chooseOriginal, inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
-const BATCH = 5; // máx. 5 notícias por execução
-const TARGET = 150; // máx. de notícias recentes guardadas
-const MAX_BATCHES = 4; // até 20 notícias por execução (lotes de 5, sequenciais)
+const BATCH = 5; // lote de 5 notícias
+const TARGET = 150; // máximo de notícias recentes guardadas
+const MAX_BATCHES = 6; // até 30 notícias por execução
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -199,7 +200,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const news = (await getAllNews())
       .filter((n) => n.publishedAt >= cutoff)
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
-    // deduplicação por id e por URL do artigo, antes de chamar o Gemini
+    // Deduplicação persistente por ID/URL e por semelhança de título.
     const existing = new Set<string>();
     for (let i = 0; i < news.length; i += 100) {
       const part = news.slice(i, i + 100);
@@ -210,26 +211,41 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       for (const r of byId.data ?? []) existing.add(r.id);
       for (const r of byUrl.data ?? []) existing.add(r.url);
     }
-    // máx. 4 novas por fonte por ciclo; ordem já intercalada por fonte
+    const { data: savedTitles } = await db
+      .from("articles")
+      .select("original_title,titulo_inedito")
+      .gte("published_at", cutoff)
+      .limit(500);
+    const knownTitles = (savedTitles ?? []).flatMap((r) => [r.original_title, r.titulo_inedito])
+      .filter((title): title is string => typeof title === "string" && title.trim().length > 0);
+    // Mantém a ordem cronológica decrescente: primeiro notícias da hora atual,
+    // depois recua progressivamente até às últimas 24 horas se necessário.
     const perSrc = new Map<string, number>();
-    const pending = news
-      .filter((n) => {
-        if (existing.has(n.id) || existing.has(n.url)) return false;
-        const c = perSrc.get(n.source) ?? 0;
-        if (c >= 4) return false;
-        perSrc.set(n.source, c + 1);
-        return true;
-      })
-      .slice(0, Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0))));
+    const pending: typeof news = [];
+    for (const n of news) {
+      if (existing.has(n.id) || existing.has(n.url) || hasSimilarTitle(n.title, knownTitles)) continue;
+      const count = perSrc.get(n.source) ?? 0;
+      if (count >= 6) continue;
+      perSrc.set(n.source, count + 1);
+      pending.push(n);
+      knownTitles.push(n.title);
+      if (pending.length >= Math.max(0, Math.min(BATCH * MAX_BATCHES, TARGET - (stored ?? 0)))) break;
+    }
 
     // evita repetir a mesma foto de reserva
     const { data: recent } = await db.from("articles").select("image").not("image_query", "is", null).limit(500);
     const used = new Set((recent ?? []).map((r) => r.image).filter(Boolean) as string[]);
 
-    // Fila indiana: Gemini → guardar → esperar 2s → próxima
+    // Alterna os fornecedores para cada ciclo conter até 15 notícias de cada API.
+    // Uma falha de um fornecedor não bloqueia as notícias já processadas pelo outro.
+    let geminiAttempts = 0;
+    let groqAttempts = 0;
     for (const [idx, n] of pending.entries()) {
       if (idx > 0) await new Promise((r) => setTimeout(r, 2000));
-      const g = await generateOne(n.title);
+      const useGroq = idx % 2 === 1;
+      if (useGroq) groqAttempts++;
+      else geminiAttempts++;
+      const g = useGroq ? await generateGroqOne(n.title) : await generateOne(n.title);
       if (!g) continue; // sem fallback para o título original
       try {
         let image = await chooseOriginal((n.imageCandidates ?? (n.image ? [n.image] : [])).filter((url) => !isLowResImage(url)));
@@ -270,7 +286,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // notícias com mais de 24h são apagadas no início de cada ciclo
-    return { inserted, pending: pending.length };
+    return { inserted, pending: pending.length, geminiAttempts, groqAttempts };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);
@@ -280,6 +296,31 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   } finally {
     await db.from("ingest_state").update({ locked_until: null }).eq("id", 1);
   }
+}
+
+
+function normalizeTitle(title: string): string {
+  return title.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9\\s]/g, " ").replace(/\\s+/g, " ").trim();
+}
+
+function hasSimilarTitle(title: string, known: string[]): boolean {
+  const normalized = normalizeTitle(title);
+  if (!normalized) return false;
+  const tokens = new Set(normalized.split(" ").filter((word) => word.length > 2));
+  if (!tokens.size) return false;
+  for (const other of known) {
+    const candidate = normalizeTitle(other);
+    if (!candidate) continue;
+    if (candidate === normalized) return true;
+    const otherTokens = new Set(candidate.split(" ").filter((word) => word.length > 2));
+    if (!otherTokens.size) continue;
+    let intersection = 0;
+    for (const token of tokens) if (otherTokens.has(token)) intersection++;
+    const similarity = intersection / (tokens.size + otherTokens.size - intersection);
+    if (similarity >= 0.8) return true;
+  }
+  return false;
 }
 
 // Relevância normalizada 0-100 a partir da lógica existente (bónus de horas sobre a data).

@@ -427,8 +427,36 @@ function cleanUrl(raw: string): string {
   return u;
 }
 
+const warmedOrigins = new Set<string>();
+
+function warmOrigin(rawUrl: string) {
+  let origin = "";
+  try {
+    origin = new URL(cleanUrl(rawUrl)).origin;
+  } catch {
+    return;
+  }
+  if (warmedOrigins.has(origin)) return;
+  warmedOrigins.add(origin);
+  const pre = document.createElement("link");
+  pre.rel = "preconnect";
+  pre.href = origin;
+  pre.crossOrigin = "anonymous";
+  document.head.appendChild(pre);
+  const dns = document.createElement("link");
+  dns.rel = "dns-prefetch";
+  dns.href = origin;
+  document.head.appendChild(dns);
+}
+
+if (typeof window !== "undefined") {
+  const early = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  if (early?.isNativePlatform?.()) void import("@capacitor/browser");
+}
+
 async function openArticle(rawUrl: string): Promise<void> {
   const url = cleanUrl(rawUrl);
+  warmOrigin(url);
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
     .Capacitor;
   if (cap?.isNativePlatform?.()) {
@@ -440,14 +468,9 @@ async function openArticle(rawUrl: string): Promise<void> {
       /* continua para a web */
     }
   }
-  // Web: abre SEMPRE num separador novo, nunca dentro da app/iframe
-  // (os jornais bloqueiam ser carregados dentro de outra página).
-  // Um único link nativo com rel="noopener noreferrer" evita separadores
-  // duplicados (window.open com noopener devolve sempre null).
   const a = document.createElement("a");
   a.href = url;
   a.target = "_blank";
-  a.rel = "noopener noreferrer";
   a.style.display = "none";
   document.body.appendChild(a);
   a.click();
@@ -635,6 +658,10 @@ function Index() {
     return list;
   }, [query.data]);
 
+  useEffect(() => {
+    for (const item of articles.slice(0, 4)) warmOrigin(item.url);
+  }, [articles]);
+
   // Infinite scroll sentinel
   useEffect(() => {
     const el = sentinelRef.current;
@@ -722,10 +749,18 @@ function Index() {
               const fresh =
                 Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
               return (
-                <article
+                <a
                   key={a.id}
-                  onClick={() => void openArticle(a.url)}
-                  className="relative h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950"
+                  href={cleanUrl(a.url)}
+                  target="_blank"
+                  onPointerDown={() => warmOrigin(a.url)}
+                  onClick={(e) => {
+                    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+                    if (!cap?.isNativePlatform?.()) return;
+                    e.preventDefault();
+                    void openArticle(a.url);
+                  }}
+                  className="relative block h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950"
                 >
                   {true ? (
                     <FadeImg
@@ -753,6 +788,7 @@ function Index() {
 
                   <button
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       toggleSave(a);
                     }}
@@ -789,7 +825,7 @@ function Index() {
                       <ChevronDown className="size-6" />
                     </div>
                   )}
-                </article>
+                </a>
               );
             })}
 

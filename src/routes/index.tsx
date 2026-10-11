@@ -758,13 +758,13 @@ function Index() {
                   </div>
 
                   {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 pb-12 pl-4 pr-16">
+                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-12">
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
                       <span className="text-live">{a.source}</span>
                       <span className="text-feed-fg/60">·</span>
                       <span className="text-feed-fg/80">{a.category}</span>
                     </div>
-                    <h2 className="mt-2 font-display text-3xl font-bold leading-tight text-feed-fg text-balance drop-shadow-md">
+                    <h2 className="mt-2 w-full text-left font-display text-[clamp(1.55rem,6.4vw,2rem)] font-bold leading-tight text-feed-fg drop-shadow-md">
                       {a.title}
                     </h2>
                     <p className="mt-3 text-xs font-medium text-feed-fg/70">

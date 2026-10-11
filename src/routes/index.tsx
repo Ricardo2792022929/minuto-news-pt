@@ -428,7 +428,7 @@ function SavedList({
 }) {
   if (!items.length) {
     return (
-      <div className="flex h-[calc(100dvh-56px)] flex-col items-center justify-center gap-3 px-8 text-center">
+      <div className="flex h-[calc(100dvh-44px)] flex-col items-center justify-center gap-3 px-8 text-center">
         <Bookmark className="size-10 text-muted-foreground/40" />
         <p className="font-display text-xl font-bold">Ainda sem guardadas</p>
         <p className="text-sm text-muted-foreground">
@@ -438,7 +438,7 @@ function SavedList({
     );
   }
   return (
-    <div className="h-[calc(100dvh-56px)] overflow-y-auto px-4 pb-8 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="h-[calc(100dvh-44px)] overflow-y-auto px-4 pb-8 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((item) => (
         <div
           key={item.id}
@@ -713,7 +713,7 @@ function Index() {
                   </div>
 
                   {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 pb-20 pl-4 pr-20">
+                  <div className="absolute inset-x-0 bottom-0 z-10 pb-12 pl-4 pr-16">
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
                       <span className="text-live">{a.source}</span>
                       <span className="text-feed-fg/60">·</span>
@@ -825,23 +825,23 @@ function Index() {
 
           {/* Bottom tab bar */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto max-w-xl">
-            <div className="pointer-events-auto flex items-center justify-around bg-feed-bg/90 px-6 pb-6 pt-3 backdrop-blur-sm">
+            <div className="pointer-events-auto flex items-center justify-around bg-feed-bg/95 px-4 pb-2 pt-1.5 backdrop-blur-sm">
               <button
                 onClick={() => setTab("feed")}
-                className={`flex flex-col items-center gap-1 text-[11px] font-semibold ${
+                className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold leading-none ${
                   tab === "feed" ? "text-live" : "text-feed-fg/60"
                 }`}
               >
-                <Newspaper className="size-6" />
+                <Newspaper className="size-4" />
                 Feed
               </button>
               <button
                 onClick={() => setTab("saved")}
-                className={`flex flex-col items-center gap-1 text-[11px] font-semibold ${
+                className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold leading-none ${
                   tab === "saved" ? "text-live" : "text-feed-fg/60"
                 }`}
               >
-                <Bookmark className="size-6" />
+                <Bookmark className="size-4" />
                 Guardadas
               </button>
             </div>

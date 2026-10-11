@@ -183,7 +183,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
   const nowIso = new Date().toISOString();
   const { data: lock } = await db
     .from("ingest_state")
-    .update({ locked_until: new Date(Date.now() + 4 * 60_000).toISOString(), updated_at: nowIso })
+    .update({ locked_until: new Date(Date.now() + 10 * 60_000).toISOString(), updated_at: nowIso })
     .eq("id", 1)
     .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
     .select("id");
@@ -300,8 +300,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
 
 function normalizeTitle(title: string): string {
-  return title.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
-    .replace(/[^a-z0-9\\s]/g, " ").replace(/\\s+/g, " ").trim();
+  return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function hasSimilarTitle(title: string, known: string[]): boolean {

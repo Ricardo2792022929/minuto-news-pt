@@ -1,5 +1,5 @@
 import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
-import { generateOne, GatewayError, forceMax10Words } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, rewriteFallback } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
@@ -214,9 +214,12 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* fallback */ } }
         if (!g) {
           const sourceTitle = n.title.trim();
-          if (!sourceTitle) return 0;
-          g = { titulo: cleanRssTitle(sourceTitle).slice(0, 180), resumo: firstSentence(n.excerpt?.trim() || sourceTitle).slice(0, 300) };
+          const rewritten = sourceTitle ? rewriteFallback(sourceTitle) : null;
+          if (!rewritten) return 0;
+          g = { titulo: rewritten, resumo: firstSentence(n.excerpt?.trim() || sourceTitle).slice(0, 300) };
         }
+        const titulo = validTitle(g.titulo, n.title) ?? rewriteFallback(n.title);
+        if (!titulo) return 0;
         try {
           // 1. Imagem do RSS (se boa)
           let image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
@@ -226,7 +229,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           const { error } = await db.from("articles").upsert({
             id: n.id, source: n.source, category: n.category, url: n.url,
             image: finalImageUrl(image, n.category, n.title, n.id) || guaranteedImage(n.id, n.category),
-            image_query, original_title: n.title, titulo_inedito: forceMax10Words(g.titulo),
+            image_query, original_title: n.title, titulo_inedito: titulo,
             resumo: g.resumo, relevance: relevance100(n), published_at: n.publishedAt,
           }, { onConflict: "id", ignoreDuplicates: true });
           if (error) return 0;
@@ -247,7 +250,18 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       } catch { /* ignore */ }
     }));
 
-    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts };
+    const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
+    let rewritten = 0;
+    for (const row of recent ?? []) {
+      if (!row.original_title || !row.titulo_inedito) continue;
+      if (validTitle(row.titulo_inedito, row.original_title)) continue;
+      const next = rewriteFallback(row.original_title);
+      if (!next || next === row.titulo_inedito) continue;
+      const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
+      if (!error) rewritten++;
+    }
+
+    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts, rewritten };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);
@@ -274,14 +288,6 @@ function normalizeArticleUrl(raw: string): string {
 
 function normalizeTitle(title: string): string {
   return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function cleanRssTitle(title: string): string {
-  const cleaned = title
-    .replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "")
-    .replace(/^(Crise|Urgente|Atenção|Última hora)\s*[:\-–—]\s*/i, "")
-    .replace(/\s+/g, " ").trim();
-  return forceMax10Words(cleaned || title.trim());
 }
 
 function firstSentence(text: string): string {

@@ -71,6 +71,9 @@ export const getNews = createServerFn({ method: "GET" })
     });
 
     const now = Date.now();
+    const since = new Date(now - 24 * 3600_000).toISOString();
+    const interests = (data.interests ?? []).filter(Boolean);
+    const useInterests = !data.category && interests.length > 0;
     const cols = "id,source,category,url,image,titulo_inedito,resumo,published_at";
     const toItem = (r: {
       id: string;
@@ -91,23 +94,99 @@ export const getNews = createServerFn({ method: "GET" })
       publishedAt: r.published_at,
       image: finalImageUrl(r.image, r.category, r.titulo_inedito, r.id) || guaranteedImage(r.id, r.category),
     });
+    const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);
+    const roundRobin = (items: NewsItem[]) => {
+      const buckets = new Map<string, NewsItem[]>();
+      for (const item of [...items].sort(byDate)) {
+        const list = buckets.get(item.category) ?? [];
+        list.push(item);
+        buckets.set(item.category, list);
+      }
+      const out: NewsItem[] = [];
+      const lists = [...buckets.values()];
+      let pending = true;
+      while (pending) {
+        pending = false;
+        for (const list of lists) {
+          const next = list.shift();
+          if (next) {
+            out.push(next);
+            pending = true;
+          }
+        }
+      }
+      return out;
+    };
 
-    // Mais recentes primeiro. A atualização habitual não muda.
-    let q = db
-      .from("articles")
-      .select(cols, { count: "exact" })
-      .gte("published_at", new Date(now - 24 * 3600_000).toISOString())
-      .order("published_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
-    if (data.category) q = q.eq("category", data.category);
-    const { data: rows, error, count } = await q;
-    if (error) {
-      console.error(error);
-      return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
+    let total = 0;
+    let ordered: NewsItem[] = [];
+    if (useInterests) {
+      const need = Math.min(data.offset + data.limit + 40, 400);
+      const [insideRes, broadRes] = await Promise.all([
+        db
+          .from("articles")
+          .select(cols, { count: "exact" })
+          .gte("published_at", since)
+          .in("category", interests)
+          .order("published_at", { ascending: false })
+          .range(0, need - 1),
+        db
+          .from("articles")
+          .select(cols)
+          .gte("published_at", since)
+          .order("published_at", { ascending: false })
+          .range(0, Math.min(need, 120) - 1),
+      ]);
+      if (insideRes.error) {
+        console.error(insideRes.error);
+        return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
+      }
+      total = insideRes.count ?? 0;
+      const mine = roundRobin((insideRes.data ?? []).map(toItem));
+      const other = (broadRes.data ?? [])
+        .map(toItem)
+        .filter((item) => !interests.includes(item.category))
+        .sort(byDate);
+      let mineIndex = 0;
+      let otherIndex = 0;
+      while (mineIndex < mine.length || otherIndex < other.length) {
+        for (let step = 0; step < 3 && mineIndex < mine.length; step += 1) ordered.push(mine[mineIndex++]);
+        if (otherIndex < other.length) ordered.push(other[otherIndex++]);
+        if (mineIndex >= mine.length && otherIndex >= other.length) break;
+      }
+    } else {
+      let q = db
+        .from("articles")
+        .select(cols, { count: "exact" })
+        .gte("published_at", since)
+        .order("published_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
+      if (data.category) q = q.eq("category", data.category);
+      const { data: rows, error, count } = await q;
+      if (error) {
+        console.error(error);
+        return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
+      }
+      total = count ?? 0;
+      ordered = (rows ?? []).map(toItem).sort(byDate);
     }
-    const total = count ?? 0;
-    const ordered = (rows ?? []).map(toItem).sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt));
+
+    if (data.club) {
+      const held: NewsItem[] = [];
+      const spaced: NewsItem[] = [];
+      let streak = 0;
+      for (const item of ordered) {
+        const isClub = articleMatchesClub(item.title, item.category, data.club);
+        if (isClub && streak >= 1) {
+          held.push(item);
+          continue;
+        }
+        streak = isClub ? 1 : 0;
+        spaced.push(item);
+      }
+      ordered = spaced.concat(held);
+    }
     const fresh = ordered.slice(data.offset, data.offset + data.limit);
 
     // Do dia, até 24 horas, mas só as fortes. O fio das mais recentes não pára.
@@ -170,25 +249,29 @@ export const getNews = createServerFn({ method: "GET" })
     const freshTitles = new Set(fresh.map((item) => titleKey(item.title)));
     const mixed: NewsItem[] = [];
     let dayIndex = 0;
-    let clubIndex = 0;
     fresh.forEach((item, index) => {
       mixed.push(item);
-      // Duas novas, depois uma do clube ou uma forte do dia. As atualizações não param.
-      if ((index + 1) % 2 !== 0) return;
-      const preferClub = clubNews.length > 0 && Math.floor(index / 2) % 2 === 0;
-      const source = preferClub ? clubNews : pool;
-      let cursor = preferClub ? clubIndex : dayIndex;
-      while (cursor < source.length) {
-        const candidate = source[cursor];
-        cursor += 1;
+      // Três notícias dos gostos, depois uma forte do dia. O clube não entra aqui.
+      if ((index + 1) % 3 !== 0) return;
+      while (dayIndex < pool.length) {
+        const candidate = pool[dayIndex];
+        dayIndex += 1;
         if (!candidate || seen.has(candidate.id) || freshTitles.has(titleKey(candidate.title))) continue;
+        if (data.club && articleMatchesClub(candidate.title, candidate.category, data.club)) continue;
         seen.add(candidate.id);
         mixed.push(candidate);
         break;
       }
-      if (preferClub) clubIndex = cursor;
-      else dayIndex = cursor;
     });
+    if (clubNews.length > 0) {
+      const clubPick = clubNews
+        .slice(page)
+        .find((item) => !seen.has(item.id) && !freshTitles.has(titleKey(item.title)));
+      if (clubPick) {
+        const at = Math.min(5, mixed.length);
+        mixed.splice(at, 0, clubPick);
+      }
+    }
 
     const nextOffset = data.offset + data.limit;
     return { items: mixed, total, hasMore: nextOffset < total, nextOffset };

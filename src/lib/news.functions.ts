@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { NewsItem } from "./news.types";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
+import { articleMatchesClub } from "./clubs";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -50,6 +51,7 @@ export const getNews = createServerFn({ method: "GET" })
           limit: z.number().min(1).max(50).default(12),
           category: z.string().optional(),
           interests: z.array(z.string()).optional(),
+          club: z.string().optional(),
         })
         .parse(data ?? {}),
   )
@@ -148,23 +150,44 @@ export const getNews = createServerFn({ method: "GET" })
     }
     const page = Math.floor(data.offset / data.limit);
     const pool = diversified.slice(page * 4);
+    const allowClub = Boolean(data.club) && (!data.category || data.category === "Desporto");
+    let clubNews: NewsItem[] = [];
+    if (allowClub && data.club) {
+      const { data: clubRows } = await db
+        .from("articles")
+        .select(cols)
+        .gte("published_at", daySince)
+        .eq("category", "Desporto")
+        .order("published_at", { ascending: false })
+        .limit(80);
+      clubNews = (clubRows ?? [])
+        .map(toItem)
+        .filter((item) => articleMatchesClub(item.title, item.category, data.club!))
+        .sort((a, b) => shockScore(b.title) - shockScore(a.title) || +new Date(b.publishedAt) - +new Date(a.publishedAt));
+    }
     const seen = new Set(fresh.map((item) => item.id));
     const titleKey = (title: string) => plain(title).split(/\s+/).slice(0, 6).join(" ");
     const freshTitles = new Set(fresh.map((item) => titleKey(item.title)));
     const mixed: NewsItem[] = [];
     let dayIndex = 0;
+    let clubIndex = 0;
     fresh.forEach((item, index) => {
       mixed.push(item);
-      // Duas novas, depois uma forte do dia. Equilibrado, sem parar as atualizações.
+      // Duas novas, depois uma do clube ou uma forte do dia. As atualizações não param.
       if ((index + 1) % 2 !== 0) return;
-      while (dayIndex < pool.length) {
-        const candidate = pool[dayIndex];
-        dayIndex += 1;
+      const preferClub = clubNews.length > 0 && Math.floor(index / 2) % 2 === 0;
+      const source = preferClub ? clubNews : pool;
+      let cursor = preferClub ? clubIndex : dayIndex;
+      while (cursor < source.length) {
+        const candidate = source[cursor];
+        cursor += 1;
         if (!candidate || seen.has(candidate.id) || freshTitles.has(titleKey(candidate.title))) continue;
         seen.add(candidate.id);
         mixed.push(candidate);
         break;
       }
+      if (preferClub) clubIndex = cursor;
+      else dayIndex = cursor;
     });
 
     const nextOffset = data.offset + data.limit;

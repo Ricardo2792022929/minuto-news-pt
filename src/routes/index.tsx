@@ -350,13 +350,47 @@ function Onboarding({
   onDone: (interests: string[]) => void;
   onLater: () => void;
 }) {
-  const [step, setStep] = useState<"welcome" | "choose">("welcome");
+  const hello = `${greeting()}, bem-vindo à Flash Notícias Portugal.`;
+  const setupLine = "Vamos personalizar a sua experiência";
+  const askLine = "Que tipo de notícias gostas de ver?";
+  const [phase, setPhase] = useState<"greet" | "erase" | "ask">("greet");
+  const [helloCount, setHelloCount] = useState(0);
+  const [setupCount, setSetupCount] = useState(0);
+  const [askCount, setAskCount] = useState(0);
+  const [shownIcons, setShownIcons] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const id = setTimeout(() => setStep("choose"), 3000);
-    return () => clearTimeout(id);
-  }, []);
+    if (phase !== "greet") return;
+    if (helloCount >= hello.length) {
+      const id = window.setTimeout(() => setPhase("erase"), 900);
+      return () => window.clearTimeout(id);
+    }
+    const id = window.setTimeout(() => setHelloCount((n) => n + 1), 42);
+    return () => window.clearTimeout(id);
+  }, [phase, helloCount, hello]);
+
+  useEffect(() => {
+    if (phase !== "erase") return;
+    const id = window.setTimeout(() => setPhase("ask"), 680);
+    return () => window.clearTimeout(id);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "ask") return;
+    if (setupCount < setupLine.length) {
+      const id = window.setTimeout(() => setSetupCount((n) => n + 1), 36);
+      return () => window.clearTimeout(id);
+    }
+    if (askCount < askLine.length) {
+      const id = window.setTimeout(() => setAskCount((n) => n + 1), 34);
+      return () => window.clearTimeout(id);
+    }
+    if (shownIcons < INTEREST_OPTIONS.length) {
+      const id = window.setTimeout(() => setShownIcons((n) => n + 1), 190);
+      return () => window.clearTimeout(id);
+    }
+  }, [phase, setupCount, askCount, shownIcons, setupLine.length, askLine.length]);
 
   const toggle = (c: string) => {
     setPicked((prev) => {
@@ -367,38 +401,56 @@ function Onboarding({
     });
   };
 
+  const caret = <span className="ml-0.5 inline-block h-[0.9em] w-[2px] translate-y-[2px] animate-pulse bg-live align-middle" />;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-feed-bg text-feed-fg">
-      {step === "welcome" ? (
-        <div className="flex flex-1 animate-rise flex-col items-center justify-center px-8 text-center">
-          <span className="text-xs font-bold uppercase tracking-[0.3em] text-live">
-            FlashNotícias
-          </span>
-          <h1 className="mt-4 font-display text-4xl font-black leading-tight text-balance">
-            {greeting()}, vamos personalizar a sua experiência
+      {phase !== "ask" ? (
+        <div
+          className={`flex flex-1 items-center justify-center px-8 text-center transition-all duration-700 ease-out ${
+            phase === "erase" ? "translate-y-2 opacity-0" : "opacity-100"
+          }`}
+        >
+          <h1 className="max-w-sm font-display text-4xl font-black leading-tight text-balance">
+            {hello.slice(0, helloCount)}
+            {phase === "greet" && helloCount < hello.length ? caret : null}
           </h1>
-          <p className="mt-4 text-sm text-feed-fg/60">
-            As notícias de Portugal e do mundo, ao minuto
-          </p>
         </div>
       ) : (
-        <div className="flex flex-1 animate-rise flex-col px-6 pb-6 pt-10">
-          <h1 className="font-display text-3xl font-black leading-tight text-balance">
-            Que tipo de notícias gostas de ver?
+        <div className="flex flex-1 flex-col px-6 pb-6 pt-10">
+          <p className="text-sm font-semibold text-live">
+            {setupLine.slice(0, setupCount)}
+            {setupCount < setupLine.length ? caret : null}
+          </p>
+          <h1 className="mt-3 min-h-[4.5rem] font-display text-3xl font-black leading-tight text-balance">
+            {askLine.slice(0, askCount)}
+            {setupCount >= setupLine.length && askCount < askLine.length ? caret : null}
           </h1>
-          <p className="mt-2 text-sm text-feed-fg/60">
+          <p
+            className={`mt-2 text-sm text-feed-fg/60 transition-opacity duration-500 ${
+              shownIcons >= INTEREST_OPTIONS.length ? "opacity-100" : "opacity-0"
+            }`}
+          >
             Escolhe os teus gostos — podes sempre mudar mais tarde.
           </p>
 
           <div className="mt-8 grid grid-cols-3 gap-x-3 gap-y-6">
-            {INTEREST_OPTIONS.map((opt) => {
+            {INTEREST_OPTIONS.map((opt, index) => {
               const active = picked.has(opt.category);
+              const visible = index < shownIcons;
               return (
                 <button
                   key={opt.category}
-                  onClick={() => toggle(opt.category)}
+                  onClick={() => visible && toggle(opt.category)}
                   className="group flex flex-col items-center gap-2"
                   aria-pressed={active}
+                  aria-hidden={!visible}
+                  tabIndex={visible ? 0 : -1}
+                  style={{
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "scale(1)" : "scale(0.7)",
+                    transition: "opacity 460ms ease, transform 460ms cubic-bezier(.2,1.25,.32,1)",
+                  }}
                 >
                   <span
                     className={`flex size-20 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
@@ -409,11 +461,7 @@ function Onboarding({
                   >
                     {opt.icon}
                   </span>
-                  <span
-                    className={`text-xs font-semibold ${
-                      active ? "text-feed-fg" : "text-feed-fg/60"
-                    }`}
-                  >
+                  <span className={`text-xs font-semibold ${active ? "text-feed-fg" : "text-feed-fg/60"}`}>
                     {opt.label}
                   </span>
                 </button>
@@ -421,7 +469,11 @@ function Onboarding({
             })}
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-8">
+          <div
+            className={`mt-auto flex items-center justify-between pt-8 transition-opacity duration-500 ${
+              shownIcons >= INTEREST_OPTIONS.length ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+          >
             <button
               onClick={onLater}
               className="rounded-full px-4 py-2 text-sm font-semibold text-feed-fg/60 underline-offset-4 hover:underline"
@@ -751,7 +803,7 @@ function Index() {
   return (
     <div className="relative mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
       {showIntro && <Intro onDone={closeIntro} />}
-      {showOnboarding && (
+      {showOnboarding && !showIntro && (
         <Onboarding
           onDone={(picked) => {
             setInterests(picked);

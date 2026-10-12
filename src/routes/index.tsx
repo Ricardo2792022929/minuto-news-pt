@@ -429,7 +429,7 @@ function Onboarding({
   const caret = <span className="ml-0.5 inline-block h-[0.9em] w-[2px] translate-y-[2px] animate-pulse bg-live align-middle" />;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-feed-bg text-feed-fg">
+    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden bg-feed-bg text-feed-fg">
       {phase === "greet" || phase === "erase" ? (
         <div
           className={`flex flex-1 items-center justify-center px-8 text-center transition-all duration-700 ease-out ${
@@ -519,42 +519,48 @@ function Onboarding({
           </div>
         </div>
       ) : (
-        <div className="relative flex flex-1 flex-col px-6 pb-6 pt-10">
-          <h1 className="min-h-[4.5rem] font-display text-3xl font-black leading-tight text-balance">
-            {clubLine.slice(0, clubCount)}
-            {clubCount < clubLine.length ? caret : null}
-          </h1>
-          <div className="mt-6 flex flex-1 flex-col gap-2 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {LIGA_CLUBS.map((club, index) => {
-              const visible = index < shownClubs;
-              return (
-                <button
-                  key={club.id}
-                  onClick={() => visible && onDone([...picked], club.id)}
-                  className="rounded-full bg-feed-fg/10 px-4 py-3 text-left text-sm font-semibold text-feed-fg active:scale-[0.98]"
-                  style={{
-                    opacity: visible ? 1 : 0,
-                    transform: visible ? "scale(1)" : "scale(0.86)",
-                    transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.25,.32,1)",
-                  }}
-                >
-                  {club.name}
-                </button>
-              );
-            })}
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-10">
+          <div className="flex shrink-0 items-start justify-between gap-3">
+            <h1 className="min-h-[4.5rem] flex-1 font-display text-3xl font-black leading-tight text-balance">
+              {clubLine.slice(0, clubCount)}
+              {clubCount < clubLine.length ? caret : null}
+            </h1>
+            <button
+              onClick={() => onDone([...picked], null)}
+              className="mt-1 max-w-[8.5rem] shrink-0 rounded-2xl bg-feed-fg px-3 py-3 text-xs font-bold text-feed-bg shadow-xl"
+              style={{
+                opacity: clubCount >= clubLine.length ? 1 : 0,
+                transform: clubCount >= clubLine.length ? "scale(1)" : "scale(0.7)",
+                transition: "opacity 400ms ease, transform 400ms cubic-bezier(.2,1.3,.32,1)",
+                pointerEvents: clubCount >= clubLine.length ? "auto" : "none",
+              }}
+            >
+              Configurar mais tarde
+            </button>
           </div>
-          <button
-            onClick={() => onDone([...picked], null)}
-            className="absolute right-3 top-1/2 z-10 max-w-[9.5rem] -translate-y-1/2 rounded-2xl bg-feed-fg px-3 py-3 text-xs font-bold text-feed-bg shadow-xl"
-            style={{
-              opacity: clubCount >= clubLine.length ? 1 : 0,
-              transform: clubCount >= clubLine.length ? "scale(1)" : "scale(0.7)",
-              transition: "opacity 400ms ease, transform 400ms cubic-bezier(.2,1.3,.32,1)",
-              pointerEvents: clubCount >= clubLine.length ? "auto" : "none",
-            }}
+          <div
+            className="mt-6 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain pb-8 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            Configurar mais tarde
-          </button>
+            <div className="flex flex-col gap-2">
+              {LIGA_CLUBS.map((club, index) => {
+                const visible = index < shownClubs;
+                return (
+                  <button
+                    key={club.id}
+                    onClick={() => visible && onDone([...picked], club.id)}
+                    className="rounded-full bg-feed-fg/10 px-4 py-3 text-left text-sm font-semibold text-feed-fg active:scale-[0.98]"
+                    style={{
+                      opacity: visible ? 1 : 0,
+                      transform: visible ? "scale(1)" : "scale(0.86)",
+                      transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.25,.32,1)",
+                    }}
+                  >
+                    {club.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>

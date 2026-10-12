@@ -11,7 +11,7 @@ REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - O título deve ter NO MÁXIMO 10 palavras (idealmente 6 a 10).
 - Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
 - Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
-- O título tem de ser uma frase completa. Nunca termines em preposição ou conjunção (por, de, em, com, para, e). Se o facto não couber em 10 palavras, reescreve mais curto em vez de cortar a meio.
+- O título tem de ser uma frase COMPLETA e fechada. Nunca cortes a meio. Nunca termines em preposição, conjunção ou verbo incompleto (por, de, em, com, para, e, mas, pode, vai, liga, quem). Se o facto não couber em 10 palavras, reescreve mais curto.
 - Não inventes informação.
 - Mantém o significado factual da notícia original.
 - Não uses clickbait enganador.
@@ -46,24 +46,52 @@ const DANGLING = new Set([
   "a", "o", "as", "os", "de", "da", "do", "das", "dos", "em", "no", "na", "nos", "nas",
   "e", "ou", "que", "um", "uma", "uns", "umas", "por", "para", "com", "sem", "ao", "aos",
   "se", "num", "numa", "pelo", "pela", "pelos", "pelas", "sobre", "entre", "ate", "desde", "como",
+  "mas", "porque", "pois", "quando", "onde", "quem", "qual", "quais",
+  "pode", "podem", "possa", "possam", "vai", "vao", "ira", "irao",
+  "esta", "estao", "tem", "faz", "fazem", "liga", "ligam", "quer", "querem",
+  "deve", "devem", "sera", "serao", "ser", "estar", "ter", "fazer", "tornar", "tornar-se",
 ]);
 
 function wordKey(word: string): string {
   return word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,;:!?]+$/g, "");
 }
 
-/** No máximo 10 palavras e nunca a acabar numa preposição ou conjunção. */
+function isIncomplete(words: string[]): boolean {
+  if (!words.length) return true;
+  const last = wordKey(words[words.length - 1] ?? "");
+  if (DANGLING.has(last)) return true;
+  const joined = words.join(" ");
+  if (/[,:;]\s*$/.test(joined)) return true;
+  if (/\b(mas|porque|pois|quando|onde|quem)\s+\w+$/i.test(joined)) return true;
+  return false;
+}
+
+/** No máximo 10 palavras e sempre uma frase fechada. */
 export function forceMax10Words(raw: string): string {
-  let t = raw.replace(/\s+/g, " ").trim().replace(/^["«“]+|["'»”]+$/g, "").replace(/\.$/, "");
+  let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
   if (t.includes(":") && t.split(":")[0].split(" ").length <= 4) {
     t = t.split(":").slice(1).join(":").trim();
   }
   const words = t.split(/\s+/).filter(Boolean);
-  const capped = words.length > 10 ? words.slice(0, 10) : [...words];
-  while (capped.length > 4 && DANGLING.has(wordKey(capped[capped.length - 1] ?? ""))) capped.pop();
-  const out = capped.join(" ");
-  if (!out) return raw.trim();
+  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
+  while (capped.length > 4 && isIncomplete(capped)) {
+    const joined = capped.join(" ");
+    const cut = joined.search(/\s+(mas|porque|pois|e|que)\s+\S+$/i);
+    if (cut > 12) {
+      capped = joined.slice(0, cut).split(/\s+/).filter(Boolean);
+      continue;
+    }
+    capped.pop();
+  }
+  const out = capped.join(" ").replace(/[,:;]+$/, "").trim();
+  if (!out || out.split(/\s+/).length < 4) {
+    const fallback = words.slice(0, Math.min(8, words.length));
+    while (fallback.length > 4 && isIncomplete(fallback)) fallback.pop();
+    const safe = fallback.join(" ").replace(/[,:;]+$/, "").trim();
+    if (safe.split(/\s+/).length >= 4) return safe.charAt(0).toUpperCase() + safe.slice(1);
+    return raw.trim();
+  }
   return out.charAt(0).toUpperCase() + out.slice(1);
 }
 
@@ -109,7 +137,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Reescreve o título de forma curta, direta e completa (máximo 10 palavras), começando pelo sujeito ou ação principal. Nunca acabes em preposição ou conjunção. Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
+    const prompt = `Reescreve o título de forma curta, direta e COMPLETA (máximo 10 palavras), começando pelo sujeito ou ação principal. A frase tem de fazer sentido sozinha. Nunca cortes a meio nem acabes em preposição, conjunção ou verbo incompleto (pode, vai, liga, e, mas, quem). Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

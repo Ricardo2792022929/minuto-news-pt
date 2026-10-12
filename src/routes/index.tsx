@@ -68,6 +68,19 @@ const candidatesFor = (n: ImgItem) => {
   const guaranteed = `https://picsum.photos/seed/${(n.id || "news").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "flash"}/1200/800`;
   return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest), categoryImage(n.category, n.title), guaranteed];
 };
+const IMAGEKIT = "https://ik.imagekit.io/1aur3rser";
+
+function imageKitUrl(url: string): string | null {
+  if (!url || url.startsWith("/") || url.startsWith("data:")) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.hostname === "ik.imagekit.io") return null;
+    return `${IMAGEKIT}/tr:w-1080,h-1620,fo-auto,q-80/${url}`;
+  } catch {
+    return null;
+  }
+}
+
 // Tamanho otimizado para telemóvel (~800-960px, comprimido).
 const optimizeImage = (url: string) => {
   try {
@@ -113,27 +126,39 @@ function FadeImg({
   );
   const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const src = list[Math.min(idx, list.length - 1)] ?? `https://picsum.photos/seed/flash${idx}/1200/800`;
+  const [useKit, setUseKit] = useState(true);
+  const raw = list[Math.min(idx, list.length - 1)] ?? `https://picsum.photos/seed/flash${idx}/1200/800`;
+  const kit = useKit ? imageKitUrl(raw) : null;
+  const src = kit ?? (raw === item.image ? raw : optimizeImage(raw));
   return (
     <img
       key={src}
-      src={src === item.image ? src : optimizeImage(src)}
+      src={src}
       alt={alt}
       referrerPolicy="no-referrer"
       loading={eager ? "eager" : "lazy"}
       onLoad={(event) => {
         const image = event.currentTarget;
-        if (src === item.image && excessiveEnlargement({ width: image.naturalWidth, height: image.naturalHeight }, image.clientWidth, image.clientHeight)) {
+        if (!kit && raw === item.image && excessiveEnlargement({ width: image.naturalWidth, height: image.naturalHeight }, image.clientWidth, image.clientHeight)) {
           setLoaded(false);
+          setUseKit(true);
           setIdx((current) => Math.min(current + 1, list.length - 1));
           return;
         }
         setLoaded(true);
       }}
       onError={() => {
+        if (kit) {
+          setLoaded(false);
+          setUseKit(false);
+          return;
+        }
         if (idx < list.length - 1) {
           setLoaded(false);
+          setUseKit(true);
           setIdx(idx + 1);
+        } else {
+          setLoaded(true);
         }
       }}
       className={`${className} transition-opacity duration-300 ${

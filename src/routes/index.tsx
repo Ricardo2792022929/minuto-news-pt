@@ -284,7 +284,7 @@ function Intro({ onDone }: { onDone: () => void }) {
     const video = ref.current;
     if (!video) return;
     // Fecha sempre, mesmo que o vídeo pare ou o browser não dispare "ended".
-    const hard = window.setTimeout(finish, 3600);
+    const hard = window.setTimeout(finish, 5000);
     const close = () => finish();
     const onTime = () => {
       if (video.currentTime > 0.08) setVisible(true);

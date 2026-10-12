@@ -12,6 +12,7 @@ REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
 - Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
 - O título tem de ser uma frase COMPLETA e fechada. Nunca cortes a meio. Nunca termines em preposição, conjunção ou verbo incompleto (por, de, em, com, para, e, mas, pode, vai, liga, quem). Se o facto não couber em 10 palavras, reescreve mais curto.
+- NUNCA copies o início do título original. Não comeces por "Do ponto de vista", "Segundo", "De acordo" ou outra introdução. Começa pelo nome de quem age e pelo que fez.
 - Não inventes informação.
 - Mantém o significado factual da notícia original.
 - Não uses clickbait enganador.
@@ -20,9 +21,11 @@ REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Não uses Markdown, nem \`\`\`json, nem texto fora do JSON.
 
 Exemplo incorreto:
+{"titulo": "Do ponto de vista da política externa, Trump", "resumo": "..."}
 {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas", "resumo": "..."}
 
 Exemplo correto:
+{"titulo": "Trump muda a política externa dos EUA", "resumo": "O presidente americano anunciou mudanças na política externa."}
 {"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha", "resumo": "O primeiro-ministro espanhol dissolveu o parlamento e marcou eleições antecipadas."}`;
 
 export class GatewayError extends Error {
@@ -111,6 +114,33 @@ function pack(words: string[]): string {
   return out.charAt(0).toUpperCase() + out.slice(1);
 }
 
+const FILLER = /^(do ponto de vista|segundo|de acordo|na opiniao|em relacao|quanto a|no que diz respeito|para o|para a|sobre o|sobre a|apos o|apos a)\b/;
+
+function normWords(value: string): string[] {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+}
+
+function isFillerStart(words: string[]): boolean {
+  return FILLER.test(normWords(words.join(" ")).join(" "));
+}
+
+/** Vírgula e depois só um nome, sem ação. Ex.: "...externa, Trump". */
+function endsAfterComma(words: string[]): boolean {
+  const joined = words.join(" ");
+  const parts = joined.split(/[,;]/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return false;
+  return parts[parts.length - 1].split(/\s+/).length < 3;
+}
+
+function isPrefixCut(candidate: string, original: string): boolean {
+  const c = normWords(candidate);
+  const o = normWords(original);
+  if (c.length < 4 || o.length <= c.length) return false;
+  let i = 0;
+  while (i < c.length && c[i] === o[i]) i++;
+  return i >= Math.min(5, c.length);
+}
+
 /** No máximo 10 palavras e sempre uma frase fechada. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
@@ -119,10 +149,13 @@ export function forceMax10Words(raw: string): string {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
-  if (all.length >= 4 && all.length <= 10 && !isIncomplete(all)) return pack(all);
-  for (const clause of clausesOf(t)) {
+  const usable = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
+  if (usable(all)) return pack(all);
+  const clauses = clausesOf(t);
+  const preferred = clauses.filter((c) => !isFillerStart(c));
+  for (const clause of (preferred.length ? preferred : clauses)) {
     const done = finishClause(clause);
-    if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
+    if (usable(done)) return pack(done);
   }
   const done = finishClause(all);
   if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
@@ -132,13 +165,24 @@ export function forceMax10Words(raw: string): string {
   return t.trim();
 }
 
-export function validTitle(raw: unknown): string | null {
+export function validTitle(raw: unknown, original?: string): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
-  if (words.length < 4 || words.length > 10 || isIncomplete(words)) return null;
+  if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (original && isPrefixCut(forced, original)) return null;
   return forced;
+}
+
+/** Quando a IA falha, usa a frase depois da introdução em vez de cortar o início. */
+export function rewriteFallback(original: string): string | null {
+  const source = original.replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "").trim();
+  const direct = validTitle(source, source);
+  if (direct && !isPrefixCut(direct, source)) return direct;
+  const after = source.split(/[,;:]/).slice(1).join(" ").trim();
+  if (!after) return null;
+  return validTitle(after, source);
 }
 
 function validSummary(raw: unknown): string | null {
@@ -174,7 +218,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Reescreve o título de forma curta, direta e COMPLETA (máximo 10 palavras), começando pelo sujeito ou ação principal. A frase tem de fazer sentido sozinha. Nunca cortes a meio nem acabes em preposição, conjunção ou verbo incompleto (pode, vai, liga, e, mas, quem). Não uses dois pontos para separar tema e descrição. Prioriza factos confirmados no título original.\nTítulo original: ${title}`;
+    const prompt = `Reescreve o título. Não copies o início. Começa pelo nome de quem age e pelo que fez, em no máximo 10 palavras, frase completa. Exemplo incorreto: Do ponto de vista da política externa, Trump. Exemplo correto: Trump anuncia mudanças na política externa. Não inventes factos.\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);
@@ -187,7 +231,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
     const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
     const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
-    const titulo = validTitle(parsed.titulo);
+    const titulo = validTitle(parsed.titulo, title);
     const resumo = validSummary(parsed.resumo);
     if (!titulo || !resumo) {
       console.error("Gemini resposta inválida", raw.slice(0, 200));

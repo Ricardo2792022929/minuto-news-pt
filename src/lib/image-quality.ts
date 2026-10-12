@@ -1,10 +1,13 @@
 export type ImageDimensions = { width: number; height: number };
 
-// 1200px is a preference, not a requirement. Smaller usable photos remain valid.
+// A foto da notícia vale mais do que uma imagem genérica do tema.
+// Só se rejeita uma miniatura a sério, não uma foto normal de artigo.
 export function adequateImage({ width, height }: ImageDimensions): boolean {
-  return width >= 800 && height >= 600 && width * height >= 720_000;
+  return width >= 480 && height >= 270;
 }
 
 export function excessiveEnlargement(size: ImageDimensions, width: number, height: number): boolean {
-  return !adequateImage(size) || Math.max(width / size.width, height / size.height) > 1.6;
+  if (!size.width || !size.height) return false;
+  if (size.width < 360 || size.height < 200) return true;
+  return Math.max(width / size.width, height / size.height) > 2.5;
 }

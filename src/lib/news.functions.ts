@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { NewsItem } from "./news.types";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
+import { classify } from "./news.server";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -74,7 +75,8 @@ export const getNews = createServerFn({ method: "GET" })
     const since = new Date(now - 24 * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
-    const cols = "id,source,category,url,image,titulo_inedito,resumo,published_at";
+    const cols = "id,source,category,url,image,titulo_inedito,resumo,original_title,published_at";
+    const fixes: { id: string; category: string }[] = [];
     const toItem = (r: {
       id: string;
       source: string;
@@ -83,17 +85,23 @@ export const getNews = createServerFn({ method: "GET" })
       image: string | null;
       titulo_inedito: string;
       resumo: string | null;
+      original_title: string | null;
       published_at: string;
-    }): NewsItem => ({
-      id: r.id,
-      source: r.source,
-      category: r.category,
-      title: r.titulo_inedito,
-      excerpt: (r.resumo ?? "").trim(),
-      url: r.url,
-      publishedAt: r.published_at,
-      image: finalImageUrl(r.image, r.category, r.titulo_inedito, r.id) || guaranteedImage(r.id, r.category),
-    });
+    }): NewsItem => {
+      const excerpt = (r.resumo ?? "").trim();
+      const category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
+      if (category !== r.category) fixes.push({ id: r.id, category });
+      return {
+        id: r.id,
+        source: r.source,
+        category,
+        title: r.titulo_inedito,
+        excerpt,
+        url: r.url,
+        publishedAt: r.published_at,
+        image: finalImageUrl(r.image, category, r.titulo_inedito, r.id) || guaranteedImage(r.id, r.category),
+      };
+    };
     const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);
     const roundRobin = (items: NewsItem[]) => {
       const buckets = new Map<string, NewsItem[]>();
@@ -171,6 +179,8 @@ export const getNews = createServerFn({ method: "GET" })
       total = count ?? 0;
       ordered = (rows ?? []).map(toItem).sort(byDate);
     }
+
+    if (data.category) ordered = ordered.filter((item) => item.category === data.category);
 
     if (data.club) {
       const held: NewsItem[] = [];
@@ -274,6 +284,12 @@ export const getNews = createServerFn({ method: "GET" })
     }
 
     const nextOffset = data.offset + data.limit;
+    const pendingFixes = [...new Map(fixes.map((fix) => [fix.id, fix])).values()].slice(0, 25);
+    if (pendingFixes.length) {
+      await Promise.all(
+        pendingFixes.map((fix) => db.from("articles").update({ category: fix.category }).eq("id", fix.id)),
+      );
+    }
     return { items: mixed, total, hasMore: nextOffset < total, nextOffset };
   });
 

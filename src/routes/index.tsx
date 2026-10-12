@@ -204,6 +204,7 @@ type Category = (typeof CATEGORIES)[number];
 const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
 const CLUB_KEY = "aominuto:club";
+const CLUB_ASKED_KEY = "aominuto:club-asked";
 
 const PAGE_SIZE = 10;
 
@@ -401,6 +402,11 @@ function Onboarding({
 
   useEffect(() => {
     if (phase !== "club") return;
+    try {
+      localStorage.setItem(CLUB_ASKED_KEY, "1");
+    } catch {
+      /* ignora */
+    }
     if (clubCount < clubLine.length) {
       const id = window.setTimeout(() => setClubCount((n) => n + 1), 36);
       return () => window.clearTimeout(id);
@@ -732,6 +738,7 @@ function Index() {
       if (savedRaw) setSavedMap(JSON.parse(savedRaw) as Record<string, NewsItem>);
       const interestsRaw = localStorage.getItem(INTERESTS_KEY);
       const clubRaw = localStorage.getItem(CLUB_KEY);
+      const clubAsked = localStorage.getItem(CLUB_ASKED_KEY) === "1";
       if (clubRaw) setClub(clubRaw);
       let hasInterests = false;
       if (interestsRaw) {
@@ -743,8 +750,8 @@ function Index() {
       } else {
         setShowOnboarding(true);
       }
-      if (clubRaw === null) {
-        setClubOnly(hasInterests);
+      if (hasInterests && !clubAsked && !clubRaw) {
+        setClubOnly(true);
         setShowOnboarding(true);
       }
     } catch {

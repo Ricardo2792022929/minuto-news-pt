@@ -273,6 +273,7 @@ const INTEREST_OPTIONS: {
 function Intro({ onDone }: { onDone: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const done = useRef(false);
+  const [visible, setVisible] = useState(false);
   const finish = useCallback(() => {
     if (done.current) return;
     done.current = true;
@@ -281,25 +282,61 @@ function Intro({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     const video = ref.current;
-    const timer = setTimeout(finish, 4500);
-    if (video) {
-      video.play().catch(() => {
+    if (!video) return;
+    let timer = 0;
+    let started = false;
+    const arm = () => {
+      if (started) return;
+      started = true;
+      setVisible(true);
+      const ms =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? Math.ceil(video.duration * 1000) + 300
+          : 8000;
+      timer = window.setTimeout(finish, ms);
+    };
+    const kick = () => {
+      const attempt = video.play();
+      if (!attempt) {
+        arm();
+        return;
+      }
+      attempt.then(arm).catch(() => {
         video.muted = true;
-        void video.play().catch(finish);
+        video.play().then(arm).catch(finish);
       });
-    }
-    return () => clearTimeout(timer);
+    };
+    if (video.readyState >= 2) kick();
+    else video.addEventListener("canplay", kick, { once: true });
+    return () => {
+      video.removeEventListener("canplay", kick);
+      if (timer) window.clearTimeout(timer);
+    };
   }, [finish]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black">
+    <div className="fixed inset-0 z-[80] bg-black">
+      <style>{`
+        video.flash-intro::-webkit-media-controls,
+        video.flash-intro::-webkit-media-controls-enclosure,
+        video.flash-intro::-webkit-media-controls-start-playback-button {
+          display: none !important;
+          -webkit-appearance: none;
+          opacity: 0;
+        }
+      `}</style>
       <video
         ref={ref}
         src={introUrl}
         playsInline
-        autoPlay
         preload="auto"
-        className="h-full w-full bg-black object-contain"
+        muted
+        controls={false}
+        disablePictureInPicture
+        poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+        className="flash-intro pointer-events-none h-full w-full bg-black object-contain"
+        style={{ opacity: visible ? 1 : 0 }}
+        onPlaying={() => setVisible(true)}
         onEnded={finish}
         onError={finish}
       />
@@ -559,13 +596,7 @@ function SavedList({
 function Index() {
   const now = useClock();
   const [mounted, setMounted] = useState(false);
-  const [showIntro, setShowIntro] = useState(() => {
-    try {
-      return sessionStorage.getItem("flash:intro-seen") !== "1";
-    } catch {
-      return true;
-    }
-  });
+  const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const closeIntro = useCallback(() => {
     try {
@@ -598,6 +629,11 @@ function Index() {
       }
     } catch {
       setShowOnboarding(true);
+    }
+    try {
+      setShowIntro(sessionStorage.getItem("flash:intro-seen") !== "1");
+    } catch {
+      setShowIntro(true);
     }
     setMounted(true);
   }, []);
@@ -709,12 +745,7 @@ function Index() {
 
   if (!mounted) {
     return (
-      <>
-      <div className="mx-auto flex h-[100dvh] w-full max-w-xl items-center justify-center bg-feed-bg">
-        <Loader2 className="size-8 animate-spin text-feed-fg/50" />
-      </div>
-      {showIntro && <Intro onDone={closeIntro} />}
-    </>
+      <div className="mx-auto h-[100dvh] w-full max-w-xl bg-black" />
     );
   }
 

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import introUrl from "@/assets/intro.mp4";
 import { excessiveEnlargement } from "@/lib/image-quality";
 import { categoryImage } from "@/lib/image-policy";
+import { LIGA_CLUBS } from "@/lib/clubs";
 
 // Banco de FOTOGRAFIAS REAIS (Wikimedia Commons) por tema — usado só quando a
 // notícia não tem foto ou a foto falha. Garante que nenhum cartão fica preto.
@@ -202,6 +203,7 @@ type Category = (typeof CATEGORIES)[number];
 
 const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
+const CLUB_KEY = "aominuto:club";
 
 const PAGE_SIZE = 10;
 
@@ -346,18 +348,23 @@ function Intro({ onDone }: { onDone: () => void }) {
 function Onboarding({
   onDone,
   onLater,
+  startAtClub = false,
 }: {
-  onDone: (interests: string[]) => void;
+  onDone: (interests: string[], club: string | null) => void;
   onLater: () => void;
+  startAtClub?: boolean;
 }) {
   const hello = `${greeting()}, bem-vindo à Flash Notícias Portugal.`;
   const setupLine = "Vamos personalizar a sua experiência";
   const askLine = "Que tipo de notícias gostas de ver?";
-  const [phase, setPhase] = useState<"greet" | "erase" | "ask">("greet");
+  const clubLine = "Selecione o seu clube favorito";
+  const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">(startAtClub ? "club" : "greet");
   const [helloCount, setHelloCount] = useState(0);
   const [setupCount, setSetupCount] = useState(0);
   const [askCount, setAskCount] = useState(0);
   const [shownIcons, setShownIcons] = useState(0);
+  const [clubCount, setClubCount] = useState(0);
+  const [shownClubs, setShownClubs] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -392,6 +399,18 @@ function Onboarding({
     }
   }, [phase, setupCount, askCount, shownIcons, setupLine.length, askLine.length]);
 
+  useEffect(() => {
+    if (phase !== "club") return;
+    if (clubCount < clubLine.length) {
+      const id = window.setTimeout(() => setClubCount((n) => n + 1), 36);
+      return () => window.clearTimeout(id);
+    }
+    if (shownClubs < LIGA_CLUBS.length) {
+      const id = window.setTimeout(() => setShownClubs((n) => n + 1), 90);
+      return () => window.clearTimeout(id);
+    }
+  }, [phase, clubCount, shownClubs, clubLine.length]);
+
   const toggle = (c: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -405,7 +424,7 @@ function Onboarding({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-feed-bg text-feed-fg">
-      {phase !== "ask" ? (
+      {phase === "greet" || phase === "erase" ? (
         <div
           className={`flex flex-1 items-center justify-center px-8 text-center transition-all duration-700 ease-out ${
             phase === "erase" ? "translate-y-2 opacity-0" : "opacity-100"
@@ -416,7 +435,7 @@ function Onboarding({
             {phase === "greet" && helloCount < hello.length ? caret : null}
           </h1>
         </div>
-      ) : (
+      ) : phase === "ask" ? (
         <div className="flex flex-1 flex-col px-6 pb-6 pt-10">
           <p className="text-sm font-semibold text-live">
             {setupLine.slice(0, setupCount)}
@@ -481,7 +500,7 @@ function Onboarding({
               Configurar mais tarde
             </button>
             <button
-              onClick={() => onDone([...picked])}
+              onClick={() => setPhase("club")}
               disabled={picked.size === 0}
               className={`rounded-full px-6 py-2.5 text-sm font-bold transition-colors ${
                 picked.size
@@ -492,6 +511,44 @@ function Onboarding({
               Ver notícias
             </button>
           </div>
+        </div>
+      ) : (
+        <div className="relative flex flex-1 flex-col px-6 pb-6 pt-10">
+          <h1 className="min-h-[4.5rem] font-display text-3xl font-black leading-tight text-balance">
+            {clubLine.slice(0, clubCount)}
+            {clubCount < clubLine.length ? caret : null}
+          </h1>
+          <div className="mt-6 flex flex-1 flex-col gap-2 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {LIGA_CLUBS.map((club, index) => {
+              const visible = index < shownClubs;
+              return (
+                <button
+                  key={club.id}
+                  onClick={() => visible && onDone([...picked], club.id)}
+                  className="rounded-full bg-feed-fg/10 px-4 py-3 text-left text-sm font-semibold text-feed-fg active:scale-[0.98]"
+                  style={{
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "scale(1)" : "scale(0.86)",
+                    transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.25,.32,1)",
+                  }}
+                >
+                  {club.name}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => onDone([...picked], null)}
+            className="absolute right-3 top-1/2 z-10 max-w-[9.5rem] -translate-y-1/2 rounded-2xl bg-feed-fg px-3 py-3 text-xs font-bold text-feed-bg shadow-xl"
+            style={{
+              opacity: clubCount >= clubLine.length ? 1 : 0,
+              transform: clubCount >= clubLine.length ? "scale(1)" : "scale(0.7)",
+              transition: "opacity 400ms ease, transform 400ms cubic-bezier(.2,1.3,.32,1)",
+              pointerEvents: clubCount >= clubLine.length ? "auto" : "none",
+            }}
+          >
+            Configurar mais tarde
+          </button>
         </div>
       )}
     </div>
@@ -649,6 +706,8 @@ function Index() {
   const [mounted, setMounted] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [clubOnly, setClubOnly] = useState(false);
+  const [club, setClub] = useState("");
   const closeIntro = useCallback(() => {
     try {
       sessionStorage.setItem("flash:intro-seen", "1");
@@ -672,10 +731,20 @@ function Index() {
       const savedRaw = localStorage.getItem(SAVED_KEY);
       if (savedRaw) setSavedMap(JSON.parse(savedRaw) as Record<string, NewsItem>);
       const interestsRaw = localStorage.getItem(INTERESTS_KEY);
+      const clubRaw = localStorage.getItem(CLUB_KEY);
+      if (clubRaw) setClub(clubRaw);
+      let hasInterests = false;
       if (interestsRaw) {
         const parsed = JSON.parse(interestsRaw) as string[];
-        if (Array.isArray(parsed) && parsed.length) setInterests(parsed);
+        if (Array.isArray(parsed) && parsed.length) {
+          setInterests(parsed);
+          hasInterests = true;
+        } else setShowOnboarding(true);
       } else {
+        setShowOnboarding(true);
+      }
+      if (clubRaw === null) {
+        setClubOnly(hasInterests);
         setShowOnboarding(true);
       }
     } catch {
@@ -719,11 +788,11 @@ function Index() {
   );
 
   const query = useInfiniteQuery({
-    queryKey: ["news", category, interests.join(",")],
+    queryKey: ["news", category, interests.join(","), club],
     enabled: mounted,
     refetchInterval: 60_000,
     queryFn: ({ pageParam }) =>
-      fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests } }),
+      fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests, club: club || undefined } }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
@@ -805,10 +874,20 @@ function Index() {
       {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && !showIntro && (
         <Onboarding
-          onDone={(picked) => {
-            setInterests(picked);
+          startAtClub={clubOnly}
+          onDone={(picked, chosen) => {
+            if (picked.length) {
+              setInterests(picked);
+              try {
+                localStorage.setItem(INTERESTS_KEY, JSON.stringify(picked));
+              } catch {
+                /* ignora */
+              }
+            }
+            const value = chosen ?? "";
+            setClub(value);
             try {
-              localStorage.setItem(INTERESTS_KEY, JSON.stringify(picked));
+              localStorage.setItem(CLUB_KEY, value);
             } catch {
               /* ignora */
             }

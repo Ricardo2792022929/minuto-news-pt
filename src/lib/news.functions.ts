@@ -4,6 +4,42 @@ import { z } from "zod";
 import type { NewsItem } from "./news.types";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 
+const SHOCK = [
+  "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
+  "ataque", "guerra", "bomba", "explos", "tiroteio", "missile", "missil",
+  "detid", "preso", "prisao", "crime", "assalt", "roubo", "homicid", "rapto",
+  "incendio", "sismo", "terramoto", "inund", "tempestade", "catastrof", "acidente", "despiste",
+  "escandalo", "corrup", "fraude", "burla", "choque", "alerta", "urgente", "caos", "crise", "colaps",
+  "demite", "demissao", "golpe", "ameaca", "sancao", "sancoes",
+  "ucrania", "gaza", "israel", "putin", "trump", "zelensky", "irao", "russia",
+  "greve", "desab", "explod", "queda de",
+];
+const SOFT = ["benfica", "sporting", "ronaldo", "golo", "derrota", "lesao", "champions"];
+const DULL = [
+  "horoscopo", "receita", "concerto", "exposicao", "orquestra", "inaugur", "freguesia",
+  "ecopista", "passatempo", "publicidade", "podcast", "review", "beneficiacao",
+  "agenda", "festival", "teatro", "livro",
+];
+
+function plain(title: string): string {
+  return title.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+}
+
+function hit(text: string, word: string): boolean {
+  if (word.length >= 6) return text.includes(word);
+  return new RegExp(`(?:^|\\s)${word}(?:\\s|$)`).test(text);
+}
+
+/** Só entra no meio do feed se for relevante e um pouco chocante. */
+function shockScore(title: string): number {
+  const t = plain(title);
+  let score = 0;
+  for (const word of SHOCK) if (hit(t, word)) score += 3;
+  for (const word of SOFT) if (hit(t, word)) score += 1;
+  for (const word of DULL) if (t.includes(word)) score -= 6;
+  return score;
+}
+
 // Lê apenas notícias já pré-processadas (com título final pronto) da base de dados.
 export const getNews = createServerFn({ method: "GET" })
   .validator(
@@ -72,26 +108,27 @@ export const getNews = createServerFn({ method: "GET" })
     const ordered = (rows ?? []).map(toItem).sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt));
     const fresh = ordered.slice(data.offset, data.offset + data.limit);
 
-    // Notícias de há umas horas (cerca de 5, entre 2 e 12) que continuam relevantes.
-    const olderSince = new Date(now - 12 * 3600_000).toISOString();
-    const olderUntil = new Date(now - 2 * 3600_000).toISOString();
-    const loadOlder = async (onlyInterests: boolean) => {
+    // Do dia, até 24 horas, mas só as fortes. O fio das mais recentes não pára.
+    const daySince = new Date(now - 24 * 3600_000).toISOString();
+    const dayUntil = new Date(now - 90 * 60_000).toISOString();
+    const loadDay = async (onlyInterests: boolean) => {
       let oq = db
         .from("articles")
         .select(cols)
-        .gte("published_at", olderSince)
-        .lte("published_at", olderUntil)
+        .gte("published_at", daySince)
+        .lte("published_at", dayUntil)
         .order("published_at", { ascending: false })
-        .limit(40);
+        .limit(80);
       if (data.category) oq = oq.eq("category", data.category);
       else if (onlyInterests && data.interests && data.interests.length) oq = oq.in("category", data.interests);
-      const { data: olderRows } = await oq;
-      return (olderRows ?? []).map(toItem);
+      const { data: dayRows } = await oq;
+      return (dayRows ?? []).map(toItem).filter((item) => shockScore(item.title) >= 3);
     };
-    let older = await loadOlder(true);
-    if (older.length < 4 && !data.category) older = await loadOlder(false);
+    let day = await loadDay(true);
+    if (day.length < 4 && !data.category) day = await loadDay(false);
+    day.sort((a, b) => shockScore(b.title) - shockScore(a.title) || +new Date(b.publishedAt) - +new Date(a.publishedAt));
     const byCategory = new Map<string, NewsItem[]>();
-    for (const item of older) {
+    for (const item of day) {
       const list = byCategory.get(item.category) ?? [];
       list.push(item);
       byCategory.set(item.category, list);
@@ -110,19 +147,19 @@ export const getNews = createServerFn({ method: "GET" })
       }
     }
     const page = Math.floor(data.offset / data.limit);
-    const pool = diversified.slice(page * 3);
+    const pool = diversified.slice(page * 4);
     const seen = new Set(fresh.map((item) => item.id));
-    const titleKey = (title: string) =>
-      title.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").split(/\s+/).slice(0, 6).join(" ");
+    const titleKey = (title: string) => plain(title).split(/\s+/).slice(0, 6).join(" ");
     const freshTitles = new Set(fresh.map((item) => titleKey(item.title)));
     const mixed: NewsItem[] = [];
-    let olderIndex = 0;
+    let dayIndex = 0;
     fresh.forEach((item, index) => {
       mixed.push(item);
-      if ((index + 1) % 3 !== 0) return;
-      while (olderIndex < pool.length) {
-        const candidate = pool[olderIndex];
-        olderIndex += 1;
+      // Duas novas, depois uma forte do dia. Equilibrado, sem parar as atualizações.
+      if ((index + 1) % 2 !== 0) return;
+      while (dayIndex < pool.length) {
+        const candidate = pool[dayIndex];
+        dayIndex += 1;
         if (!candidate || seen.has(candidate.id) || freshTitles.has(titleKey(candidate.title))) continue;
         seen.add(candidate.id);
         mixed.push(candidate);

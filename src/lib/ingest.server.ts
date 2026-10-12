@@ -221,10 +221,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         const titulo = validTitle(g.titulo, n.title) ?? rewriteFallback(n.title);
         if (!titulo) return 0;
         try {
-          // 1. Imagem do RSS (se boa)
-          let image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
-          // 2. og:image da página do artigo (melhor relevância)
-          if (!image) image = await fromArticlePage(n.url);
+          // 1. Foto da página da notícia (a que o jornal escolheu)
+          let image = await fromArticlePage(n.url);
+          // 2. Só se a página não tiver foto, usa a do RSS
+          if (!image) image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
           const image_query: string | null = image ? null : g.titulo;
           const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
           const { error } = await db.from("articles").upsert({
@@ -274,6 +274,37 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       if (!next || next === row.category) continue;
       const { error } = await db.from("articles").update({ category: next }).eq("id", row.id);
       if (!error) recategorized++;
+    }
+
+    const sameImage = (a: string, b: string) => {
+      try {
+        const left = new URL(a);
+        const right = new URL(b);
+        return left.hostname === right.hostname && left.pathname === right.pathname;
+      } catch {
+        return a === b;
+      }
+    };
+    const { data: recentImgs } = await db
+      .from("articles")
+      .select("id,url,image,category,titulo_inedito")
+      .order("published_at", { ascending: false })
+      .limit(18);
+    for (const row of recentImgs ?? []) {
+      if (!row.url) continue;
+      try {
+        const pageImg = await fromArticlePage(row.url);
+        if (!pageImg || (row.image && sameImage(row.image, pageImg))) continue;
+        await db
+          .from("articles")
+          .update({
+            image: finalImageUrl(pageImg, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
+            image_query: null,
+          })
+          .eq("id", row.id);
+      } catch {
+        /* ignora */
+      }
     }
 
     return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts, rewritten, recategorized };

@@ -13,7 +13,7 @@ const SYSTEM = `És um editor de notícias em Portugal especializado em títulos
 - O resumo deve ter 1 a 2 frases curtas, apenas com factos presentes no título original.
 - Responde apenas com JSON válido com as chaves "titulo" e "resumo".
 
-Exemplo incorreto: {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+Exemplo incorreto: {"titulo": "Do ponto de vista da política externa, Trump"}
 Exemplo correto: {"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
 
 function validSummary(raw: unknown): string | null {
@@ -46,7 +46,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Reescreve o título de forma curta, direta e completa (máximo 10 palavras), começando pelo sujeito ou ação principal. Nunca acabes em preposição ou conjunção. Não uses dois pontos para separar tema e descrição.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Reescreve o título. Não copies o início. Começa pelo nome de quem age e pelo que fez, em no máximo 10 palavras, frase completa. Exemplo incorreto: Do ponto de vista da política externa, Trump. Exemplo correto: Trump anuncia mudanças na política externa. Não inventes factos.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
         ],
       }),
     });
@@ -67,7 +67,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
     };
     const raw = payload.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
-    const titulo = validTitle(parsed.titulo);
+    const titulo = validTitle(parsed.titulo, title);
     const resumo = validSummary(parsed.resumo);
     if (!titulo || !resumo) {
       console.warn("Groq devolveu título/resumo inválido");

@@ -265,10 +265,12 @@ function normalize(s: string): string {
 
 function classify(text: string, fallback: string): string {
   const t = normalize(text);
-  const has = (...words: string[]) => words.some((w) => t.includes(w));
+  const has = (...words: string[]) => words.some((w) => t.includes(normalize(w)));
+  const hasWord = (w: string) => new RegExp(`(?:^|\\s)${normalize(w)}(?:\\s|$)`).test(t);
+  if (hasWord("porto") || hasWord("fc porto")) return "Desporto";
   if (
     has(
-      "desporto", "futebol", "sporting", "benfica", "porto", "golo", "liga ",
+      "desporto", "futebol", "sporting", "benfica", "golo", "liga portugal", "primeira liga", "liga dos campeoes",
       "taça", "seleção", "ronaldo", "ténis", "fórmula 1", "nba", "ciclismo",
       "atletismo", "voleibol", "basquetebol", "treinador", "jogador", "clássico",
       "champions", "futsal", "rally", "estádio",

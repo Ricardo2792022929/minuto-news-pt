@@ -283,34 +283,33 @@ function Intro({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
-    let timer = 0;
-    let started = false;
-    const arm = () => {
-      if (started) return;
-      started = true;
-      setVisible(true);
-      const ms =
-        Number.isFinite(video.duration) && video.duration > 0
-          ? Math.ceil(video.duration * 1000) + 300
-          : 8000;
-      timer = window.setTimeout(finish, ms);
+    // Fecha sempre, mesmo que o vídeo pare ou o browser não dispare "ended".
+    const hard = window.setTimeout(finish, 3600);
+    const close = () => finish();
+    const onTime = () => {
+      if (video.currentTime > 0.08) setVisible(true);
+      const duration = video.duration;
+      if (Number.isFinite(duration) && duration > 0 && video.currentTime >= duration - 0.08) close();
     };
     const kick = () => {
+      video.muted = true;
       const attempt = video.play();
-      if (!attempt) {
-        arm();
-        return;
-      }
-      attempt.then(arm).catch(() => {
-        video.muted = true;
-        video.play().then(arm).catch(finish);
+      if (!attempt) return;
+      attempt.catch(() => {
+        video.play().catch(close);
       });
     };
+    video.addEventListener("ended", close);
+    video.addEventListener("error", close);
+    video.addEventListener("timeupdate", onTime);
     if (video.readyState >= 2) kick();
     else video.addEventListener("canplay", kick, { once: true });
     return () => {
+      window.clearTimeout(hard);
+      video.removeEventListener("ended", close);
+      video.removeEventListener("error", close);
+      video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("canplay", kick);
-      if (timer) window.clearTimeout(timer);
     };
   }, [finish]);
 

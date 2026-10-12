@@ -1,4 +1,4 @@
-import { getAllNews, relevanceScore, isLowResImage } from "./news.server";
+import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
 import { generateOne, GatewayError, validTitle, rewriteFallback } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
@@ -226,9 +226,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           // 2. og:image da página do artigo (melhor relevância)
           if (!image) image = await fromArticlePage(n.url);
           const image_query: string | null = image ? null : g.titulo;
+          const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
           const { error } = await db.from("articles").upsert({
-            id: n.id, source: n.source, category: n.category, url: n.url,
-            image: finalImageUrl(image, n.category, n.title, n.id) || guaranteedImage(n.id, n.category),
+            id: n.id, source: n.source, category, url: n.url,
+            image: finalImageUrl(image, category, n.title, n.id) || guaranteedImage(n.id, category),
             image_query, original_title: n.title, titulo_inedito: titulo,
             resumo: g.resumo, relevance: relevance100(n), published_at: n.publishedAt,
           }, { onConflict: "id", ignoreDuplicates: true });
@@ -261,7 +262,21 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       if (!error) rewritten++;
     }
 
-    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts, rewritten };
+    const { data: tagged } = await db
+      .from("articles")
+      .select("id, original_title, titulo_inedito, resumo, category")
+      .order("published_at", { ascending: false })
+      .limit(150);
+    let recategorized = 0;
+    for (const row of tagged ?? []) {
+      const text = [row.original_title, row.titulo_inedito, row.resumo].filter(Boolean).join(" ");
+      const next = classify(text, row.category || "Mundo");
+      if (!next || next === row.category) continue;
+      const { error } = await db.from("articles").update({ category: next }).eq("id", row.id);
+      if (!error) recategorized++;
+    }
+
+    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts, rewritten, recategorized };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

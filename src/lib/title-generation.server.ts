@@ -66,6 +66,51 @@ function isIncomplete(words: string[]): boolean {
   return false;
 }
 
+function stripToken(word: string): string {
+  return word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+}
+
+function clausesOf(text: string): string[][] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const parts: string[][] = [];
+  let cur: string[] = [];
+  for (const w of words) {
+    const bare = stripToken(w);
+    if (!bare) continue;
+    if (/^(mas|porque|pois)$/i.test(bare) && cur.length >= 4) {
+      parts.push(cur);
+      cur = [];
+      continue;
+    }
+    cur.push(bare);
+    if (/[,:;!?]$/.test(w)) {
+      parts.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length) parts.push(cur);
+  return parts;
+}
+
+function finishClause(words: string[]): string[] {
+  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
+  while (capped.length > 4 && isIncomplete(capped)) {
+    const joined = capped.join(" ");
+    const cut = joined.search(/\s+(e|que)\s+\S+$/i);
+    if (cut > 12) {
+      const next = joined.slice(0, cut).split(/\s+/).filter(Boolean);
+      if (next.length >= 4 && !isIncomplete(next)) return next;
+    }
+    capped.pop();
+  }
+  return capped;
+}
+
+function pack(words: string[]): string {
+  const out = words.join(" ");
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 /** No máximo 10 palavras e sempre uma frase fechada. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
@@ -73,34 +118,26 @@ export function forceMax10Words(raw: string): string {
   if (t.includes(":") && t.split(":")[0].split(" ").length <= 4) {
     t = t.split(":").slice(1).join(":").trim();
   }
-  const words = t.split(/\s+/).filter(Boolean);
-  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
-  while (capped.length > 4 && isIncomplete(capped)) {
-    const joined = capped.join(" ");
-    const cut = joined.search(/\s+(mas|porque|pois|e|que)\s+\S+$/i);
-    if (cut > 12) {
-      capped = joined.slice(0, cut).split(/\s+/).filter(Boolean);
-      continue;
-    }
-    capped.pop();
+  const all = t.split(/\s+/).map(stripToken).filter(Boolean);
+  if (all.length >= 4 && all.length <= 10 && !isIncomplete(all)) return pack(all);
+  for (const clause of clausesOf(t)) {
+    const done = finishClause(clause);
+    if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
   }
-  const out = capped.join(" ").replace(/[,:;]+$/, "").trim();
-  if (!out || out.split(/\s+/).length < 4) {
-    const fallback = words.slice(0, Math.min(8, words.length));
-    while (fallback.length > 4 && isIncomplete(fallback)) fallback.pop();
-    const safe = fallback.join(" ").replace(/[,:;]+$/, "").trim();
-    if (safe.split(/\s+/).length >= 4) return safe.charAt(0).toUpperCase() + safe.slice(1);
-    return raw.trim();
-  }
-  return out.charAt(0).toUpperCase() + out.slice(1);
+  const done = finishClause(all);
+  if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
+  const rest = [...all];
+  while (rest.length > 3 && isIncomplete(rest)) rest.pop();
+  if (rest.length >= 4 && rest.length <= 10 && !isIncomplete(rest)) return pack(rest);
+  return t.trim();
 }
 
 export function validTitle(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
-  const n = forced.split(" ").length;
-  if (n < 4 || n > 10) return null; // permite um pouco mais curto se for direto
+  const words = forced.split(/\s+/).filter(Boolean);
+  if (words.length < 4 || words.length > 10 || isIncomplete(words)) return null;
   return forced;
 }
 

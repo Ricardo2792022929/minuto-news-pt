@@ -263,65 +263,48 @@ function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-function classify(text: string, fallback: string): string {
+export function classify(text: string, fallback: string): string {
   const t = normalize(text);
-  const has = (...words: string[]) => words.some((w) => t.includes(normalize(w)));
-  const hasWord = (w: string) => new RegExp(`(?:^|\\s)${normalize(w)}(?:\\s|$)`).test(t);
-  if (hasWord("porto") || hasWord("fc porto")) return "Desporto";
-  if (
-    has(
-      "desporto", "futebol", "sporting", "benfica", "golo", "liga portugal", "primeira liga", "liga dos campeoes",
-      "taça", "seleção", "ronaldo", "ténis", "fórmula 1", "nba", "ciclismo",
-      "atletismo", "voleibol", "basquetebol", "treinador", "jogador", "clássico",
-      "champions", "futsal", "rally", "estádio",
-    )
-  )
-    return "Desporto";
-  if (
-    has(
-      "economia", "psi", "inflação", "inflacao", "imposto", "irs", "iva",
-      "desemprego", "bolsa", "salário", "salario", "pib", "bce", "banco central",
-      "turismo", "gasolina", "combustível", "combustivel", "preços", "precos",
-      "negócios", "negocios", "bancos", "dívida", "divida", "orçamento",
-    )
-  )
-    return "Economia";
-  if (
-    has(
-      "parlamento", "governo", "ministro", "primeiro-ministro", "eleições",
-      "eleicoes", "deputados", "orçamento do estado", "presidente da república",
-      "política", "politica", "psd", "chega", "cdu", "bloco de esquerda",
-      "presidência", "presidencia", "assembleia",
-    )
-  )
-    return "Política";
-  if (
-    has(
-      "tecnologia", "inteligência artificial", "inteligencia artificial",
-      "smartphone", "cyber", "cibersegurança", "ciberseguranca", "nvidia",
-      "openai", "chatgpt", "google", "apple", "samsung", "huawei", "facebook",
-      "instagram", "tiktok", "chip", "semicondutor", "startup",
-      "aplicação", "aplicacao",
-    )
-  )
-    return "Tech";
-  if (
-    has(
-      "festival", "cinema", "filme", "música", "musica", "concerto", "livro",
-      "exposição", "exposicao", "teatro", "gala", "artista", "prémio nobel",
-      "premio nobel", "espetáculo", "espetaculo", "cultura",
-    )
-  )
-    return "Cultura";
-  if (
-    has(
-      "ucrânia", "ucrania", "israel", "gaza", "bruxelas", "eua", "trump",
-      "china", "rússia", "russia", "onu", "nato", "união europeia", "uniao europeia",
-      "guerra", "cimeira",
-    )
-  )
-    return "Mundo";
-  return fallback;
+  const cats = ["Desporto", "Economia", "Política", "Tech", "Cultura", "Mundo"] as const;
+  const strong: Record<string, string[]> = {
+    Desporto: ["futebol", "futebolista", "golo", "golos", "liga portugal", "primeira liga", "liga dos campeoes", "champions", "benfica", "sporting", "fc porto", "cristiano ronaldo", "ronaldo", "tenis", "formula 1", "nba", "ciclismo", "atletismo", "voleibol", "basquetebol", "futsal", "andebol", "arbitro", "derby", "dragao", "desporto"],
+    Economia: ["inflacao", "imposto", "irs", "desemprego", "bolsa", "salario", "salarios", "pib", "banco central", "bce", "divida publica", "orcamento", "juros", "combustivel", "gasolina", "falencia", "lucros"],
+    Política: ["habitacao", "arrendamento", "despejo", "manifestacao", "manifestantes", "manifestam", "parlamento", "governo", "ministro", "primeiro-ministro", "eleicoes", "deputado", "deputados", "assembleia", "autarquicas", "greve", "sindicato", "sns", "hospital", "escola", "professor", "professores", "tribunal", "policia", "saude", "pensoes"],
+    Tech: ["inteligencia artificial", "ciberseguranca", "ciberataque", "smartphone", "telemovel", "nvidia", "openai", "chatgpt", "semicondutor", "startup", "software"],
+    Cultura: ["cinema", "filme", "musica", "concerto", "livro", "teatro", "festival", "exposicao", "artista", "nobel", "espetaculo", "museu"],
+    Mundo: ["ucrania", "israel", "gaza", "trump", "putin", "zelensky", "russia", "china", "nato", "bruxelas", "cimeira", "hamas"],
+  };
+  const weak: Record<string, string[]> = {
+    Desporto: ["treinador", "jogador", "estadio", "selecao"],
+    Economia: ["precos", "banco", "turismo", "empresa"],
+    Política: ["presidente", "partido", "lei"],
+    Tech: ["google", "apple", "samsung", "facebook", "instagram", "tiktok"],
+    Cultura: ["gala", "premio", "ator", "atriz"],
+    Mundo: ["eua", "europa", "guerra", "alemanha", "franca", "espanha"],
+  };
+  const hit = (phrase: string) => {
+    const n = normalize(phrase);
+    if (n.includes(" ")) return t.includes(n);
+    if (n.length <= 5) return new RegExp(`(?:^|\\s)${n}(?:\\s|$)`).test(t);
+    return t.includes(n);
+  };
+  const scores: Record<string, number> = {};
+  const strongHits: Record<string, number> = {};
+  for (const cat of cats) {
+    const found = strong[cat].filter(hit).length;
+    strongHits[cat] = found;
+    let score = found * 4;
+    if (found > 0) score += weak[cat].filter(hit).length * 2;
+    scores[cat] = score;
+  }
+  // «Porto» e «Braga» sozinhos são cidades. Só contam como desporto com mais um sinal.
+  if (strongHits.Desporto > 0 && (hit("porto") || hit("braga") || hit("guimaraes"))) scores.Desporto += 2;
+  const civic = ["habitacao", "arrendamento", "despejo", "manifestantes", "manifestacao", "manifestam"].some(hit);
+  if (civic && strongHits.Desporto === 0) scores.Desporto = 0;
+  if (cats.includes(fallback as (typeof cats)[number])) scores[fallback] += 1;
+  const best = [...cats].sort((a, b) => scores[b] - scores[a] || Number(b === "Política") - Number(a === "Política"))[0];
+  if (scores[best] < 3) return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
+  return best;
 }
 
 function hashId(s: string): string {

@@ -68,18 +68,7 @@ const candidatesFor = (n: ImgItem) => {
   const guaranteed = `https://picsum.photos/seed/${(n.id || "news").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "flash"}/1200/800`;
   return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest), categoryImage(n.category, n.title), guaranteed];
 };
-const IMAGEKIT = "https://ik.imagekit.io/1aur3rser";
-
-function imageKitUrl(url: string): string | null {
-  if (!url || url.startsWith("/") || url.startsWith("data:")) return null;
-  try {
-    const u = new URL(url);
-    if (u.protocol !== "https:" || u.hostname === "ik.imagekit.io") return null;
-    return `${IMAGEKIT}/tr:w-1080,h-1620,fo-auto,q-80/${url}`;
-  } catch {
-    return null;
-  }
-}
+import { imageKitUrl } from "@/lib/imagekit";
 
 // Tamanho otimizado para telemóvel (~800-960px, comprimido).
 const optimizeImage = (url: string) => {

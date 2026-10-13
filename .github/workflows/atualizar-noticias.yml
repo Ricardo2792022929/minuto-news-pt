@@ -1,0 +1,14 @@
+name: atualizar noticias
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Puxar noticias novas
+        run: curl -fsS --retry 2 --max-time 55 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh"

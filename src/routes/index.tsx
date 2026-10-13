@@ -156,6 +156,63 @@ function FadeImg({
     />
   );
 }
+
+function StoryTitle({
+  title,
+  open,
+  onToggle,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const words = title.trim().split(/\s+/).filter(Boolean).length;
+  const size =
+    words > 10 || title.length > 78
+      ? "text-[clamp(1.12rem,4.6vw,1.45rem)]"
+      : words > 7
+        ? "text-[clamp(1.28rem,5.2vw,1.7rem)]"
+        : "text-[clamp(1.45rem,6vw,1.95rem)]";
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open) {
+      setOverflows(true);
+      return;
+    }
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [title, open, size]);
+
+  return (
+    <>
+      <h2
+        ref={ref}
+        className={`mt-1.5 w-full text-left font-display font-bold leading-[1.2] tracking-tight text-pretty break-words text-feed-fg drop-shadow-md ${size} ${
+          open ? "max-h-[40vh] overflow-y-auto" : "line-clamp-3"
+        }`}
+      >
+        {title}
+      </h2>
+      {overflows && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggle();
+          }}
+          className="mt-1 text-left text-[13px] font-semibold text-white/85"
+        >
+          {open ? "Ver menos" : "Ver mais"}
+        </button>
+      )}
+    </>
+  );
+}
+
 import {
   useCallback,
   useEffect,
@@ -759,6 +816,7 @@ function Index() {
   const [interests, setInterests] = useState<string[]>([]);
   const [category, setCategory] = useState<Category>("Tudo");
   const [tab, setTab] = useState<"feed" | "saved">("feed");
+  const [openTitle, setOpenTitle] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -1046,16 +1104,18 @@ function Index() {
                   </div>
 
                   {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pr-20">
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/40 to-transparent px-5 pb-[max(1.35rem,calc(env(safe-area-inset-bottom)+0.85rem))] pr-20 pt-20">
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
                       <span className="text-live">{a.source}</span>
                       <span className="text-feed-fg/60">·</span>
                       <span className="text-feed-fg/80">{a.category}</span>
                     </div>
-                    <h2 className="mt-2 w-full text-left font-display text-[clamp(1.55rem,6.4vw,2rem)] font-bold leading-tight text-feed-fg drop-shadow-md">
-                      {a.title}
-                    </h2>
-                    <p className="mt-3 text-xs font-medium text-feed-fg/70">
+                    <StoryTitle
+                      title={a.title}
+                      open={openTitle === a.id}
+                      onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
+                    />
+                    <p className="mt-2.5 text-xs font-medium text-feed-fg/75">
                       <span className="font-bold text-live">
                         {timeAgo(a.publishedAt)}
                       </span>{" "}
@@ -1064,7 +1124,7 @@ function Index() {
                   </div>
 
                   {i === 0 && (
-                    <div className="pointer-events-none absolute bottom-36 left-1/2 z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
+                    <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
                       <ChevronDown className="size-6" />
                     </div>
                   )}

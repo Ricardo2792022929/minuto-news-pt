@@ -247,7 +247,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }));
 
     // Prepara as fotos novas: a ImageKit analisa, centra e fica em cache antes de abrirem a app.
-    const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(24);
+    const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(80);
     await Promise.all((toPrepare ?? []).map(async (row) => {
       const kit = imageKitUrl(row.image);
       if (!kit) return;

@@ -4,17 +4,18 @@ const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
 const TIMEOUT_MS = 6_000;
 let groqCooldownUntil = 0;
 
-const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
-- Escreve estritamente em Português de Portugal (PT-PT).
-- O título deve ter NO MÁXIMO 11 palavras e começar SEMPRE pelo sujeito ou ação principal.
-- Nunca uses o estilo "Tema: descrição longa". Não uses prefixos como "Crise:", "Urgente:", "Atenção:" ou "Última hora:".
-- O título tem de ser uma frase completa. Nunca termines em preposição ou conjunção (por, de, em, com, para, e). Se o facto não couber em 11 palavras, reescreve mais curto em vez de cortar a meio.
-- Não inventes informação nem uses clickbait enganador.
-- O resumo deve ter 1 a 2 frases curtas, apenas com factos presentes no título original.
-- Responde apenas com JSON válido com as chaves "titulo" e "resumo".
+const SYSTEM = `És o editor do Flash Notícias. Resumes a notícia num título novo que prenda o scroll.
+- Português de Portugal.
+- No máximo 10 palavras. O ideal são 6 a 9.
+- É um resumo do facto, não o título original cortado. Escreve outra frase.
+- Começa por quem age ou pelo choque. Tom direto, tenso e provocador.
+- Não inventes mortos, números, nomes ou acusações que não estejam no título.
+- Sem prefixos e sem dois-pontos. Frase completa.
+- O resumo é 1 frase curta com o facto.
+- Responde só com JSON {"titulo","resumo"}.
 
-Exemplo incorreto: {"titulo": "Do ponto de vista da política externa, Trump"}
-Exemplo correto: {"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha"}`;
+Incorreto: {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+Correto: {"titulo": "Sánchez marca eleições e abala Espanha"}`;
 
 function validSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -41,12 +42,12 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
       signal: controller.signal,
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.2,
+        temperature: 0.8,
         max_tokens: 220,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Reescreve o título. Não copies o início. Começa pelo nome de quem age e pelo que fez, em no máximo 11 palavras, frase completa. Exemplo incorreto: Do ponto de vista da política externa, Trump. Exemplo correto: Trump anuncia mudanças na política externa. Não inventes factos.\nTítulo original: ${title}\nNão acrescentes factos que não estejam no título.` },
+          { role: "user", content: `Resume o facto num título NOVO, provocador e viciante, com no máximo 10 palavras. Não copies nem cortes o título original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
         ],
       }),
     });

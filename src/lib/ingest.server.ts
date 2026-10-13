@@ -1,5 +1,5 @@
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPastedTitle } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPastedTitle, backupTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
@@ -205,29 +205,32 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
+    const lead = pending[0];
+    let leadTitle: Awaited<ReturnType<typeof generateGroqOne>> = null;
+    if (lead) {
+      groqAttempts++;
+      try { leadTitle = await generateGroqOne(lead.title); } catch { /* continua */ }
+      if (!leadTitle) { geminiAttempts++; try { leadTitle = await generateOne(lead.title); } catch { /* continua */ } }
+      if (!leadTitle) { openrouterAttempts++; try { leadTitle = await generateOpenRouterOne(lead.title); } catch { /* continua */ } }
+    }
     for (let offset = 0; offset < pending.length; offset += BATCH) {
       const batch = pending.slice(offset, offset + BATCH);
       const results = await Promise.all(batch.map(async (n) => {
-        geminiAttempts++;
-        let g: Awaited<ReturnType<typeof generateOne>> = null;
-        try { g = await generateOne(n.title); } catch { /* fallback */ }
-        if (!g) { groqAttempts++; try { g = await generateGroqOne(n.title); } catch { /* fallback */ } }
-        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* fallback */ } }
-        if (!g) return 0;
-        const titulo = validTitle(g.titulo, n.title);
-        if (!titulo) return 0;
+        const g = n === lead ? leadTitle : null;
+        const titulo = (g && validTitle(g.titulo, n.title)) || backupTitle(n.title);
+        const resumo = g?.resumo || n.excerpt?.trim().slice(0, 300) || titulo;
         try {
           // 1. Foto da página da notícia (a que o jornal escolheu)
           let image = await fromArticlePage(n.url);
           // 2. Só se a página não tiver foto, usa a do RSS
           if (!image) image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
-          const image_query: string | null = image ? null : g.titulo;
+          const image_query: string | null = image ? null : titulo;
           const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
           const { error } = await db.from("articles").upsert({
             id: n.id, source: n.source, category, url: n.url,
             image: finalImageUrl(image, category, n.title, n.id) || guaranteedImage(n.id, category),
             image_query, original_title: n.title, titulo_inedito: titulo,
-            resumo: g.resumo, relevance: relevance100(n), published_at: n.publishedAt,
+            resumo, relevance: relevance100(n), published_at: n.publishedAt,
           }, { onConflict: "id", ignoreDuplicates: true });
           if (error) return 0;
           return 1;
@@ -249,8 +252,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
     let rewritten = 0;
+    if (pending.length === 0) {
     for (const row of recent ?? []) {
-      if (rewritten >= 8) break;
+      if (rewritten >= 1) break;
       if (!row.original_title || !row.titulo_inedito) continue;
       const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
       if (!pasted) continue;
@@ -261,6 +265,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       if (!next || next === row.titulo_inedito) continue;
       const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
       if (!error) rewritten++;
+    }
     }
 
     const { data: tagged } = await db

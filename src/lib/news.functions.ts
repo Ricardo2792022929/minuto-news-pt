@@ -72,6 +72,18 @@ export const getNews = createServerFn({ method: "GET" })
     });
 
     const now = Date.now();
+    if (data.offset === 0) {
+      const { data: newest } = await db.from("articles").select("created_at").order("created_at", { ascending: false }).limit(1);
+      const created = newest?.[0]?.created_at ? new Date(newest[0].created_at).getTime() : 0;
+      if (!created || now - created > 10 * 60_000) {
+        try {
+          const { runIngest } = await import("./ingest.server");
+          await runIngest();
+        } catch {
+          /* o feed segue com o que já está gravado */
+        }
+      }
+    }
     const since = new Date(now - 24 * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;

@@ -137,18 +137,18 @@ function FadeImg({
         setLoaded(true);
       }}
       onError={() => {
+        if (idx < list.length - 1) {
+          setLoaded(false);
+          setUseKit(true);
+          setIdx(idx + 1);
+          return;
+        }
         if (kit) {
           setLoaded(false);
           setUseKit(false);
           return;
         }
-        if (idx < list.length - 1) {
-          setLoaded(false);
-          setUseKit(true);
-          setIdx(idx + 1);
-        } else {
-          setLoaded(true);
-        }
+        setLoaded(true);
       }}
       className={`${className} transition-opacity duration-300 ${
         loaded ? "opacity-100" : "opacity-0"

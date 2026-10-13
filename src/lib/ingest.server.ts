@@ -3,7 +3,7 @@ import { generateOne, GatewayError, validTitle, isPastedTitle } from "./title-ge
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
-import { imageSearchTerms } from "./image-search.server";
+import { riskyImageTitle, sceneQuery } from "./image-search.server";
 import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
@@ -133,21 +133,22 @@ async function fromWikipedia(entity: string): Promise<string | null> {
 
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
   if (!term) return null;
-  const terms = imageSearchTerms(term);
-  const firstWord = term.split(" ")[0];
-  if (firstWord && firstWord[0] === firstWord[0].toUpperCase() && firstWord.length > 3) {
+  const query = (await sceneQuery(term)).trim();
+  if (!query) return null;
+  if (query.split(/\s+/).length >= 2) {
     try {
-      const wiki = await fromWikipedia(firstWord);
-      if (wiki) return wiki;
+      const wiki = await fromWikipedia(query);
+      if (wiki && !used.has(wiki)) {
+        used.add(wiki);
+        return wiki;
+      }
     } catch { /* continua */ }
   }
-  for (const t of terms) {
-    for (const fn of [fromPexels, fromUnsplash, fromPixabay, fromOpenverse]) {
-      try {
-        const img = await fn(t, used);
-        if (img) return img;
-      } catch { /* tenta a seguinte */ }
-    }
+  for (const fn of [fromPexels, fromUnsplash, fromPixabay, fromOpenverse]) {
+    try {
+      const img = await fn(query, used);
+      if (img) return img;
+    } catch { /* tenta a seguinte */ }
   }
   return null;
 }
@@ -287,18 +288,39 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     };
     const { data: recentImgs } = await db
       .from("articles")
-      .select("id,url,image,category,titulo_inedito")
+      .select("id,url,image,category,titulo_inedito,original_title")
       .order("published_at", { ascending: false })
       .limit(18);
-    for (const row of recentImgs ?? []) {
-      if (!row.url) continue;
+    const { data: namedImgs } = await db
+      .from("articles")
+      .select("id,url,image,category,titulo_inedito,original_title")
+      .or("titulo_inedito.ilike.%Leão%,titulo_inedito.ilike.%Leao%,original_title.ilike.%Leão%,original_title.ilike.%Leao%")
+      .limit(8);
+    const imageRows = [...(namedImgs ?? []), ...(recentImgs ?? [])];
+    const seenImages = new Set<string>();
+    for (const row of imageRows) {
+      if (!row.url || seenImages.has(row.id)) continue;
+      seenImages.add(row.id);
       try {
         const pageImg = await fromArticlePage(row.url);
-        if (!pageImg || (row.image && sameImage(row.image, pageImg))) continue;
+        if (pageImg && !(row.image && sameImage(row.image, pageImg))) {
+          await db
+            .from("articles")
+            .update({
+              image: finalImageUrl(pageImg, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
+              image_query: null,
+            })
+            .eq("id", row.id);
+          continue;
+        }
+        const stock = /unsplash|pexels|pixabay|wikimedia|picsum|openverse/i.test(row.image ?? "");
+        if (!stock || !riskyImageTitle(`${row.original_title ?? ""} ${row.titulo_inedito ?? ""}`)) continue;
+        const img = await findHdImage(`${row.original_title ?? ""} ${row.titulo_inedito ?? ""}`, used);
+        if (!img || (row.image && sameImage(row.image, img))) continue;
         await db
           .from("articles")
           .update({
-            image: finalImageUrl(pageImg, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
+            image: finalImageUrl(img, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
             image_query: null,
           })
           .eq("id", row.id);

@@ -867,7 +867,13 @@ function Index() {
   const [openTitle, setOpenTitle] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef(0);
+  const [page, setPage] = useState(0);
+  const countRef = useRef(0);
+  const articlesRef = useRef<NewsItem[]>([]);
+  const fetchMoreRef = useRef<() => void>(() => {});
+  const hasMoreRef = useRef(false);
 
   const fetchNews = useServerFn(getNews);
 
@@ -953,6 +959,12 @@ function Index() {
     }
     return list;
   }, [query.data]);
+  countRef.current = articles.length;
+  articlesRef.current = articles;
+  fetchMoreRef.current = () => {
+    if (hasMoreRef.current) void query.fetchNextPage();
+  };
+  hasMoreRef.current = Boolean(query.hasNextPage);
 
   useEffect(() => {
     for (const item of articles.slice(0, 4)) warmOrigin(item.url);
@@ -965,66 +977,137 @@ function Index() {
     }
   }, [articles]);
 
-  // Infinite scroll sentinel
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && query.hasNextPage && !query.isFetchingNextPage) {
-          void query.fetchNextPage();
-        }
-      },
-      { root: feedRef.current, threshold: 0.1 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
-
   useEffect(() => {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [category]);
   const swiped = useRef(false);
 
   useEffect(() => {
+    pageRef.current = 0;
+    setPage(0);
+    const track = trackRef.current;
+    const view = feedRef.current;
+    if (!track || !view) return;
+    track.style.transition = "none";
+    track.style.transform = "translate3d(0, 0, 0)";
+  }, [category, club, interests]);
+
+  useEffect(() => {
     if (tab !== "feed") return;
-    const el = feedRef.current;
-    if (!el) return;
+    const view = feedRef.current;
+    const track = trackRef.current;
+    if (!view || !track) return;
+
+    const height = () => {
+      const px = view.clientHeight || window.innerHeight;
+      view.style.setProperty("--slide-h", `${px}px`);
+      return px;
+    };
+    const place = (pageIndex: number, drag: number, animate: boolean) => {
+      const max = Math.max(countRef.current - 1, 0);
+      const clamped = Math.max(0, Math.min(max, pageIndex));
+      track.style.transition = animate ? "transform 240ms cubic-bezier(.22,1,.36,1)" : "none";
+      track.style.transform = `translate3d(0, ${-clamped * height() + drag}px, 0)`;
+    };
+    place(pageRef.current, 0, false);
+
     let startX = 0;
     let startY = 0;
+    let lastY = 0;
+    let lastT = 0;
+    let velocity = 0;
     let tracking = false;
-    const start = (event: TouchEvent) => {
-      const t = event.touches[0];
-      if (!t) return;
-      startX = t.clientX;
-      startY = t.clientY;
+
+    const down = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
       tracking = true;
+      startX = event.clientX;
+      startY = lastY = event.clientY;
+      lastT = performance.now();
+      velocity = 0;
+      view.setPointerCapture(event.pointerId);
     };
-    const end = (event: TouchEvent) => {
+    const move = (event: PointerEvent) => {
+      if (!tracking) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 16) return;
+      const now = performance.now();
+      const dt = now - lastT;
+      if (dt > 0) velocity = (event.clientY - lastY) / dt;
+      lastY = event.clientY;
+      lastT = now;
+      const atStart = pageRef.current <= 0 && dy > 0;
+      const atEnd = pageRef.current >= countRef.current - 1 && dy < 0;
+      place(pageRef.current, atStart || atEnd ? dy * 0.28 : dy, false);
+    };
+    const up = (event: PointerEvent) => {
       if (!tracking) return;
       tracking = false;
-      const t = event.changedTouches[0];
-      if (!t) return;
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
-      swiped.current = true;
-      window.setTimeout(() => { swiped.current = false; }, 500);
-      setCategory((current) => {
-        const index = CATEGORIES.indexOf(current);
-        const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
-        return CATEGORIES[next];
-      });
-      el.scrollTo({ top: 0 });
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
+        swiped.current = true;
+        window.setTimeout(() => { swiped.current = false; }, 450);
+        setCategory((current) => {
+          const index = CATEGORIES.indexOf(current);
+          const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
+          return CATEGORIES[next];
+        });
+        place(pageRef.current, 0, true);
+        return;
+      }
+      const h = height();
+      let next = pageRef.current;
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+        const item = articlesRef.current[pageRef.current];
+        if (item) {
+          const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+          if (cap?.isNativePlatform?.()) void openArticle(item.url);
+          else window.open(cleanUrl(item.url), "_blank", "noopener");
+        }
+        place(next, 0, false);
+        return;
+      }
+      if (dy < -h * 0.16 || velocity < -0.45) next += 1;
+      else if (dy > h * 0.16 || velocity > 0.45) next -= 1;
+      next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), next));
+      if (next !== pageRef.current) {
+        swiped.current = true;
+        window.setTimeout(() => { swiped.current = false; }, 450);
+      }
+      pageRef.current = next;
+      setPage(next);
+      place(next, 0, true);
+      if (next >= countRef.current - 3) fetchMoreRef.current();
     };
-    el.addEventListener("touchstart", start, { passive: true, capture: true });
-    el.addEventListener("touchend", end, { capture: true });
-    el.addEventListener("touchcancel", () => { tracking = false; });
+    const wheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) < 12) return;
+      event.preventDefault();
+      if (track.dataset.lock === "1") return;
+      track.dataset.lock = "1";
+      const dir = event.deltaY > 0 ? 1 : -1;
+      const next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), pageRef.current + dir));
+      pageRef.current = next;
+      setPage(next);
+      place(next, 0, true);
+      if (next >= countRef.current - 3) fetchMoreRef.current();
+      window.setTimeout(() => { delete track.dataset.lock; }, 380);
+    };
+
+    view.addEventListener("pointerdown", down);
+    view.addEventListener("pointermove", move);
+    view.addEventListener("pointerup", up);
+    view.addEventListener("pointercancel", up);
+    view.addEventListener("wheel", wheel, { passive: false });
     return () => {
-      el.removeEventListener("touchstart", start, { capture: true });
-      el.removeEventListener("touchend", end, { capture: true });
+      view.removeEventListener("pointerdown", down);
+      view.removeEventListener("pointermove", move);
+      view.removeEventListener("pointerup", up);
+      view.removeEventListener("pointercancel", up);
+      view.removeEventListener("wheel", wheel);
     };
-  }, [tab]);
+  }, [tab, mounted]);
 
   const tickerItems = useMemo(
     () =>
@@ -1074,10 +1157,8 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div
-            ref={feedRef}
-            className="feed-snap h-full overflow-y-auto overscroll-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
+          <div ref={feedRef} className="absolute inset-0 overflow-hidden" style={{ touchAction: "none" }}>
+            <div ref={trackRef} className="will-change-transform">
             {articles.map((a, i) => {
               const fresh =
                 Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
@@ -1088,16 +1169,11 @@ function Index() {
                   target="_blank"
                   onPointerDown={() => warmOrigin(a.url)}
                   onClick={(e) => {
-                    if (swiped.current) {
-                      e.preventDefault();
-                      return;
-                    }
-                    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-                    if (!cap?.isNativePlatform?.()) return;
                     e.preventDefault();
-                    void openArticle(a.url);
+                    if (swiped.current) return;
                   }}
-                  className="feed-card relative block w-full cursor-pointer overflow-hidden bg-black"
+                  className="relative block w-full overflow-hidden bg-black"
+                  style={{ height: "var(--slide-h, var(--feed-h, 100svh))" }}
                 >
                   {true ? (
                     <FadeImg
@@ -1122,41 +1198,6 @@ function Index() {
                       Novo
                     </span>
                   )}
-
-                  <div
-                    className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-3"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleSave(a);
-                      }}
-                      aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
-                      className={`flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white ${
-                        savedMap[a.id] ? "border-live bg-live/70 text-live-foreground" : ""
-                      }`}
-                    >
-                      <Bookmark
-                        className={`size-6 ${savedMap[a.id] ? "fill-current" : ""}`}
-                      />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setTab("saved");
-                      }}
-                      aria-label="Guardadas"
-                      className="flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white"
-                    >
-                      <EllipsisVertical className="size-6" />
-                    </button>
-                  </div>
 
                   {/* Bottom story */}
                   <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/40 to-transparent px-5 pb-[max(1.35rem,calc(env(safe-area-inset-bottom)+0.85rem))] pr-20 pt-20">
@@ -1189,7 +1230,7 @@ function Index() {
 
 
             {isError && !articles.length && (
-              <div className="feed-card flex w-full items-center justify-center px-8 text-center">
+              <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
                 <p className="text-sm text-feed-fg/70">
                   Não foi possível carregar as notícias. Tenta novamente dentro
                   de instantes.
@@ -1198,7 +1239,7 @@ function Index() {
             )}
 
             {query.isSuccess && !isError && !articles.length && (
-              <div className="feed-card flex w-full items-center justify-center px-8 text-center">
+              <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
                 <p className="font-display text-lg font-bold text-feed-fg/80">
                   Sem notícias recentes nas últimas 24h
                 </p>
@@ -1213,11 +1254,34 @@ function Index() {
               </div>
             )}
 
-            <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
+            </div>
           </div>
 
+          {articles[page] && (
+            <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => toggleSave(articles[page])}
+                aria-label={savedMap[articles[page].id] ? "Guardado" : "Guardar"}
+                className={`flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white ${
+                  savedMap[articles[page].id] ? "border-live bg-live/70 text-live-foreground" : ""
+                }`}
+              >
+                <Bookmark className={`size-6 ${savedMap[articles[page].id] ? "fill-current" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("saved")}
+                aria-label="Guardadas"
+                className="flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white"
+              >
+                <EllipsisVertical className="size-6" />
+              </button>
+            </div>
+          )}
+
           {/* Top overlay: masthead + ticker + categories */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl [transform:translateZ(0)]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
             <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">

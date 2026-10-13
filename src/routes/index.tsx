@@ -963,7 +963,7 @@ function Index() {
                       item={a}
                       alt={a.title}
                       eager={i === 0}
-                      className="absolute inset-0 w-full h-full object-cover object-top"
+                      className="absolute inset-0 w-full h-full object-cover object-center"
                     />
                   ) : (
                     <div

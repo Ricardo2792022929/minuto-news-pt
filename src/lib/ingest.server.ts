@@ -205,18 +205,14 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
-    const lead = pending[0];
-    let leadTitle: Awaited<ReturnType<typeof generateGroqOne>> = null;
-    if (lead) {
-      groqAttempts++;
-      try { leadTitle = await generateGroqOne(lead.title); } catch { /* continua */ }
-      if (!leadTitle) { geminiAttempts++; try { leadTitle = await generateOne(lead.title); } catch { /* continua */ } }
-      if (!leadTitle) { openrouterAttempts++; try { leadTitle = await generateOpenRouterOne(lead.title); } catch { /* continua */ } }
-    }
     for (let offset = 0; offset < pending.length; offset += BATCH) {
       const batch = pending.slice(offset, offset + BATCH);
       const results = await Promise.all(batch.map(async (n) => {
-        const g = n === lead ? leadTitle : null;
+        let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
+        groqAttempts++;
+        try { g = await generateGroqOne(n.title); } catch { /* continua */ }
+        if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* continua */ } }
+        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* continua */ } }
         const titulo = (g && validTitle(g.titulo, n.title)) || backupTitle(n.title);
         const resumo = g?.resumo || n.excerpt?.trim().slice(0, 300) || titulo;
         try {
@@ -252,9 +248,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
     let rewritten = 0;
-    if (pending.length === 0) {
     for (const row of recent ?? []) {
-      if (rewritten >= 1) break;
+      if (rewritten >= 6) break;
       if (!row.original_title || !row.titulo_inedito) continue;
       const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
       if (!pasted) continue;
@@ -265,7 +260,6 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       if (!next || next === row.titulo_inedito) continue;
       const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
       if (!error) rewritten++;
-    }
     }
 
     const { data: tagged } = await db

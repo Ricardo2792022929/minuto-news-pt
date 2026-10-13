@@ -57,7 +57,7 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
       const detail = (await response.text().catch(() => "")).slice(0, 200);
       if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
         const retryAfter = Number(response.headers.get("retry-after") ?? 0);
-        openrouterCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 180) * 1000 : 45_000);
+        openrouterCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
       }
       console.error("OpenRouter HTTP", response.status, detail);
       if (response.status === 401 || response.status === 403) {

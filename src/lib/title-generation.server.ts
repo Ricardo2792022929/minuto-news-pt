@@ -186,7 +186,25 @@ export function validTitle(raw: unknown, original?: string): string | null {
   return forced;
 }
 
-/** Quando a IA falha, usa a frase depois da introdução em vez de cortar o início. */
+/** Título curto quando a API de resumo está no limite. A notícia entra na mesma. */
+export function backupTitle(original: string): string {
+  const nicer = rewriteFallback(original);
+  if (nicer) return nicer;
+  let t = original
+    .replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(PREFIX, "")
+    .trim();
+  if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
+  const words = t.split(/\s+/).map(stripToken).filter(Boolean);
+  const capped = words.slice(0, 10);
+  while (capped.length > 4 && isIncomplete(capped)) capped.pop();
+  const chosen = capped.length >= 4 ? capped : words.slice(0, 8);
+  return pack(chosen.length ? chosen : ["Notícia", "em", "atualização", "agora"]);
+}
+
+/** Quando a IA falha, tenta uma frase curta diferente do título original. */
 export function rewriteFallback(original: string): string | null {
   const source = original.replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "").trim();
   const direct = validTitle(source, source);
@@ -234,7 +252,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);
       if (res.status === 429 || res.status === 401 || res.status === 403) {
-        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 180) * 1000 : 30_000);
+        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
       }
       console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
       return null;

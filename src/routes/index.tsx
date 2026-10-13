@@ -873,29 +873,45 @@ function Index() {
   }, [category]);
   const swiped = useRef(false);
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const t = e.touches[0];
-    if (!t) return;
-    swipe.current = { x: t.clientX, y: t.clientY };
-  }, []);
-
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    const start = swipe.current;
-    swipe.current = null;
-    const t = e.changedTouches[0];
-    if (!start || !t) return;
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-    swiped.current = true;
-    window.setTimeout(() => { swiped.current = false; }, 400);
-    setCategory((current) => {
-      const index = CATEGORIES.indexOf(current);
-      const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
-      return CATEGORIES[next];
-    });
-    feedRef.current?.scrollTo({ top: 0 });
-  }, []);
+  useEffect(() => {
+    if (tab !== "feed") return;
+    const el = feedRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+    const start = (event: TouchEvent) => {
+      const t = event.touches[0];
+      if (!t) return;
+      startX = t.clientX;
+      startY = t.clientY;
+      tracking = true;
+    };
+    const end = (event: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = event.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+      swiped.current = true;
+      window.setTimeout(() => { swiped.current = false; }, 500);
+      setCategory((current) => {
+        const index = CATEGORIES.indexOf(current);
+        const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
+        return CATEGORIES[next];
+      });
+      el.scrollTo({ top: 0 });
+    };
+    el.addEventListener("touchstart", start, { passive: true, capture: true });
+    el.addEventListener("touchend", end, { capture: true });
+    el.addEventListener("touchcancel", () => { tracking = false; });
+    return () => {
+      el.removeEventListener("touchstart", start, { capture: true });
+      el.removeEventListener("touchend", end, { capture: true });
+    };
+  }, [tab]);
 
   const tickerItems = useMemo(
     () =>
@@ -947,9 +963,7 @@ function Index() {
           {/* Feed */}
           <div
             ref={feedRef}
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-            className="h-full snap-y snap-mandatory overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="h-full snap-y snap-mandatory touch-pan-y overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {articles.map((a, i) => {
               const fresh =

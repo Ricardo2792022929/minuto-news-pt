@@ -210,35 +210,40 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
-    for (let offset = 0; offset < pending.length; offset += BATCH) {
+    const justSaved: { id: string; title: string }[] = [];
+    for (const n of pending) {
       if (expired()) break;
-      const batch = pending.slice(offset, offset + BATCH);
-      const results = await Promise.all(batch.map(async (n) => {
-        let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-        groqAttempts++;
-        try { g = await generateGroqOne(n.title); } catch { /* continua */ }
-        if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* continua */ } }
-        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* continua */ } }
-        const titulo = (g && validTitle(g.titulo, n.title)) || backupTitle(n.title);
-        const resumo = g?.resumo || n.excerpt?.trim().slice(0, 300) || titulo;
-        try {
-          // 1. Foto da página da notícia (a que o jornal escolheu)
-          let image = await fromArticlePage(n.url);
-          // 2. Só se a página não tiver foto, usa a do RSS
-          if (!image) image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
-          const image_query: string | null = image ? null : titulo;
-          const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
-          const { error } = await db.from("articles").upsert({
-            id: n.id, source: n.source, category, url: n.url,
-            image: finalImageUrl(image, category, n.title, n.id) || guaranteedImage(n.id, category),
-            image_query, original_title: n.title, titulo_inedito: titulo,
-            resumo, relevance: relevance100(n), published_at: n.publishedAt,
-          }, { onConflict: "id", ignoreDuplicates: true });
-          if (error) return 0;
-          return 1;
-        } catch { return 0; }
-      }));
-      inserted += results.reduce((sum, count) => sum + count, 0);
+      try {
+        const image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+        const titulo = backupTitle(n.title);
+        const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
+        const { error } = await db.from("articles").upsert({
+          id: n.id, source: n.source, category, url: n.url,
+          image: finalImageUrl(image, category, n.title, n.id) || guaranteedImage(n.id, category),
+          image_query: image ? null : titulo,
+          original_title: n.title, titulo_inedito: titulo,
+          resumo: n.excerpt?.trim().slice(0, 300) || titulo,
+          relevance: relevance100(n), published_at: n.publishedAt,
+        }, { onConflict: "id", ignoreDuplicates: true });
+        if (!error) {
+          inserted++;
+          justSaved.push({ id: n.id, title: n.title });
+        }
+      } catch { /* a próxima volta tenta outra vez */ }
+    }
+    for (const n of justSaved) {
+      if (expired()) break;
+      let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
+      groqAttempts++;
+      try { g = await generateGroqOne(n.title); } catch { /* continua */ }
+      if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* continua */ } }
+      if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* continua */ } }
+      const titulo = g && validTitle(g.titulo, n.title);
+      if (!titulo) continue;
+      await db.from("articles").update({
+        titulo_inedito: titulo,
+        ...(g?.resumo ? { resumo: g.resumo } : {}),
+      }).eq("id", n.id);
     }
 
     // Enriquecer as que ainda não têm imagem

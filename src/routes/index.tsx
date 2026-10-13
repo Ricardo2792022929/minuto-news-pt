@@ -170,10 +170,10 @@ import {
   Bookmark,
   ChevronDown,
   Cpu,
+  EllipsisVertical,
   Globe,
   Landmark,
   Loader2,
-  Newspaper,
   Palette,
   TrendingUp,
   Trophy,
@@ -1010,24 +1010,43 @@ function Index() {
                     </span>
                   )}
 
-                  <button
+                  <div
+                    className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-3"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      toggleSave(a);
                     }}
-                    aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
-                    className={`absolute right-4 top-1/2 z-10 flex size-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm ${
-                      savedMap[a.id] ? "border-live bg-live/70 text-live-foreground" : ""
-                    }`}
                   >
-                    <Bookmark
-                      className={`size-6 ${savedMap[a.id] ? "fill-current" : ""}`}
-                    />
-                  </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSave(a);
+                      }}
+                      aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
+                      className={`flex size-12 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm ${
+                        savedMap[a.id] ? "border-live bg-live/70 text-live-foreground" : ""
+                      }`}
+                    >
+                      <Bookmark
+                        className={`size-6 ${savedMap[a.id] ? "fill-current" : ""}`}
+                      />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTab("saved");
+                      }}
+                      aria-label="Guardadas"
+                      className="flex size-12 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm"
+                    >
+                      <EllipsisVertical className="size-6" />
+                    </button>
+                  </div>
 
                   {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-12">
+                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pr-20">
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
                       <span className="text-live">{a.source}</span>
                       <span className="text-feed-fg/60">·</span>
@@ -1045,7 +1064,7 @@ function Index() {
                   </div>
 
                   {i === 0 && (
-                    <div className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
+                    <div className="pointer-events-none absolute bottom-36 left-1/2 z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
                       <ChevronDown className="size-6" />
                     </div>
                   )}
@@ -1136,30 +1155,6 @@ function Index() {
                 ))}
               </nav>
               <div className="mt-3 h-0.5 w-full bg-live" aria-hidden="true" />
-            </div>
-          </div>
-
-          {/* Bottom tab bar */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto max-w-xl">
-            <div className="pointer-events-auto flex items-center justify-around bg-feed-bg/95 px-4 pb-2 pt-1.5 backdrop-blur-sm">
-              <button
-                onClick={() => setTab("feed")}
-                className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold leading-none ${
-                  tab === "feed" ? "text-live" : "text-feed-fg/60"
-                }`}
-              >
-                <Newspaper className="size-4" />
-                Feed
-              </button>
-              <button
-                onClick={() => setTab("saved")}
-                className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold leading-none ${
-                  tab === "saved" ? "text-live" : "text-feed-fg/60"
-                }`}
-              >
-                <Bookmark className="size-4" />
-                Guardadas
-              </button>
             </div>
           </div>
         </>

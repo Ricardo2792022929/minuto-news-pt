@@ -374,17 +374,15 @@ function Intro({ onDone }: { onDone: () => void }) {
 function Onboarding({
   onDone,
   onLater,
-  startAtClub = false,
 }: {
   onDone: (interests: string[], club: string | null) => void;
   onLater: () => void;
-  startAtClub?: boolean;
 }) {
   const hello = `${greeting()}, bem-vindo à Flash Notícias Portugal.`;
   const setupLine = "Vamos personalizar a sua experiência";
   const askLine = "Que tipo de notícias gostas de ver?";
   const clubLine = "Selecione o seu clube favorito";
-  const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">(startAtClub ? "club" : "greet");
+  const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">("greet");
   const [helloCount, setHelloCount] = useState(0);
   const [setupCount, setSetupCount] = useState(0);
   const [askCount, setAskCount] = useState(0);
@@ -392,6 +390,12 @@ function Onboarding({
   const [clubCount, setClubCount] = useState(0);
   const [shownClubs, setShownClubs] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [pendingClub, setPendingClub] = useState<string | null>(null);
+  const clubTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (clubTimer.current) window.clearTimeout(clubTimer.current);
+  }, []);
 
   useEffect(() => {
     if (phase !== "greet") return;
@@ -449,6 +453,12 @@ function Onboarding({
       else next.add(c);
       return next;
     });
+  };
+
+  const chooseClub = (id: string) => {
+    if (pendingClub) return;
+    setPendingClub(id);
+    clubTimer.current = window.setTimeout(() => onDone([...picked], id), 1000);
   };
 
   const caret = <span className="ml-0.5 inline-block h-[0.9em] w-[2px] translate-y-[2px] animate-pulse bg-live align-middle" />;
@@ -569,18 +579,23 @@ function Onboarding({
             <div className="flex flex-col gap-2">
               {LIGA_CLUBS.map((club, index) => {
                 const visible = index < shownClubs;
+                const selected = pendingClub === club.id;
                 return (
                   <button
                     key={club.id}
-                    onClick={() => visible && onDone([...picked], club.id)}
-                    className="rounded-full bg-feed-fg/10 px-4 py-3 text-left text-sm font-semibold text-feed-fg active:scale-[0.98]"
+                    onClick={() => visible && chooseClub(club.id)}
+                    disabled={pendingClub !== null}
+                    className={`flex items-center justify-between rounded-full px-4 py-3 text-left text-sm font-semibold active:scale-[0.98] ${
+                      selected ? "bg-red-600 text-white" : "bg-feed-fg/10 text-feed-fg"
+                    }`}
                     style={{
                       opacity: visible ? 1 : 0,
                       transform: visible ? "scale(1)" : "scale(0.86)",
-                      transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.25,.32,1)",
+                      transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.25,.32,1), background-color 180ms ease",
                     }}
                   >
-                    {club.name}
+                    <span>{club.name}</span>
+                    {selected ? <Loader2 className="size-4 shrink-0 animate-spin" /> : null}
                   </button>
                 );
               })}
@@ -743,7 +758,6 @@ function Index() {
   const [mounted, setMounted] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [clubOnly, setClubOnly] = useState(false);
   const [club, setClub] = useState("");
   const closeIntro = useCallback(() => {
     try {
@@ -769,20 +783,13 @@ function Index() {
       if (savedRaw) setSavedMap(JSON.parse(savedRaw) as Record<string, NewsItem>);
       const interestsRaw = localStorage.getItem(INTERESTS_KEY);
       const clubRaw = localStorage.getItem(CLUB_KEY);
-      const clubAsked = localStorage.getItem(CLUB_ASKED_KEY) === "1";
       if (clubRaw) setClub(clubRaw);
-      let hasInterests = false;
       if (interestsRaw) {
         const parsed = JSON.parse(interestsRaw) as string[];
         if (Array.isArray(parsed) && parsed.length) {
           setInterests(parsed);
-          hasInterests = true;
         } else setShowOnboarding(true);
       } else {
-        setShowOnboarding(true);
-      }
-      if (hasInterests && !clubAsked && !clubRaw) {
-        setClubOnly(true);
         setShowOnboarding(true);
       }
     } catch {
@@ -912,7 +919,6 @@ function Index() {
       {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && !showIntro && (
         <Onboarding
-          startAtClub={clubOnly}
           onDone={(picked, chosen) => {
             if (picked.length) {
               setInterests(picked);
@@ -922,10 +928,12 @@ function Index() {
                 /* ignora */
               }
             }
-            const value = chosen ?? "";
-            setClub(value);
             try {
-              localStorage.setItem(CLUB_KEY, value);
+              localStorage.setItem(CLUB_ASKED_KEY, "1");
+              if (chosen) {
+                setClub(chosen);
+                localStorage.setItem(CLUB_KEY, chosen);
+              }
             } catch {
               /* ignora */
             }

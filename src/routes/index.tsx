@@ -868,24 +868,34 @@ function Index() {
     return () => obs.disconnect();
   }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
 
+  useEffect(() => {
+    document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [category]);
+  const swiped = useRef(false);
+
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const startY = e.touches[0]?.clientY ?? 0;
-    const startTime = Date.now();
-    const onMove = (ev: TouchEvent) => {
-      const dy = (ev.touches[0]?.clientY ?? 0) - startY;
-      if (Math.abs(dy) > 30 && Date.now() - startTime < 300) {
-        /* swipe */
-      }
-    };
-    const onEnd = () => {
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onEnd);
-    };
-    document.addEventListener("touchmove", onMove);
-    document.addEventListener("touchend", onEnd);
+    const t = e.touches[0];
+    if (!t) return;
+    swipe.current = { x: t.clientX, y: t.clientY };
   }, []);
 
-  const onTouchEnd = useCallback(() => {}, []);
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const start = swipe.current;
+    swipe.current = null;
+    const t = e.changedTouches[0];
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+    swiped.current = true;
+    window.setTimeout(() => { swiped.current = false; }, 400);
+    setCategory((current) => {
+      const index = CATEGORIES.indexOf(current);
+      const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
+      return CATEGORIES[next];
+    });
+    feedRef.current?.scrollTo({ top: 0 });
+  }, []);
 
   const tickerItems = useMemo(
     () =>
@@ -951,6 +961,10 @@ function Index() {
                   target="_blank"
                   onPointerDown={() => warmOrigin(a.url)}
                   onClick={(e) => {
+                    if (swiped.current) {
+                      e.preventDefault();
+                      return;
+                    }
                     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
                     if (!cap?.isNativePlatform?.()) return;
                     e.preventDefault();
@@ -1095,6 +1109,7 @@ function Index() {
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
+                    data-cat={c}
                     onClick={() => setCategory(c)}
                     className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
                       category === c

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicHooksIngestRouteImport } from './routes/api/public/hooks/ingest'
+import { Route as ApiPublicHooksRefreshRouteImport } from './routes/api/public/hooks/refresh'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const ApiPublicHooksIngestRoute = ApiPublicHooksIngestRouteImport.update({
   path: '/api/public/hooks/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksRefreshRoute = ApiPublicHooksRefreshRouteImport.update({
+  id: '/api/public/hooks/refresh',
+  path: '/api/public/hooks/refresh',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/hooks/ingest'
+  fullPaths: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/hooks/ingest'
-  id: '__root__' | '/' | '/api/public/hooks/ingest'
+  to: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  id: '__root__' | '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicHooksIngestRoute: typeof ApiPublicHooksIngestRoute
+  ApiPublicHooksRefreshRoute: typeof ApiPublicHooksRefreshRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/refresh': {
+      id: '/api/public/hooks/refresh'
+      path: '/api/public/hooks/refresh'
+      fullPath: '/api/public/hooks/refresh'
+      preLoaderRoute: typeof ApiPublicHooksRefreshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicHooksIngestRoute: ApiPublicHooksIngestRoute,
+  ApiPublicHooksRefreshRoute: ApiPublicHooksRefreshRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

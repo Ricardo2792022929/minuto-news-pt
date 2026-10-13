@@ -1056,7 +1056,7 @@ function Index() {
 
           {/* Top overlay: masthead + ticker + categories */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20 mx-auto max-w-xl">
-            <div className="pointer-events-auto bg-gradient-to-b from-feed-bg/85 to-transparent px-4 pb-6 pt-4 backdrop-blur-[2px]">
+            <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">
                   Flash<span className="text-live">Notícias</span>
@@ -1106,6 +1106,7 @@ function Index() {
                   </button>
                 ))}
               </nav>
+              <div className="mt-3 h-0.5 w-full bg-live" aria-hidden="true" />
             </div>
           </div>
 

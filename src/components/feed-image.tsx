@@ -65,7 +65,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
     };
     const timeout = window.setTimeout(useFallback, 1500);
     const raw = item.image || fallback;
-    const kit = imageKitUrl(raw);
+    const kit = imageKitUrl(raw) || imageKitUrl(fallback);
     const show = (src: string) => {
       if (cancelled || settled) return;
       settled = true;

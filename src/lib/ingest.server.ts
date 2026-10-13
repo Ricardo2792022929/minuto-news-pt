@@ -2,7 +2,7 @@ import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.serv
 import { generateOne, GatewayError, validTitle, isPastedTitle, backupTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
-import { finalImageUrl, guaranteedImage } from "./image-policy";
+import { imageKitUrl } from "./imagekit";
 import { riskyImageTitle, sceneQuery } from "./image-search.server";
 import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
@@ -244,6 +244,22 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!img) return;
         await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_query: null }).eq("id", m.id);
       } catch { /* ignore */ }
+    }));
+
+    // Prepara as fotos novas: a ImageKit analisa, centra e fica em cache antes de abrirem a app.
+    const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(24);
+    await Promise.all((toPrepare ?? []).map(async (row) => {
+      const kit = imageKitUrl(row.image);
+      if (!kit) return;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8_000);
+      try {
+        await fetch(kit, { signal: ctrl.signal });
+      } catch {
+        /* a próxima atualização tenta outra vez */
+      } finally {
+        clearTimeout(timer);
+      }
     }));
 
     const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);

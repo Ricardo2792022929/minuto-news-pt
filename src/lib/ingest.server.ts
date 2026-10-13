@@ -3,12 +3,13 @@ import { generateOne, GatewayError, validTitle, isPastedTitle, backupTitle } fro
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { imageKitUrl } from "./imagekit";
-import { riskyImageTitle, sceneQuery } from "./image-search.server";
+import { sceneQuery } from "./image-search.server";
 import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
-const BATCH = 6;
-const MAX_BATCHES = 12;
+const BATCH = 5;
+const MAX_BATCHES = 2;
+const BUDGET_MS = 18_000;
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -155,14 +156,18 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
 
 export async function runIngest(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+  const started = Date.now();
+  const expired = () => Date.now() - started > BUDGET_MS;
   const nowIso = new Date().toISOString();
-  const { data: lock } = await db
-    .from("ingest_state")
-    .update({ locked_until: new Date(Date.now() + 10 * 60_000).toISOString(), updated_at: nowIso })
-    .eq("id", 1)
-    .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
-    .select("id");
-  if (!lock?.length) return { skipped: "locked" };
+  const until = new Date(Date.now() + 3 * 60_000).toISOString();
+  const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
+  const lockedUntil = current?.locked_until ? new Date(current.locked_until).getTime() : 0;
+  if (lockedUntil > Date.now() && lockedUntil < Date.now() + 4 * 60_000) return { skipped: "locked" };
+  const { error: lockError } = await db.from("ingest_state").upsert(
+    { id: 1, locked_until: until, updated_at: nowIso },
+    { onConflict: "id" },
+  );
+  if (lockError) return { error: lockError.message };
 
   let inserted = 0;
   try {
@@ -206,6 +211,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
     for (let offset = 0; offset < pending.length; offset += BATCH) {
+      if (expired()) break;
       const batch = pending.slice(offset, offset + BATCH);
       const results = await Promise.all(batch.map(async (n) => {
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
@@ -236,111 +242,66 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     // Enriquecer as que ainda não têm imagem
-    const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(16);
-    await Promise.all((missing ?? []).map(async (m) => {
-      const term = (m.titulo_inedito ?? m.image_query ?? "").trim();
-      try {
-        const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
-        if (!img) return;
-        await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_query: null }).eq("id", m.id);
-      } catch { /* ignore */ }
-    }));
-
-    // Prepara as fotos novas: a ImageKit analisa, centra e fica em cache antes de abrirem a app.
-    const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(80);
-    await Promise.all((toPrepare ?? []).map(async (row) => {
-      const kit = imageKitUrl(row.image);
-      if (!kit) return;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8_000);
-      try {
-        await fetch(kit, { signal: ctrl.signal });
-      } catch {
-        /* a próxima atualização tenta outra vez */
-      } finally {
-        clearTimeout(timer);
-      }
-    }));
-
-    const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
     let rewritten = 0;
-    for (const row of recent ?? []) {
-      if (rewritten >= 6) break;
-      if (!row.original_title || !row.titulo_inedito) continue;
-      const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
-      if (!pasted) continue;
-      let next: string | null = null;
-      try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
-      if (!next) { try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
-      if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
-      if (!next || next === row.titulo_inedito) continue;
-      const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
-      if (!error) rewritten++;
-    }
-
-    const { data: tagged } = await db
-      .from("articles")
-      .select("id, original_title, titulo_inedito, resumo, category")
-      .order("published_at", { ascending: false })
-      .limit(150);
     let recategorized = 0;
-    for (const row of tagged ?? []) {
-      const text = [row.original_title, row.titulo_inedito, row.resumo].filter(Boolean).join(" ");
-      const next = classify(text, row.category || "Mundo");
-      if (!next || next === row.category) continue;
-      const { error } = await db.from("articles").update({ category: next }).eq("id", row.id);
-      if (!error) recategorized++;
+    if (!expired()) {
+      const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(4);
+      await Promise.all((missing ?? []).map(async (m) => {
+        const term = (m.titulo_inedito ?? m.image_query ?? "").trim();
+        try {
+          const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
+          if (!img) return;
+          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_query: null }).eq("id", m.id);
+        } catch { /* ignore */ }
+      }));
     }
 
-    const sameImage = (a: string, b: string) => {
-      try {
-        const left = new URL(a);
-        const right = new URL(b);
-        return left.hostname === right.hostname && left.pathname === right.pathname;
-      } catch {
-        return a === b;
-      }
-    };
-    const { data: recentImgs } = await db
-      .from("articles")
-      .select("id,url,image,category,titulo_inedito,original_title")
-      .order("published_at", { ascending: false })
-      .limit(18);
-    const { data: namedImgs } = await db
-      .from("articles")
-      .select("id,url,image,category,titulo_inedito,original_title")
-      .or("titulo_inedito.ilike.%Leão%,titulo_inedito.ilike.%Leao%,original_title.ilike.%Leão%,original_title.ilike.%Leao%")
-      .limit(8);
-    const imageRows = [...(namedImgs ?? []), ...(recentImgs ?? [])];
-    const seenImages = new Set<string>();
-    for (const row of imageRows) {
-      if (!row.url || seenImages.has(row.id)) continue;
-      seenImages.add(row.id);
-      try {
-        const pageImg = await fromArticlePage(row.url);
-        if (pageImg && !(row.image && sameImage(row.image, pageImg))) {
-          await db
-            .from("articles")
-            .update({
-              image: finalImageUrl(pageImg, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
-              image_query: null,
-            })
-            .eq("id", row.id);
-          continue;
+    if (!expired()) {
+      const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(8);
+      await Promise.all((toPrepare ?? []).map(async (row) => {
+        const kit = imageKitUrl(row.image);
+        if (!kit) return;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2_500);
+        try {
+          await fetch(kit, { signal: ctrl.signal });
+        } catch {
+          /* a próxima atualização tenta outra vez */
+        } finally {
+          clearTimeout(timer);
         }
-        const stock = /unsplash|pexels|pixabay|wikimedia|picsum|openverse/i.test(row.image ?? "");
-        if (!stock || !riskyImageTitle(`${row.original_title ?? ""} ${row.titulo_inedito ?? ""}`)) continue;
-        const img = await findHdImage(`${row.original_title ?? ""} ${row.titulo_inedito ?? ""}`, used);
-        if (!img || (row.image && sameImage(row.image, img))) continue;
-        await db
-          .from("articles")
-          .update({
-            image: finalImageUrl(img, row.category, row.titulo_inedito, row.id) || guaranteedImage(row.id, row.category),
-            image_query: null,
-          })
-          .eq("id", row.id);
-      } catch {
-        /* ignora */
+      }));
+    }
+
+    if (!expired()) {
+      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(8);
+      for (const row of recent ?? []) {
+        if (expired() || rewritten >= 3) break;
+        if (!row.original_title || !row.titulo_inedito) continue;
+        const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
+        if (!pasted) continue;
+        let next: string | null = null;
+        try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
+        if (!next) { try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
+        if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next || next === row.titulo_inedito) continue;
+        const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
+        if (!error) rewritten++;
+      }
+    }
+
+    if (!expired()) {
+      const { data: tagged } = await db
+        .from("articles")
+        .select("id, original_title, titulo_inedito, resumo, category")
+        .order("published_at", { ascending: false })
+        .limit(40);
+      for (const row of tagged ?? []) {
+        const text = [row.original_title, row.titulo_inedito, row.resumo].filter(Boolean).join(" ");
+        const next = classify(text, row.category || "Mundo");
+        if (!next || next === row.category) continue;
+        const { error } = await db.from("articles").update({ category: next }).eq("id", row.id);
+        if (!error) recategorized++;
       }
     }
 

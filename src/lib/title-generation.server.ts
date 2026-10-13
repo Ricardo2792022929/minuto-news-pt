@@ -4,29 +4,26 @@ const MODEL = "gemini-flash-lite-latest";
 const TIMEOUT_MS = 6_000;
 let geminiCooldownUntil = 0;
 
-const SYSTEM = `És um editor de notícias em Portugal especializado em títulos curtos, diretos e factuais.
+const SYSTEM = `És o editor do Flash Notícias. O teu trabalho é resumir a notícia num título novo que prenda o scroll.
 
 REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Escreve estritamente em Português de Portugal (PT-PT).
-- O título deve ter NO MÁXIMO 11 palavras (idealmente 6 a 11).
-- Começa SEMPRE pelo SUJEITO principal (pessoa, entidade ou ação central). Nunca uses estilo "Tema: descrição longa".
-- Não uses prefixos como 'Crise:', 'Urgente:', 'Atenção:', 'Última hora:', etc.
-- O título tem de ser uma frase COMPLETA e fechada. Nunca cortes a meio. Nunca termines em preposição, conjunção ou verbo incompleto (por, de, em, com, para, e, mas, pode, vai, liga, quem). Se o facto não couber em 11 palavras, reescreve mais curto.
-- NUNCA copies o início do título original. Não comeces por "Do ponto de vista", "Segundo", "De acordo" ou outra introdução. Começa pelo nome de quem age e pelo que fez.
-- Não inventes informação.
-- Mantém o significado factual da notícia original.
-- Não uses clickbait enganador.
-- O resumo tem 1 a 2 frases curtas em PT-PT, apenas com factos presentes na notícia.
+- NO MÁXIMO 10 palavras. O ideal são 6 a 9.
+- É um RESUMO do facto, não o título original cortado.
+- Escreve outra frase. Não copies a ordem nem as primeiras palavras do original.
+- Começa pela pessoa, clube ou pelo choque do que aconteceu.
+- Tom direto, tenso e provocador. O leitor tem de querer saber o resto.
+- Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título.
+- Sem prefixos (Urgente, Crise, Atenção, Última hora, Breaking) e sem dois-pontos.
+- Frase completa e fechada. Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
+- O resumo tem 1 frase curta, só com o facto.
 - Responde APENAS com JSON válido com as chaves 'titulo' e 'resumo'.
-- Não uses Markdown, nem \`\`\`json, nem texto fora do JSON.
 
 Exemplo incorreto:
-{"titulo": "Do ponto de vista da política externa, Trump", "resumo": "..."}
 {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas", "resumo": "..."}
 
 Exemplo correto:
-{"titulo": "Trump muda a política externa dos EUA", "resumo": "O presidente americano anunciou mudanças na política externa."}
-{"titulo": "Pedro Sánchez anuncia eleições antecipadas em Espanha", "resumo": "O primeiro-ministro espanhol dissolveu o parlamento e marcou eleições antecipadas."}`;
+{"titulo": "Sánchez marca eleições e abala Espanha", "resumo": "O primeiro-ministro espanhol dissolveu o parlamento e marcou eleições antecipadas."}`;
 
 export class GatewayError extends Error {
   constructor(message: string, public status: number) {
@@ -96,7 +93,7 @@ function clausesOf(text: string): string[][] {
 }
 
 function finishClause(words: string[]): string[] {
-  let capped = words.length > 11 ? words.slice(0, 11) : [...words];
+  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
   while (capped.length > 4 && isIncomplete(capped)) {
     const joined = capped.join(" ");
     const cut = joined.search(/\s+(e|que)\s+\S+$/i);
@@ -141,7 +138,21 @@ function isPrefixCut(candidate: string, original: string): boolean {
   return i >= Math.min(5, c.length);
 }
 
-/** No máximo 11 palavras e sempre uma frase fechada. */
+/** O título publicado é só o original cortado, não um resumo novo. */
+export function isPastedTitle(candidate: string, original: string): boolean {
+  const c = normWords(candidate);
+  const o = normWords(original);
+  if (c.length < 4 || !o.length) return false;
+  const joinedCandidate = c.join(" ");
+  const joinedOriginal = o.join(" ");
+  if (joinedCandidate === joinedOriginal || joinedOriginal.includes(joinedCandidate)) return true;
+  let prefix = 0;
+  const limit = Math.min(c.length, o.length);
+  while (prefix < limit && c[prefix] === o[prefix]) prefix++;
+  return prefix >= 4 && prefix / c.length >= 0.55;
+}
+
+/** No máximo 10 palavras e sempre uma frase fechada. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
@@ -149,7 +160,7 @@ export function forceMax10Words(raw: string): string {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const usable = (words: string[]) => words.length >= 4 && words.length <= 11 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
+  const usable = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
   if (usable(all)) return pack(all);
   const clauses = clausesOf(t);
   const preferred = clauses.filter((c) => !isFillerStart(c));
@@ -158,10 +169,10 @@ export function forceMax10Words(raw: string): string {
     if (usable(done)) return pack(done);
   }
   const done = finishClause(all);
-  if (done.length >= 4 && done.length <= 11 && !isIncomplete(done)) return pack(done);
+  if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
   const rest = [...all];
   while (rest.length > 3 && isIncomplete(rest)) rest.pop();
-  if (rest.length >= 4 && rest.length <= 11 && !isIncomplete(rest)) return pack(rest);
+  if (rest.length >= 4 && rest.length <= 10 && !isIncomplete(rest)) return pack(rest);
   return t.trim();
 }
 
@@ -170,8 +181,8 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
-  if (words.length < 4 || words.length > 11 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
-  if (original && isPrefixCut(forced, original)) return null;
+  if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original))) return null;
   return forced;
 }
 
@@ -203,7 +214,7 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", responseSchema, thinkingConfig: { thinkingLevel: "minimal" } },
+        generationConfig: { temperature: 0.8, responseMimeType: "application/json", responseSchema, thinkingConfig: { thinkingLevel: "minimal" } },
       }),
     });
   } finally {
@@ -218,7 +229,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Reescreve o título. Não copies o início. Começa pelo nome de quem age e pelo que fez, em no máximo 11 palavras, frase completa. Exemplo incorreto: Do ponto de vista da política externa, Trump. Exemplo correto: Trump anuncia mudanças na política externa. Não inventes factos.\nTítulo original: ${title}`;
+    const prompt = `Resume o facto num título NOVO, provocador e viciante, com no máximo 10 palavras. Não copies nem cortes o título original. Escreve outra frase, a começar por quem age ou pelo choque. Não inventes dados.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { categoryImage } from "@/lib/image-policy";
+import { imageKitUrl } from "@/lib/imagekit";
 
 const downloads = new Map<string, Promise<string>>();
 export function preloadImage(src: string): Promise<string> {
@@ -63,13 +64,19 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
       setWaiting(false);
     };
     const timeout = window.setTimeout(useFallback, 1500);
-    void preloadImage(item.image || fallback).then((src) => {
+    const raw = item.image || fallback;
+    const kit = imageKitUrl(raw);
+    const show = (src: string) => {
       if (cancelled || settled) return;
       settled = true;
       window.clearTimeout(timeout);
       setReady(src);
       setWaiting(false);
-    }).catch(useFallback);
+    };
+    void preloadImage(kit || raw).then(() => show(kit || raw)).catch(() => {
+      if (!kit || kit === raw) return useFallback();
+      void preloadImage(raw).then(() => show(raw)).catch(useFallback);
+    });
     return () => {
       cancelled = true;
       window.clearTimeout(timeout);

@@ -1,5 +1,5 @@
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, rewriteFallback } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPastedTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
@@ -212,13 +212,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         try { g = await generateOne(n.title); } catch { /* fallback */ }
         if (!g) { groqAttempts++; try { g = await generateGroqOne(n.title); } catch { /* fallback */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* fallback */ } }
-        if (!g) {
-          const sourceTitle = n.title.trim();
-          const rewritten = sourceTitle ? rewriteFallback(sourceTitle) : null;
-          if (!rewritten) return 0;
-          g = { titulo: rewritten, resumo: firstSentence(n.excerpt?.trim() || sourceTitle).slice(0, 300) };
-        }
-        const titulo = validTitle(g.titulo, n.title) ?? rewriteFallback(n.title);
+        if (!g) return 0;
+        const titulo = validTitle(g.titulo, n.title);
         if (!titulo) return 0;
         try {
           // 1. Foto da página da notícia (a que o jornal escolheu)
@@ -254,9 +249,14 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
     let rewritten = 0;
     for (const row of recent ?? []) {
+      if (rewritten >= 8) break;
       if (!row.original_title || !row.titulo_inedito) continue;
-      if (validTitle(row.titulo_inedito, row.original_title)) continue;
-      const next = rewriteFallback(row.original_title);
+      const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
+      if (!pasted) continue;
+      let next: string | null = null;
+      try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
+      if (!next) { try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
+      if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
       if (!next || next === row.titulo_inedito) continue;
       const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
       if (!error) rewritten++;
@@ -334,14 +334,6 @@ function normalizeArticleUrl(raw: string): string {
 
 function normalizeTitle(title: string): string {
   return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function firstSentence(text: string): string {
-  const cleaned = text.replace(/\s+/g, " ").trim();
-  if (!cleaned) return "";
-  const match = cleaned.match(/^[^.!?]+[.!?]/);
-  const sentence = match ? match[0].trim() : cleaned;
-  return sentence.length > 220 ? sentence.slice(0, 217).trim() + "…" : sentence;
 }
 
 function hasSimilarTitle(title: string, known: string[]): boolean {

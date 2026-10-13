@@ -119,12 +119,20 @@ function FadeImg({
   const raw = list[Math.min(idx, list.length - 1)] ?? `https://picsum.photos/seed/flash${idx}/1200/800`;
   const kit = useKit ? imageKitUrl(raw) : null;
   const src = kit ?? (raw === item.image ? raw : optimizeImage(raw));
+  const imgRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const image = imgRef.current;
+    if (image?.complete && image.naturalWidth > 0) setLoaded(true);
+  }, [src]);
   return (
     <img
+      ref={imgRef}
       key={src}
       src={src}
       alt={alt}
       referrerPolicy="no-referrer"
+      decoding="async"
+      fetchPriority={eager ? "high" : "low"}
       loading={eager ? "eager" : "lazy"}
       onLoad={(event) => {
         const image = event.currentTarget;
@@ -150,7 +158,7 @@ function FadeImg({
         }
         setLoaded(true);
       }}
-      className={`${className} transition-opacity duration-300 ${
+      className={`${className} transition-opacity duration-150 ${
         loaded ? "opacity-100" : "opacity-0"
       }`}
     />
@@ -799,8 +807,48 @@ function SavedList({
 
 /* ---------- Main ---------- */
 
-function Index() {
+function LiveWhen() {
   const now = useClock();
+  return (
+    <span className="text-xs font-semibold uppercase tracking-widest text-feed-fg/80">
+      Em direto · {formatClock(now)}
+    </span>
+  );
+}
+
+function LiveDateLine() {
+  const now = useClock();
+  return (
+    <p className="mt-0.5 text-[11px] capitalize text-feed-fg/60">
+      {formatDate(now)} · Lisboa
+    </p>
+  );
+}
+
+function useLockedFeedHeight() {
+  useEffect(() => {
+    const root = document.documentElement;
+    let last = window.innerHeight;
+    const apply = (height: number) => {
+      last = height;
+      root.style.setProperty("--feed-h", `${height}px`);
+    };
+    apply(window.innerHeight);
+    const onOrient = () => apply(window.innerHeight);
+    const onResize = () => {
+      const height = window.innerHeight;
+      if (Math.abs(height - last) > 140) apply(height);
+    };
+    window.addEventListener("orientationchange", onOrient);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("orientationchange", onOrient);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
+}
+function Index() {
+  useLockedFeedHeight();
   const [mounted, setMounted] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -908,6 +956,13 @@ function Index() {
 
   useEffect(() => {
     for (const item of articles.slice(0, 4)) warmOrigin(item.url);
+    for (const item of articles.slice(0, 6)) {
+      const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
+      if (!src) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+    }
   }, [articles]);
 
   // Infinite scroll sentinel
@@ -983,12 +1038,12 @@ function Index() {
 
   if (!mounted) {
     return (
-      <div className="mx-auto h-[100dvh] w-full max-w-xl bg-black" />
+      <div className="mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl bg-black" />
     );
   }
 
   return (
-    <div className="relative mx-auto h-[100dvh] w-full max-w-xl overflow-hidden bg-feed-bg">
+    <div className="relative mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl overflow-hidden bg-feed-bg">
       {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && !showIntro && (
         <Onboarding
@@ -1021,7 +1076,7 @@ function Index() {
           {/* Feed */}
           <div
             ref={feedRef}
-            className="h-full snap-y snap-mandatory touch-pan-y overflow-y-scroll overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="feed-snap h-full overflow-y-auto overscroll-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {articles.map((a, i) => {
               const fresh =
@@ -1042,13 +1097,13 @@ function Index() {
                     e.preventDefault();
                     void openArticle(a.url);
                   }}
-                  className="relative block h-[100dvh] w-full snap-start snap-always cursor-pointer overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950"
+                  className="feed-card relative block w-full cursor-pointer overflow-hidden bg-black"
                 >
                   {true ? (
                     <FadeImg
                       item={a}
                       alt={a.title}
-                      eager={i === 0}
+                      eager={i < 2}
                       className="absolute inset-0 w-full h-full object-cover object-center"
                     />
                   ) : (
@@ -1082,7 +1137,7 @@ function Index() {
                         toggleSave(a);
                       }}
                       aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
-                      className={`flex size-12 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm ${
+                      className={`flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white ${
                         savedMap[a.id] ? "border-live bg-live/70 text-live-foreground" : ""
                       }`}
                     >
@@ -1097,7 +1152,7 @@ function Index() {
                         setTab("saved");
                       }}
                       aria-label="Guardadas"
-                      className="flex size-12 items-center justify-center rounded-full border border-white/50 bg-black/25 text-white backdrop-blur-sm"
+                      className="flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white"
                     >
                       <EllipsisVertical className="size-6" />
                     </button>
@@ -1134,7 +1189,7 @@ function Index() {
 
 
             {isError && !articles.length && (
-              <div className="flex h-[100dvh] w-full snap-start items-center justify-center px-8 text-center">
+              <div className="feed-card flex w-full items-center justify-center px-8 text-center">
                 <p className="text-sm text-feed-fg/70">
                   Não foi possível carregar as notícias. Tenta novamente dentro
                   de instantes.
@@ -1143,7 +1198,7 @@ function Index() {
             )}
 
             {query.isSuccess && !isError && !articles.length && (
-              <div className="flex h-[100dvh] w-full snap-start items-center justify-center px-8 text-center">
+              <div className="feed-card flex w-full items-center justify-center px-8 text-center">
                 <p className="font-display text-lg font-bold text-feed-fg/80">
                   Sem notícias recentes nas últimas 24h
                 </p>
@@ -1162,7 +1217,7 @@ function Index() {
           </div>
 
           {/* Top overlay: masthead + ticker + categories */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 mx-auto max-w-xl">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl [transform:translateZ(0)]">
             <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">
@@ -1174,16 +1229,14 @@ function Index() {
                     <span className="relative size-2 rounded-full bg-live" />
                   </span>
                   <span className="text-xs font-semibold uppercase tracking-widest text-feed-fg/80">
-                    Em direto · {formatClock(now)}
+                    <LiveWhen />
                   </span>
                 </div>
               </div>
-              <p className="mt-0.5 text-[11px] capitalize text-feed-fg/60">
-                {formatDate(now)} · Lisboa
-              </p>
+              <LiveDateLine />
 
               {tickerItems.length > 0 && (
-                <div className="mt-2 overflow-hidden rounded-full bg-feed-fg/10 py-1.5 backdrop-blur-sm">
+                <div className="mt-2 overflow-hidden rounded-full bg-black/35 py-1.5">
                   <div className="flex w-max animate-ticker items-center whitespace-nowrap">
                     {[...tickerItems, ...tickerItems].map((item, idx) => (
                       <span

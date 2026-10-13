@@ -192,11 +192,14 @@ export function backupTitle(original: string): string {
   if (nicer) return nicer;
   let t = original
     .replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "")
+    .replace(/[\"«»“”]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .replace(PREFIX, "")
     .trim();
   if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
+  const forced = forceMax10Words(t);
+  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
   const words = t.split(/\s+/).map(stripToken).filter(Boolean);
   const capped = words.slice(0, 10);
   while (capped.length > 4 && isIncomplete(capped)) capped.pop();

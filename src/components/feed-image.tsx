@@ -85,8 +85,8 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
 
   return (
     <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={waiting} data-feed-image>
-      <img src={fallback} alt="" loading={active ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover object-top" />
-      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => setReady(fallback)} className="absolute inset-0 h-full w-full object-cover object-top animate-photo-in" />}
+      <img src={fallback} alt="" loading={active ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover object-center" />
+      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => setReady(fallback)} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
       <div aria-hidden="true" className={`absolute inset-0 image-shimmer transition-opacity duration-300 motion-reduce:transition-none ${waiting ? "opacity-100" : "opacity-0"}`} />
     </div>
   );

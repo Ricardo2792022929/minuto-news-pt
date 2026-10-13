@@ -198,3 +198,18 @@
 
 /* Selo injetado pelo alojamento, não faz parte da app. */
 #lovable-badge { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+
+/* Feed: um ecrã por notícia, altura fixa para o snap não saltar. */
+.feed-snap {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+  touch-action: pan-y;
+}
+.feed-card {
+  height: var(--feed-h, 100svh);
+  min-height: var(--feed-h, 100svh);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}

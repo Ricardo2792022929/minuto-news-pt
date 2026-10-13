@@ -4,9 +4,9 @@ export const IMAGEKIT_ENDPOINT = "https://ik.imagekit.io/1aur3rser";
 /**
  * A ImageKit analisa a foto e centra na parte importante (fo-auto).
  * 1080x1680 é o espaço visível entre as abas e a barra de baixo.
- * Qualidade 85, formato automático. Sem ampliar à força.
+ * Qualidade 85, formato automático, nitidez extra (e-sharpen). Sem ampliar à força.
  */
-const TRANSFORM = "tr:w-1080,h-1680,fo-auto,q-85,f-auto";
+const TRANSFORM = "tr:w-1080,h-1680,fo-auto,q-85,f-auto,e-sharpen-2";
 
 export function imageKitUrl(url: string | null | undefined): string | null {
   if (!url || url.startsWith("/") || url.startsWith("data:")) return null;

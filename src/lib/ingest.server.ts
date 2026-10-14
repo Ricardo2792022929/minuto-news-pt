@@ -222,10 +222,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         groqAttempts++;
         try { g = await generateGroqOne(n.title); } catch { /* tenta a seguinte */ }
+        if (!g) { cloudflareAttempts++; try { g = await generateCloudflareOne(n.title); } catch { /* entra na mesma */ } }
+        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title); } catch { /* entra na mesma */ } }
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
-        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title); } catch { /* entra na mesma */ } }
-        if (!g) { cloudflareAttempts++; try { g = await generateCloudflareOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
         if (!ai || !isPublishableTitle(ai, n.title)) return null;
         return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
@@ -302,11 +302,11 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         const pasted = !isPublishableTitle(row.titulo_inedito, row.original_title);
         if (!pasted) continue;
         let next: string | null = null;
-        try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
-        if (!next) { try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
-        if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
-        if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
         if (!next) { try { next = (await generateCloudflareOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next) { try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
+        if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
         if (!next || next === row.titulo_inedito) continue;
         const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
         if (!error) rewritten++;

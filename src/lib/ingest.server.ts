@@ -8,7 +8,7 @@ import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 5;
-const MAX_BATCHES = 2;
+const MAX_BATCHES = 8;
 const BUDGET_MS = 18_000;
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -210,26 +210,42 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
+    let saveError: string | null = null;
     const justSaved: { id: string; title: string }[] = [];
     for (const n of pending) {
-      if (expired()) break;
-      try {
-        const image = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
-        const titulo = backupTitle(n.title);
-        const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category);
-        const { error } = await db.from("articles").upsert({
-          id: n.id, source: n.source, category, url: n.url,
-          image: finalImageUrl(image, category, n.title, n.id) || guaranteedImage(n.id, category),
-          image_query: image ? null : titulo,
-          original_title: n.title, titulo_inedito: titulo,
-          resumo: n.excerpt?.trim().slice(0, 300) || titulo,
-          relevance: relevance100(n), published_at: n.publishedAt,
-        }, { onConflict: "id", ignoreDuplicates: true });
-        if (!error) {
-          inserted++;
-          justSaved.push({ id: n.id, title: n.title });
-        }
-      } catch { /* a próxima volta tenta outra vez */ }
+      if (expired() || inserted >= 10) break;
+      let titulo = n.title.split(/\s+/).slice(0, 10).join(" ");
+      try { titulo = backupTitle(n.title) || titulo; } catch (e) {
+        saveError ??= e instanceof Error ? e.message : String(e);
+      }
+      const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
+      const rawImage = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+      const row = {
+        id: n.id,
+        source: (n.source || "Lusa").slice(0, 120),
+        category,
+        url: n.url.slice(0, 2000),
+        image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
+        image_query: rawImage ? null : titulo,
+        original_title: n.title.slice(0, 500),
+        titulo_inedito: titulo.slice(0, 180),
+        resumo: (n.excerpt?.trim() || titulo).slice(0, 300),
+        relevance: relevance100(n),
+        published_at: n.publishedAt,
+      };
+      let { error } = await db.from("articles").insert(row);
+      if (error) {
+        const fallback = { ...row, image_query: null, resumo: titulo.slice(0, 300), image: guaranteedImage(n.id, category) };
+        const again = await db.from("articles").insert(fallback);
+        error = again.error;
+      }
+      if (error) {
+        if (error.code === "23505") continue;
+        saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
+        continue;
+      }
+      inserted++;
+      justSaved.push({ id: n.id, title: n.title });
     }
     for (const n of justSaved) {
       if (expired()) break;
@@ -310,7 +326,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       }
     }
 
-    return { inserted, pending: pending.length, geminiAttempts, groqAttempts, openrouterAttempts, rewritten, recategorized };
+    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, rewritten, recategorized };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

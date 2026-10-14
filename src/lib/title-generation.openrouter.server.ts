@@ -1,6 +1,6 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["OPENROUTER_MODEL"] || "nvidia/nemotron-3-super-120b-a12b:free";
+const MODEL = "google/gemma-4-31b-it:free";
 const TIMEOUT_MS = 8_000;
 let openrouterCooldownUntil = 0;
 

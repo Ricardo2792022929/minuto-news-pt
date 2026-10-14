@@ -1,6 +1,6 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
+const MODEL = "llama-3.1-8b-instant";
 const TIMEOUT_MS = 6_000;
 let groqCooldownUntil = 0;
 
@@ -44,7 +44,6 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         model: MODEL,
         temperature: 0.8,
         max_tokens: 500,
-        include_reasoning: false,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },

@@ -43,7 +43,8 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.8,
-        max_tokens: 220,
+        max_tokens: 500,
+        include_reasoning: false,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
@@ -64,10 +65,14 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
       return null;
     }
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string | null } }[];
+      choices?: { message?: { content?: string | null; reasoning?: string | null } }[];
     };
-    const raw = payload.choices?.[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
+    const message = payload.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning || "";
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
     const titulo = validTitle(parsed.titulo, title);
     if (!titulo) {
       console.warn("Groq devolveu título inválido");

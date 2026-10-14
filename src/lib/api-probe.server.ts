@@ -44,10 +44,10 @@ async function post(url: string, headers: Record<string, string>, body: unknown,
 
 /** Um pedido curto a cada API. Não grava notícias e não mostra chaves. */
 export async function probeTitleApis() {
-  const groqModel = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
-  const openrouterModel = process.env["OPENROUTER_MODEL"] || "google/gemma-2-9b-it:free";
-  const nvidiaModel = process.env["NVIDIA_MODEL"] || "openai/gpt-oss-20b";
-  const cloudflareModel = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8";
+  const groqModel = "llama-3.1-8b-instant";
+  const openrouterModel = "google/gemma-4-31b-it:free";
+  const nvidiaModel = "google/gemma-4-31b-it";
+  const cloudflareModel = "@cf/meta/llama-3.1-8b-instruct-fp8";
   const results = await Promise.all([
     ask("groq", () => {
       const key = process.env["GROQ_API_KEY"];

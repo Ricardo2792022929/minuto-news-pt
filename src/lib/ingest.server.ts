@@ -2,6 +2,7 @@ import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.serv
 import { generateOne, GatewayError, validTitle, isPublishableTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
+import { generateNvidiaOne } from "./title-generation.nvidia.server";
 import { imageKitUrl } from "./imagekit";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { sceneQuery } from "./image-search.server";
@@ -210,7 +211,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     pending.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
     const used = new Set<string>();
-    let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
+    let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0;
     let saveError: string | null = null;
     const queue = pending.slice(0, 20);
     for (let offset = 0; offset < queue.length; offset += 10) {
@@ -222,6 +223,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         try { g = await generateGroqOne(n.title); } catch { /* tenta a seguinte */ }
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
+        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
         if (!ai || !isPublishableTitle(ai, n.title)) return null;
         return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
@@ -301,6 +303,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
         if (!next) { try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
         if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
         if (!next || next === row.titulo_inedito) continue;
         const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
         if (!error) rewritten++;
@@ -322,7 +325,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       }
     }
 
-    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, rewritten, recategorized };
+    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, rewritten, recategorized };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

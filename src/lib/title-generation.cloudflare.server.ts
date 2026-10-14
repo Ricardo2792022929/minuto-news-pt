@@ -1,6 +1,6 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
+const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8";
 const TIMEOUT_MS = 8_000;
 let cloudflareCooldownUntil = 0;
 

@@ -1,5 +1,5 @@
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPastedTitle, backupTitle } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPastedTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { imageKitUrl } from "./imagekit";
@@ -223,13 +223,12 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
-        let titulo = ai || "";
-        if (!titulo) {
-          try { titulo = backupTitle(n.title); } catch { titulo = n.title.split(/\s+/).slice(0, 10).join(" "); }
-        }
-        return { n, titulo, resumo: (ai && g?.resumo) || n.excerpt?.trim() || titulo };
+        if (!ai) return null;
+        return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
       }));
-      for (const { n, titulo, resumo } of titled) {
+      for (const item of titled) {
+        if (!item) continue;
+        const { n, titulo, resumo } = item;
         const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
         const rawImage = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
         const row = {
@@ -292,9 +291,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     }
 
     if (!expired()) {
-      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(8);
+      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(20);
       for (const row of recent ?? []) {
-        if (expired() || rewritten >= 3) break;
+        if (expired() || rewritten >= 12) break;
         if (!row.original_title || !row.titulo_inedito) continue;
         const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
         if (!pasted) continue;

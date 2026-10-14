@@ -8,7 +8,7 @@ const SYSTEM = `És o editor do Flash Notícias. O teu trabalho é resumir a not
 
 REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Escreve estritamente em Português de Portugal (PT-PT).
-- NO MÁXIMO 10 palavras. O ideal são 6 a 9.
+- NO MÁXIMO 12 palavras. O ideal são 6 a 11.
 - É um RESUMO do facto, não o título original cortado.
 - Escreve outra frase. Não copies a ordem nem as primeiras palavras do original.
 - Começa pela pessoa, clube ou pelo choque do que aconteceu.
@@ -93,7 +93,7 @@ function clausesOf(text: string): string[][] {
 }
 
 function finishClause(words: string[]): string[] {
-  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
+  let capped = words.length > 12 ? words.slice(0, 12) : [...words];
   while (capped.length > 4 && isIncomplete(capped)) {
     const joined = capped.join(" ");
     const cut = joined.search(/\s+(e|que)\s+\S+$/i);
@@ -152,7 +152,7 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   return prefix >= 4 && prefix / c.length >= 0.55;
 }
 
-/** No máximo 10 palavras e sempre uma frase fechada. */
+/** No máximo 12 palavras e sempre uma frase fechada. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
@@ -160,7 +160,7 @@ export function forceMax10Words(raw: string): string {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const usable = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
+  const usable = (words: string[]) => words.length >= 4 && words.length <= 12 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
   if (usable(all)) return pack(all);
   const clauses = clausesOf(t);
   const preferred = clauses.filter((c) => !isFillerStart(c));
@@ -169,10 +169,10 @@ export function forceMax10Words(raw: string): string {
     if (usable(done)) return pack(done);
   }
   const done = finishClause(all);
-  if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
+  if (done.length >= 4 && done.length <= 12 && !isIncomplete(done)) return pack(done);
   const rest = [...all];
   while (rest.length > 3 && isIncomplete(rest)) rest.pop();
-  if (rest.length >= 4 && rest.length <= 10 && !isIncomplete(rest)) return pack(rest);
+  if (rest.length >= 4 && rest.length <= 12 && !isIncomplete(rest)) return pack(rest);
   return t.trim();
 }
 
@@ -181,7 +181,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
-  if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (words.length < 4 || words.length > 12 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
   if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original))) return null;
   return forced;
 }
@@ -199,9 +199,9 @@ export function backupTitle(original: string): string {
     .trim();
   if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
   const forced = forceMax10Words(t);
-  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
+  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 12) return forced;
   const words = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const capped = words.slice(0, 10);
+  const capped = words.slice(0, 12);
   while (capped.length > 4 && isIncomplete(capped)) capped.pop();
   const chosen = capped.length >= 4 ? capped : words.slice(0, 8);
   return pack(chosen.length ? chosen : ["Notícia", "em", "atualização", "agora"]);
@@ -250,7 +250,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `Resume o facto num título NOVO, provocador e viciante, com no máximo 10 palavras. Não copies nem cortes o título original. Escreve outra frase, a começar por quem age ou pelo choque. Não inventes dados.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
+    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);
@@ -264,11 +264,11 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
     const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
     const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
     const titulo = validTitle(parsed.titulo, title);
-    const resumo = validSummary(parsed.resumo);
-    if (!titulo || !resumo) {
+    if (!titulo) {
       console.error("Gemini resposta inválida", raw.slice(0, 200));
       return null;
     }
+    const resumo = validSummary(parsed.resumo) || titulo;
     console.log(`Gemini OK [${MODEL}] em ${Date.now() - started}ms`);
     return { titulo, resumo };
   } catch (e) {

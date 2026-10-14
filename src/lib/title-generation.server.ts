@@ -176,6 +176,12 @@ export function forceMax10Words(raw: string): string {
   return t.trim();
 }
 
+/** O título só pode aparecer se for um resumo novo, nunca o original nem um corte. */
+export function isPublishableTitle(candidate: string | null | undefined, original?: string | null): boolean {
+  if (!candidate?.trim()) return false;
+  return validTitle(candidate, original || undefined) !== null;
+}
+
 export function validTitle(raw: unknown, original?: string): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);

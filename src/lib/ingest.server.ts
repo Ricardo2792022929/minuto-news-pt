@@ -1,5 +1,5 @@
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPastedTitle } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPublishableTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { imageKitUrl } from "./imagekit";
@@ -223,7 +223,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
-        if (!ai) return null;
+        if (!ai || !isPublishableTitle(ai, n.title)) return null;
         return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
       }));
       for (const item of titled) {
@@ -295,7 +295,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       for (const row of recent ?? []) {
         if (expired() || rewritten >= 12) break;
         if (!row.original_title || !row.titulo_inedito) continue;
-        const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || !validTitle(row.titulo_inedito, row.original_title);
+        const pasted = !isPublishableTitle(row.titulo_inedito, row.original_title);
         if (!pasted) continue;
         let next: string | null = null;
         try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }

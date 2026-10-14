@@ -5,6 +5,7 @@ import type { NewsItem } from "./news.types";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
+import { isPublishableTitle } from "./title-generation.server";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -76,6 +77,8 @@ export const getNews = createServerFn({ method: "GET" })
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
     const cols = "id,source,category,url,image,titulo_inedito,resumo,original_title,published_at";
+    const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) =>
+      isPublishableTitle(r.titulo_inedito, r.original_title);
     const fixes: { id: string; category: string }[] = [];
     const toItem = (r: {
       id: string;
@@ -150,8 +153,9 @@ export const getNews = createServerFn({ method: "GET" })
         return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
       }
       total = insideRes.count ?? 0;
-      const mine = roundRobin((insideRes.data ?? []).map(toItem));
+      const mine = roundRobin((insideRes.data ?? []).filter(canShow).map(toItem));
       const other = (broadRes.data ?? [])
+        .filter(canShow)
         .map(toItem)
         .filter((item) => !interests.includes(item.category))
         .sort(byDate);
@@ -177,7 +181,7 @@ export const getNews = createServerFn({ method: "GET" })
         return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
       }
       total = count ?? 0;
-      ordered = (rows ?? []).map(toItem).sort(byDate);
+      ordered = (rows ?? []).filter(canShow).map(toItem).sort(byDate);
     }
 
     if (data.category) ordered = ordered.filter((item) => item.category === data.category);
@@ -213,7 +217,7 @@ export const getNews = createServerFn({ method: "GET" })
       if (data.category) oq = oq.eq("category", data.category);
       else if (onlyInterests && data.interests && data.interests.length) oq = oq.in("category", data.interests);
       const { data: dayRows } = await oq;
-      return (dayRows ?? []).map(toItem).filter((item) => shockScore(item.title) >= 3);
+      return (dayRows ?? []).filter(canShow).map(toItem).filter((item) => shockScore(item.title) >= 3);
     };
     let day = await loadDay(true);
     if (day.length < 4 && !data.category) day = await loadDay(false);

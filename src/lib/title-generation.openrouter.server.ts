@@ -6,7 +6,7 @@ let openrouterCooldownUntil = 0;
 
 const SYSTEM = `És o editor do Flash Notícias. Resumes a notícia num título novo que prenda o scroll.
 - Português de Portugal.
-- No máximo 10 palavras. O ideal são 6 a 9.
+- No máximo 12 palavras. O ideal são 6 a 11.
 - É um resumo do facto, não o título original cortado. Escreve outra frase.
 - Começa por quem age ou pelo choque. Tom direto, tenso e provocador.
 - Não inventes mortos, números, nomes ou acusações que não estejam no título.
@@ -49,7 +49,7 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Resume o facto num título NOVO, provocador e viciante, com no máximo 10 palavras. Não copies nem cortes o título original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
         ],
       }),
     });
@@ -71,11 +71,11 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
     const raw = payload.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
     const titulo = validTitle(parsed.titulo, title);
-    const resumo = validSummary(parsed.resumo);
-    if (!titulo || !resumo) {
-      console.warn("OpenRouter devolveu título/resumo inválido");
+    if (!titulo) {
+      console.warn("OpenRouter devolveu título inválido");
       return null;
     }
+    const resumo = validSummary(parsed.resumo) || titulo;
     return { titulo, resumo };
   } catch (error) {
     if (error instanceof GatewayError) throw error;

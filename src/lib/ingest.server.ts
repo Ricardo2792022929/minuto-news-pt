@@ -3,13 +3,14 @@ import { generateOne, GatewayError, validTitle, isPastedTitle, backupTitle } fro
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { imageKitUrl } from "./imagekit";
+import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { sceneQuery } from "./image-search.server";
 import { inspectImage } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
-const BATCH = 5;
-const MAX_BATCHES = 8;
-const BUDGET_MS = 18_000;
+const BATCH = 10;
+const MAX_BATCHES = 2;
+const BUDGET_MS = 26_000;
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -211,55 +212,51 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0;
     let saveError: string | null = null;
-    const justSaved: { id: string; title: string }[] = [];
-    for (const n of pending) {
-      if (expired() || inserted >= 10) break;
-      let titulo = n.title.split(/\s+/).slice(0, 10).join(" ");
-      try { titulo = backupTitle(n.title) || titulo; } catch (e) {
-        saveError ??= e instanceof Error ? e.message : String(e);
-      }
-      const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
-      const rawImage = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
-      const row = {
-        id: n.id,
-        source: (n.source || "Lusa").slice(0, 120),
-        category,
-        url: n.url.slice(0, 2000),
-        image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
-        image_query: rawImage ? null : titulo,
-        original_title: n.title.slice(0, 500),
-        titulo_inedito: titulo.slice(0, 180),
-        resumo: (n.excerpt?.trim() || titulo).slice(0, 300),
-        relevance: relevance100(n),
-        published_at: n.publishedAt,
-      };
-      let { error } = await db.from("articles").insert(row);
-      if (error) {
-        const fallback = { ...row, image_query: null, resumo: titulo.slice(0, 300), image: guaranteedImage(n.id, category) };
-        const again = await db.from("articles").insert(fallback);
-        error = again.error;
-      }
-      if (error) {
-        if (error.code === "23505") continue;
-        saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
-        continue;
-      }
-      inserted++;
-      justSaved.push({ id: n.id, title: n.title });
-    }
-    for (const n of justSaved) {
+    const queue = pending.slice(0, 20);
+    for (let offset = 0; offset < queue.length; offset += 10) {
       if (expired()) break;
-      let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-      groqAttempts++;
-      try { g = await generateGroqOne(n.title); } catch { /* continua */ }
-      if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* continua */ } }
-      if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* continua */ } }
-      const titulo = g && validTitle(g.titulo, n.title);
-      if (!titulo) continue;
-      await db.from("articles").update({
-        titulo_inedito: titulo,
-        ...(g?.resumo ? { resumo: g.resumo } : {}),
-      }).eq("id", n.id);
+      const wave = queue.slice(offset, offset + 10);
+      const titled = await Promise.all(wave.map(async (n) => {
+        let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
+        groqAttempts++;
+        try { g = await generateGroqOne(n.title); } catch { /* tenta a seguinte */ }
+        if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
+        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
+        const ai = g && validTitle(g.titulo, n.title);
+        let titulo = ai || "";
+        if (!titulo) {
+          try { titulo = backupTitle(n.title); } catch { titulo = n.title.split(/\s+/).slice(0, 10).join(" "); }
+        }
+        return { n, titulo, resumo: (ai && g?.resumo) || n.excerpt?.trim() || titulo };
+      }));
+      for (const { n, titulo, resumo } of titled) {
+        const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
+        const rawImage = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+        const row = {
+          id: n.id,
+          source: (n.source || "Lusa").slice(0, 120),
+          category,
+          url: n.url.slice(0, 2000),
+          image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
+          image_query: rawImage ? null : titulo,
+          original_title: n.title.slice(0, 500),
+          titulo_inedito: titulo.slice(0, 180),
+          resumo: resumo.slice(0, 300),
+          relevance: relevance100(n),
+          published_at: n.publishedAt,
+        };
+        let { error } = await db.from("articles").insert(row);
+        if (error && error.code !== "23505") {
+          const again = await db.from("articles").insert({ ...row, image_query: null, image: guaranteedImage(n.id, category) });
+          error = again.error;
+        }
+        if (error) {
+          if (error.code === "23505") continue;
+          saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
+          continue;
+        }
+        inserted++;
+      }
     }
 
     // Enriquecer as que ainda não têm imagem

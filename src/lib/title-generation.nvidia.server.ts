@@ -54,7 +54,7 @@ export async function generateNvidiaOne(title: string): Promise<GeneratedTitle |
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.8,
-        max_tokens: 220,
+        max_tokens: 500,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
@@ -74,9 +74,10 @@ export async function generateNvidiaOne(title: string): Promise<GeneratedTitle |
       return null;
     }
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string | null } }[];
+      choices?: { message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null } }[];
     };
-    const raw = payload.choices?.[0]?.message?.content ?? "";
+    const message = payload.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning_content || message?.reasoning || "";
     const parsed = parseJson(raw);
     const titulo = parsed && validTitle(parsed.titulo, title);
     if (!titulo) {

@@ -1,6 +1,6 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["OPENROUTER_MODEL"] || "google/gemma-2-9b-it:free";
+const MODEL = process.env["OPENROUTER_MODEL"] || "nvidia/nemotron-3-super-120b-a12b:free";
 const TIMEOUT_MS = 8_000;
 let openrouterCooldownUntil = 0;
 
@@ -45,8 +45,7 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.8,
-        max_tokens: 220,
-        response_format: { type: "json_object" },
+        max_tokens: 400,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
@@ -66,10 +65,14 @@ export async function generateOpenRouterOne(title: string): Promise<GeneratedTit
       return null;
     }
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string | null } }[];
+      choices?: { message?: { content?: string | null; reasoning?: string | null } }[];
     };
-    const raw = payload.choices?.[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
+    const message = payload.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning || "";
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
     const titulo = validTitle(parsed.titulo, title);
     if (!titulo) {
       console.warn("OpenRouter devolveu título inválido");

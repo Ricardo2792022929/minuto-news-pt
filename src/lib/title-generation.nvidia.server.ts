@@ -1,0 +1,94 @@
+import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
+
+const MODEL = process.env["NVIDIA_MODEL"] || "openai/gpt-oss-20b";
+const TIMEOUT_MS = 8_000;
+let nvidiaCooldownUntil = 0;
+
+const SYSTEM = `És o editor do Flash Notícias. Resumes a notícia num título novo que prenda o scroll.
+- Português de Portugal.
+- No máximo 12 palavras. O ideal são 6 a 11.
+- É um resumo do facto, não o título original cortado. Escreve outra frase.
+- Começa por quem age ou pelo choque. Tom direto, tenso e provocador.
+- Não inventes mortos, números, nomes ou acusações que não estejam no título.
+- Sem prefixos e sem dois-pontos. Frase completa.
+- O resumo é 1 frase curta com o facto.
+- Responde só com JSON {"titulo","resumo"}.
+
+Incorreto: {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
+Correto: {"titulo": "Sánchez marca eleições e abala Espanha"}`;
+
+function validSummary(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.replace(/\s+/g, " ").trim();
+  if (s.length < 20 || s.length > 300 || /[*_`#>\[\]]|\x60\x60\x60/.test(s)) return null;
+  return s;
+}
+
+function parseJson(raw: string): { titulo?: unknown; resumo?: unknown } | null {
+  const cleaned = raw.replace(/```json|```/gi, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+/** Quarta opção. Só corre quando Groq, Gemini e OpenRouter não entregam um título novo. */
+export async function generateNvidiaOne(title: string): Promise<GeneratedTitle | null> {
+  const apiKey = process.env["NVIDIA_API_KEY"];
+  if (!apiKey || Date.now() < nvidiaCooldownUntil) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.8,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).slice(0, 200);
+      if (response.status === 429 || response.status === 401 || response.status === 403) {
+        const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+        nvidiaCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+      }
+      console.error("NVIDIA HTTP", response.status, detail);
+      if (response.status === 401 || response.status === 403) {
+        throw new GatewayError(`NVIDIA HTTP ${response.status}`, response.status);
+      }
+      return null;
+    }
+    const payload = (await response.json()) as {
+      choices?: { message?: { content?: string | null } }[];
+    };
+    const raw = payload.choices?.[0]?.message?.content ?? "";
+    const parsed = parseJson(raw);
+    const titulo = parsed && validTitle(parsed.titulo, title);
+    if (!titulo) {
+      console.warn("NVIDIA devolveu título inválido");
+      return null;
+    }
+    return { titulo, resumo: (parsed && validSummary(parsed.resumo)) || titulo };
+  } catch (error) {
+    if (error instanceof GatewayError) throw error;
+    console.error("NVIDIA falhou", error instanceof Error ? error.message : error);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

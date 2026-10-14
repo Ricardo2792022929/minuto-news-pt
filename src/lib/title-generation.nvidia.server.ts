@@ -1,6 +1,6 @@
 import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = process.env["NVIDIA_MODEL"] || "openai/gpt-oss-20b";
+const MODEL = "google/gemma-4-31b-it";
 const TIMEOUT_MS = 8_000;
 let nvidiaCooldownUntil = 0;
 

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { categoryImage } from "@/lib/image-policy";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { imageKitUrl } from "@/lib/imagekit";
 
 const downloads = new Map<string, Promise<string>>();
@@ -9,9 +8,7 @@ export function preloadImage(src: string): Promise<string> {
   const pending = new Promise<string>((resolve, reject) => {
     const image = new Image();
     image.referrerPolicy = "no-referrer";
-    image.onload = () => {
-      image.decode().then(() => resolve(src), reject);
-    };
+    image.onload = () => { image.decode().then(() => resolve(src), reject); };
     image.onerror = () => reject(new Error("Image unavailable"));
     image.src = src;
   });
@@ -25,16 +22,17 @@ export function preloadImage(src: string): Promise<string> {
 }
 
 export function FeedImage({ item, className, alt = "", eager = false }: {
-  item: { image?: string; category?: string; title?: string };
+  item: { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
   className: string;
   alt?: string;
   eager?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const fallback = categoryImage(item.category, item.title);
   const [active, setActive] = useState(eager);
   const [ready, setReady] = useState<string | null>(null);
-  const [waiting, setWaiting] = useState(true);
+  const [attemptIndex, setAttemptIndex] = useState(0);
+  const urls = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
+  const attempts = useMemo(() => urls.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value)))]), [urls]);
 
   useEffect(() => {
     const element = container.current;
@@ -52,42 +50,36 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    let settled = false;
     setReady(null);
-    setWaiting(true);
-    // Warm the local photo simultaneously, never after a slow external request.
-    void preloadImage(fallback).catch(() => undefined);
-    const useFallback = () => {
-      if (cancelled || settled) return;
-      settled = true;
-      setReady(fallback);
-      setWaiting(false);
+    const loadNext = async () => {
+      for (let index = attemptIndex; index < attempts.length; index += 1) {
+        const src = attempts[index];
+        if (!src) continue;
+        try {
+          await preloadImage(src);
+          if (!cancelled) { setAttemptIndex(index); setReady(src); }
+          return;
+        } catch { /* tenta a próxima URL desta notícia */ }
+      }
+      if (!cancelled) {
+        setReady(null);
+        console.info("feed_image_failed", JSON.stringify({ category: item.category, imageStatus: item.imageStatus, candidates: urls.length }));
+      }
     };
-    const timeout = window.setTimeout(useFallback, 1500);
-    const raw = item.image || fallback;
-    const kit = imageKitUrl(raw) || imageKitUrl(fallback);
-    const show = (src: string) => {
-      if (cancelled || settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      setReady(src);
-      setWaiting(false);
-    };
-    void preloadImage(kit || raw).then(() => show(kit || raw)).catch(() => {
-      if (!kit || kit === raw) return useFallback();
-      void preloadImage(raw).then(() => show(raw)).catch(useFallback);
-    });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [active, item.image, fallback]);
+    void loadNext();
+    return () => { cancelled = true; };
+  }, [active, attemptIndex, attempts, item.category, item.imageStatus, urls.length]);
 
+  const failed = !ready && active && (attempts.length === 0 || attemptIndex >= attempts.length);
   return (
-    <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={waiting} data-feed-image>
-      <img src={fallback} alt="" loading={active ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover object-center" />
-      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => setReady(fallback)} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
-      <div aria-hidden="true" className={`absolute inset-0 image-shimmer transition-opacity duration-300 motion-reduce:transition-none ${waiting ? "opacity-100" : "opacity-0"}`} />
+    <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
+      {!ready && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-950 px-6 text-center text-white/75" role="img" aria-label={`Fotografia indisponível; categoria ${item.category ?? "Notícias"}`}>
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">{item.category ?? "Notícias"}</span>
+          <span className="text-sm">Fotografia indisponível</span>
+        </div>
+      )}
+      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { setReady(null); setAttemptIndex((index) => index + 1); }} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
     </div>
   );
 }

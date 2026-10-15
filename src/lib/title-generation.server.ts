@@ -7,7 +7,8 @@ let geminiCooldownUntil = 0;
 const SYSTEM = `És o editor do Flash Notícias. O teu trabalho é resumir a notícia num título novo que prenda o scroll.
 
 REGRAS OBRIGATÓRIAS PARA O TÍTULO:
-- Escreve estritamente em Português de Portugal (PT-PT).
+- Escreve estritamente em Português de Portugal (PT-PT). Nunca inglês nem português do Brasil.
+- Diz golo, equipa, facto, autocarro e comboio. Não digas gol, time, você, equipe, ônibus ou trem.
 - NO MÁXIMO 12 palavras. O ideal são 6 a 11.
 - É um RESUMO do facto, não o título original cortado.
 - Escreve outra frase. Não copies a ordem nem as primeiras palavras do original.
@@ -129,6 +130,26 @@ function endsAfterComma(words: string[]): boolean {
   return parts[parts.length - 1].split(/\s+/).length < 3;
 }
 
+const BRAZIL = /\b(voce|voces|onibus|goleiro|zagueiro|torcida|gramado|celular|usuario|caminhao|xicara|equipe|gol|time|trem|fato|registro|arquibancada)\b/;
+const ENGLISH = new Set(["the", "and", "of", "for", "with", "from", "after", "before", "over", "under", "into", "amid", "beat", "beats", "win", "wins", "won", "says", "said", "will", "has", "have", "his", "her", "their", "its", "scores", "scored", "dies", "died", "killed", "against", "during", "while", "about", "according", "this", "that", "was", "were", "are", "is", "to", "by", "at", "in", "on", "an", "not", "but", "or"]);
+const PORTUGUESE = new Set(["de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas", "que", "com", "para", "por", "um", "uma", "nao", "mais", "apos", "contra", "pelo", "pela", "pelos", "pelas", "num", "numa", "sem", "sobre", "entre", "como", "quando", "onde", "seu", "sua", "aos", "ao", "se", "ja", "ainda", "depois"]);
+
+function plainTokens(value: string): string[] {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+/** Recusa inglês e português do Brasil. Um título sem isto não entra no feed. */
+export function isEuropeanPortuguese(title: string): boolean {
+  const tokens = plainTokens(title);
+  if (!tokens.length || BRAZIL.test(tokens.join(" "))) return false;
+  const english = tokens.filter((token) => ENGLISH.has(token)).length;
+  const portuguese = tokens.filter((token) => PORTUGUESE.has(token)).length;
+  const accent = /[áàâãéêíóôõúç]/i.test(title);
+  if (english >= 2) return false;
+  if (english >= 1 && portuguese === 0 && !accent) return false;
+  return true;
+}
+
 function isPrefixCut(candidate: string, original: string): boolean {
   const c = normWords(candidate);
   const o = normWords(original);
@@ -188,6 +209,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
   if (words.length < 4 || words.length > 12 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (!isEuropeanPortuguese(forced)) return null;
   if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original))) return null;
   return forced;
 }
@@ -256,7 +278,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
+    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

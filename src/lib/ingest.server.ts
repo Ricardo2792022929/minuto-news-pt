@@ -40,7 +40,7 @@ const IMAGE_STOP_WORDS = new Set([
 ]);
 const normalizeImageText = (value: string) => value.toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
-const pickBest = (arr: Hit[], used: Set<string>, term = "", service: string) => {
+const pickBest = (arr: Hit[], used: Set<string>, term: string, service: string) => {
   const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
   if (!words.length) { rejectImage(service, "no_specific_terms"); return null; }
   const candidates = arr.filter((r) => (r.width ?? 0) >= 640 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url))
@@ -74,7 +74,8 @@ const PIXABAY_CACHE_TTL = 20 * 60 * 60_000;
 const pixabayCache = new Map<string, { expiresAt: number; hits: Hit[] }>();
 async function fromPixabay(term: string, used: Set<string>) {
   const key = process.env["PIXABAY_API_KEY"] || process.env["PIXABAY_KEY"];
-  if (!key) { missingImageKey("pixabay"); return null; }\n  if (!term) return null;
+  if (!key) { missingImageKey("pixabay"); return null; }
+  if (!term) return null;
   const k = term.toLowerCase();
   const cached = pixabayCache.get(k);
   let hits = cached && cached.expiresAt > Date.now() ? cached.hits : undefined;
@@ -424,7 +425,11 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const imageMetricsRows = Object.entries(imageMetrics).map(([service, values]) => ({ service, ...values, rejection_reasons: values.rejectionReasons }));
     if (imageMetricsRows.length) {
-      const { error: metricsError } = await db.from("image_api_metrics").insert(Object.entries(imageMetrics).map(([service, value]) => ({ service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted, failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons })));
+      const metricRows = Object.entries(imageMetrics).map(([service, value]) => ({
+        service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted,
+        failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons,
+      }));
+      const { error: metricsError } = await db.from("image_api_metrics").insert(metricRows);
       if (metricsError) console.error("image_api_metrics_write_failed", metricsError.message);
     }
     console.info("image_api_metrics", JSON.stringify(imageMetricsRows));

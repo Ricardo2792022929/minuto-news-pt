@@ -6,13 +6,28 @@ import { generateNvidiaOne } from "./title-generation.nvidia.server";
 import { generateCloudflareOne } from "./title-generation.cloudflare.server";
 import { imageKitUrl } from "./imagekit";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
-import { sceneQuery } from "./image-search.server";
+import { sceneQuery, imageSearchTerms } from "./image-search.server";
 import { inspectImage, chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
 const MAX_BATCHES = 2;
 const BUDGET_MS = 26_000;
+type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
+let imageMetrics: Record<string, ImageMetric> = {};
+function metric(service: string): ImageMetric { return imageMetrics[service] ??= { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
+function rejectImage(service: string, reason: string) { const m = metric(service); m.rejectionReasons[reason] = (m.rejectionReasons[reason] ?? 0) + 1; }
+function missingImageKey(service: string) { metric(service).failures++; rejectImage(service, "missing_api_key"); }
+async function imageRequest(service: string, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const m = metric(service), started = Date.now(); m.requests++;
+  try {
+    const response = await fetch(input, init);
+    if (!response.ok) { m.failures++; rejectImage(service, `http_${response.status}`); }
+    else try { const payload = await response.clone().json() as Record<string, unknown>; for (const key of ["results", "photos", "hits", "pages"]) if (Array.isArray(payload[key])) { m.resultsFound += (payload[key] as unknown[]).length; break; } } catch { /* resposta sem JSON */ }
+    return response;
+  } catch (error) { m.failures++; rejectImage(service, error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network_error"); throw error; }
+  finally { m.latencyMs += Date.now() - started; }
+}
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
@@ -25,45 +40,41 @@ const IMAGE_STOP_WORDS = new Set([
 ]);
 const normalizeImageText = (value: string) => value.toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
-const pickBest = (arr: Hit[], used: Set<string>, term = "") => {
-  // Use distinctive words only; a generic category match is not enough to claim an image
-  // represents a specific news event, person, company or place.
-  const words = [...new Set(normalizeImageText(term).filter((word) =>
-    word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
-  if (!words.length) return null;
-  const candidates = arr
-    .filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`)
-      && /^https:\/\//.test(r.url) && !used.has(r.url))
+const pickBest = (arr: Hit[], used: Set<string>, term = "", service: string) => {
+  const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
+  if (!words.length) { rejectImage(service, "no_specific_terms"); return null; }
+  const candidates = arr.filter((r) => (r.width ?? 0) >= 640 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url))
     .map((r) => {
       const textWords = new Set(normalizeImageText(`${r.text ?? ""} ${r.url}`));
-      const matched = words.filter((word) => textWords.has(word));
-      return { ...r, matches: matched.length, score: matched.length * 100 + Math.min(r.width ?? 0, 4000) / 1000 };
-    })
-    .filter((r) => r.matches >= (words.length === 1 ? 1 : 2))
-    .sort((a, b) => b.score - a.score);
-  const pick = candidates[0]?.url ?? null;
-  if (pick) used.add(pick);
+      const matches = words.filter((word) => textWords.has(word) || [...textWords].some((candidate) => candidate.length > 4 && word.length > 4 && (candidate.startsWith(word.slice(0, 5)) || word.startsWith(candidate.slice(0, 5)))));
+      const phrase = normalizeImageText(r.text ?? "").join(" "), title = normalizeImageText(term).join(" ");
+      const bonus = title.length > 12 && phrase.includes(title.slice(0, 18)) ? 2 : 0;
+      return { ...r, score: matches.reduce((sum, word) => sum + (word.length >= 7 ? 2 : 1), 0) + bonus };
+    }).filter((r) => r.score >= (words.length <= 2 ? 1 : 2)).sort((x, y) => y.score - x.score || (y.width ?? 0) - (x.width ?? 0));
+  const pick = candidates.find((r) => !used.has(r.url))?.url ?? null;
+  if (pick) { used.add(pick); metric(service).accepted++; }
+  else rejectImage(service, arr.length ? "not_relevant_or_too_small" : "no_results");
   return pick;
 };
 
 async function fromUnsplash(term: string, used: Set<string>) {
   const key = process.env["UNSPLASH_ACCESS_KEY"];
-  if (!key) return null;
+  if (!key) { missingImageKey("unsplash"); return null; }
   const page = 1;
-  const res = await fetch(
+  const res = await imageRequest("unsplash",
     `https://api.unsplash.com/search/photos?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}&content_filter=high`,
     { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: { width: number; alt_description?: string; description?: string; urls: { raw: string } }[] };
-  return pickBest((d.results ?? []).map((r) => { const imageUrl = new URL(r.urls.raw); imageUrl.searchParams.set("w", "1600"); imageUrl.searchParams.set("q", "80"); imageUrl.searchParams.set("fit", "crop"); return { url: imageUrl.toString(), width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` }; }), used, term);
+  return pickBest((d.results ?? []).map((r) => { const imageUrl = new URL(r.urls.raw); imageUrl.searchParams.set("w", "1600"); imageUrl.searchParams.set("q", "80"); imageUrl.searchParams.set("fit", "crop"); return { url: imageUrl.toString(), width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` }; }), used, term, "unsplash");
 }
 
 const PIXABAY_CACHE_TTL = 20 * 60 * 60_000;
 const pixabayCache = new Map<string, { expiresAt: number; hits: Hit[] }>();
 async function fromPixabay(term: string, used: Set<string>) {
   const key = process.env["PIXABAY_API_KEY"] || process.env["PIXABAY_KEY"];
-  if (!key || !term) return null;
+  if (!key) { missingImageKey("pixabay"); return null; }\n  if (!term) return null;
   const k = term.toLowerCase();
   const cached = pixabayCache.get(k);
   let hits = cached && cached.expiresAt > Date.now() ? cached.hits : undefined;
@@ -73,7 +84,7 @@ async function fromPixabay(term: string, used: Set<string>) {
       orientation: "horizontal", min_width: "1000", min_height: "600",
       safesearch: "true", per_page: "20",
     });
-    const res = await fetch(`https://pixabay.com/api/?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
+    const res = await imageRequest("pixabay", `https://pixabay.com/api/?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const d = (await res.json()) as { hits?: { webformatURL: string; largeImageURL?: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
     const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
@@ -103,9 +114,9 @@ async function fromPixabay(term: string, used: Set<string>) {
 
 async function fromPexels(term: string, used: Set<string>) {
   const key = process.env["PEXELS_API_KEY"];
-  if (!key) return null;
+  if (!key) { missingImageKey("pexels"); return null; }
   const page = 1;
-  const res = await fetch(
+  const res = await imageRequest("pexels",
     `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}`,
     { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) },
   );
@@ -116,13 +127,13 @@ async function fromPexels(term: string, used: Set<string>) {
 
 async function fromOpenverse(term: string, used: Set<string>) {
   const page = 1;
-  const res = await fetch(
+  const res = await imageRequest("openverse",
     `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&category=photograph&page_size=20&page=${page}&mature=false`,
     { headers: { "User-Agent": "FlashNoticias/1.0" }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
-  return pickBest((d.results ?? []).map((r) => ({ ...r, text: r.title })), used, term);
+  return pickBest((d.results ?? []).map((r) => ({ ...r, text: r.title })), used, term, "openverse");
 }
 
 async function fromWikimediaCommons(term: string, used: Set<string>) {
@@ -132,7 +143,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
   const restUrl = new URL("https://commons.wikimedia.org/w/rest.php/v1/search/page");
   restUrl.searchParams.set("q", term.slice(0, 100));
   restUrl.searchParams.set("limit", "30");
-  const res = await fetch(restUrl.toString(), {
+  const res = await imageRequest("wikimedia", restUrl.toString(), {
     headers: { "User-Agent": "MinutoNews/1.0 (news image search)" },
     signal: AbortSignal.timeout(8000),
   });
@@ -154,7 +165,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
     iiprop: "url|size|extmetadata",
     iiurlwidth: "1600",
   });
-  const metaRes = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
+  const metaRes = await imageRequest("wikimedia", `https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
     headers: { "User-Agent": "MinutoNews/1.0 (news image search)" },
     signal: AbortSignal.timeout(8000),
   });
@@ -170,7 +181,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
     if (!url || !/^https:\/\//.test(url) || /\.svg(?:\?|$)/i.test(url)) return [];
     return [{ url, width: info.width ?? 0, text: page.title ?? "" }];
   });
-  return pickBest(hits, used, term);
+  return pickBest(hits, used, term, "wikimedia");
 }
 
 async function fromArticlePage(url: string): Promise<string | null> {
@@ -218,23 +229,17 @@ async function fromWikipedia(entity: string): Promise<string | null> {
 }
 
 async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
-  if (!term) return null;
-  const query = (await sceneQuery(term)).trim();
-  if (!query) return null;
-  if (/^Pope (Leo XIV|Francis)$/i.test(query)) {
-    try {
-      const wiki = await fromWikipedia(query);
-      if (wiki && !used.has(wiki)) {
-        used.add(wiki);
-        return wiki;
-      }
-    } catch { /* continua */ }
-  }
-  for (const fn of [fromPexels, fromUnsplash, fromPixabay, fromWikimediaCommons, fromOpenverse]) {
-    try {
-      const img = await fn(query, used);
-      if (img) return img;
-    } catch { /* tenta a seguinte */ }
+  if (!term.trim()) return null;
+  const queries = imageSearchTerms(term);
+  const preferred = await sceneQuery(term);
+  if (preferred && !queries.includes(preferred)) queries.unshift(preferred);
+  const providers: [string, (query: string, used: Set<string>) => Promise<string | null][] = [
+    ["pexels", fromPexels], ["unsplash", fromUnsplash], ["pixabay", fromPixabay],
+    ["wikimedia", fromWikimediaCommons], ["openverse", fromOpenverse],
+  ];
+  for (const query of queries.slice(0, 3)) for (const [service, provider] of providers) {
+    try { const img = await provider(query, used); if (img) return img; }
+    catch { rejectImage(service, "provider_error"); }
   }
   return null;
 }
@@ -242,6 +247,7 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
 export async function runIngest(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
   const started = Date.now();
+  imageMetrics = {};
   const expired = () => Date.now() - started > BUDGET_MS;
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
@@ -327,6 +333,8 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           category,
           url: n.url.slice(0, 2000),
           image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
+          image_status: rawImage ? "original" : "provisional",
+          image_candidates: (n.imageCandidates ?? []).filter((candidate) => candidate !== rawImage).slice(0, 4),
           image_query: rawImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
           original_title: n.title.slice(0, 500),
           titulo_inedito: titulo.slice(0, 180),
@@ -352,13 +360,13 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     let rewritten = 0;
     let recategorized = 0;
     if (!expired()) {
-      const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(4);
+      const { data: missing } = await db.from("articles").select("id,url,image_query,image_status,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).limit(4);
       await Promise.all((missing ?? []).map(async (m) => {
-        const term = (m.image_query ?? m.titulo_inedito ?? "").trim();
+        const term = [m.original_title, m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
         try {
           const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
           if (!img) return;
-          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_query: null }).eq("id", m.id);
+          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.original_title ?? m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_status: "search", image_candidates: [img], image_query: null }).eq("id", m.id);
         } catch { /* ignore */ }
       }));
     }
@@ -414,7 +422,13 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       }
     }
 
-    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized };
+    const imageMetricsRows = Object.entries(imageMetrics).map(([service, values]) => ({ service, ...values, rejection_reasons: values.rejectionReasons }));
+    if (imageMetricsRows.length) {
+      const { error: metricsError } = await db.from("image_api_metrics").insert(imageMetricsRows.map(({ rejectionReasons: _reasons, ...row }) => row));
+      if (metricsError) console.error("image_api_metrics_write_failed", metricsError.message);
+    }
+    console.info("image_api_metrics", JSON.stringify(imageMetricsRows));
+    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

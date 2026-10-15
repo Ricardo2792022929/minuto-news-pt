@@ -18,10 +18,10 @@ function StoryTitle({
   const words = title.trim().split(/\s+/).filter(Boolean).length;
   const size =
     words > 10 || title.length > 78
-      ? "text-[clamp(1.12rem,4.6vw,1.45rem)]"
+      ? "text-[clamp(1.18rem,4.8vw,1.5rem)]"
       : words > 7
-        ? "text-[clamp(1.28rem,5.2vw,1.7rem)]"
-        : "text-[clamp(1.45rem,6vw,1.95rem)]";
+        ? "text-[clamp(1.34rem,5.4vw,1.75rem)]"
+        : "text-[clamp(1.5rem,6.2vw,2rem)]";
 
   useEffect(() => {
     const el = ref.current;

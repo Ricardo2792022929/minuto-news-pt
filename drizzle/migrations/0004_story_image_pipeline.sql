@@ -16,3 +16,4 @@ CREATE TABLE IF NOT EXISTS public.image_api_metrics (
 );
 ALTER TABLE public.image_api_metrics ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.image_api_metrics TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.image_api_metrics_id_seq TO service_role;

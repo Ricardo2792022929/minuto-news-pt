@@ -36,7 +36,7 @@ const pickBest = (arr: Hit[], used: Set<string>, term = "") => {
 async function fromUnsplash(term: string, used: Set<string>) {
   const key = process.env["UNSPLASH_ACCESS_KEY"];
   if (!key) return null;
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
     `https://api.unsplash.com/search/photos?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}&content_filter=high`,
     { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(8000) },
@@ -86,9 +86,9 @@ async function fromPixabay(term: string, used: Set<string>) {
 async function fromPexels(term: string, used: Set<string>) {
   const key = process.env["PEXELS_API_KEY"];
   if (!key) return null;
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
-    `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=portrait&per_page=20&page=${page}`,
+    `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}`,
     { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
@@ -117,9 +117,15 @@ async function fromArticlePage(url: string): Promise<string | null> {
     const html = (await res.text()).slice(0, 200_000);
     const candidates: string[] = [];
     for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
-      if (!/(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["']/i.test(meta[0])) continue;
-      const value = meta[0].match(/content=["']([^"']+)["']/i)?.[1];
-      if (value) candidates.push(value);
+      const tag = meta[0];
+      const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+      if (!property || !["og:image", "og:image:secure_url", "twitter:image"].includes(property)) continue;
+      const value = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&");
+      if (!value) continue;
+      try {
+        const imageUrl = new URL(value, url);
+        if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
+      } catch { /* metadado inválido */ }
     }
     return candidates.find((v) => !isLowResImage(v) && !/logo|default|placeholder|\.svg/i.test(v)) ?? null;
   } catch {
@@ -149,7 +155,7 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
   if (!term) return null;
   const query = (await sceneQuery(term)).trim();
   if (!query) return null;
-  if (query.split(/\s+/).length >= 2) {
+  if (/^Pope (Leo XIV|Francis)$/i.test(query)) {
     try {
       const wiki = await fromWikipedia(query);
       if (wiki && !used.has(wiki)) {

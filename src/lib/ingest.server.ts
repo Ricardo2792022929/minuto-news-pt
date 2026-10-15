@@ -37,7 +37,6 @@ const pickBest = (arr: Hit[], used: Set<string>, term = "") => {
     .map((r) => {
       const textWords = new Set(normalizeImageText(`${r.text ?? ""} ${r.url}`));
       const matched = words.filter((word) => textWords.has(word));
-      const requiredMatches = words.length === 1 ? 1 : 2;
       return { ...r, matches: matched.length, score: matched.length * 100 + Math.min(r.width ?? 0, 4000) / 1000 };
     })
     .filter((r) => r.matches >= (words.length === 1 ? 1 : 2))
@@ -77,9 +76,14 @@ async function fromPixabay(term: string, used: Set<string>) {
     const res = await fetch(`https://pixabay.com/api/?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const d = (await res.json()) as { hits?: { webformatURL: string; largeImageURL?: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
-    const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3 && !["para", "como", "mais", "sobre", "apos", "hoje", "anuncia", "portugal", "portugues", "noticias"].includes(w));
+    const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
     hits = (d.hits ?? [])
-      .filter((h) => { const tags = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/); return words.some((w) => tags.includes(w)) && adequateImage({ width: h.imageWidth, height: h.imageHeight }); })
+      .filter((h) => {
+        const tags = new Set(normalizeImageText(h.tags));
+        const matches = words.filter((word) => tags.has(word)).length;
+        const minimumMatches = words.length <= 1 ? 1 : 2;
+        return matches >= minimumMatches && adequateImage({ width: h.imageWidth, height: h.imageHeight });
+      })
       .map((h) => ({ url: h.largeImageURL ?? h.fullHDURL ?? h.webformatURL, width: h.imageWidth, text: h.tags }));
     pixabayCache.set(k, { hits, expiresAt: Date.now() + PIXABAY_CACHE_TTL });
     if (pixabayCache.size > 200) {

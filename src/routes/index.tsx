@@ -826,7 +826,7 @@ function Index() {
     const observer = new ResizeObserver(apply);
     observer.observe(bar);
     return () => observer.disconnect();
-  }, [tab, tickerItems.length]);
+  }, [tab]);
 
   useEffect(() => {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });

@@ -142,7 +142,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
   });
   if (!metaRes.ok) return null;
   const metadata = (await metaRes.json()) as {
-    query?: { pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; extmetadata?: { LicenseShortName?: { value?: string } } }[]> } };
+    query?: { pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; extmetadata?: { LicenseShortName?: { value?: string } } }[] }> };
   };
   const hits: Hit[] = Object.values(metadata.query?.pages ?? []).flatMap((page) => {
     const info = page.imageinfo?.[0];

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { NewsItem } from "./news.types";
-import { categoryImage, storyImageUrl } from "./image-policy";
+import { storyImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
 import { isPublishableTitle } from "./title-generation.server";
@@ -99,8 +99,7 @@ export const getNews = createServerFn({ method: "GET" })
       const excerpt = (r.resumo ?? "").trim();
       const category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
       if (category !== r.category) fixes.push({ id: r.id, category });
-      const stored = storyImageUrl(r.image);
-      const image = stored ?? categoryImage(category, r.titulo_inedito, r.id);
+      const image = storyImageUrl(r.image);
       const imageCandidates = (Array.isArray(r.image_candidates) ? r.image_candidates : [])
         .filter((candidate): candidate is string => typeof candidate === "string")
         .map((candidate) => storyImageUrl(candidate))
@@ -113,8 +112,8 @@ export const getNews = createServerFn({ method: "GET" })
         excerpt,
         url: r.url,
         publishedAt: r.published_at,
-        image,
-        imageStatus: stored ? (r.image_status === "search" ? "search" : "original") : "provisional",
+        ...(image ? { image } : {}),
+        imageStatus: image ? (r.image_status === "search" ? "search" : "original") : "provisional",
         imageCandidates: [...new Set(imageCandidates)],
       };
     };

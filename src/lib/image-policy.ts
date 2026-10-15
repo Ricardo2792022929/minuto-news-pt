@@ -30,9 +30,10 @@ export function categoryImage(category?: string, title = "", id = ""): string {
   return guaranteedImage(id || category || "cat", category);
 }
 
-/** URL da própria notícia. Nunca devolve foto de categoria, stock ou Picsum. */
+/** URL da própria notícia. Nunca devolve foto de categoria, stock genérico ou Picsum. */
 export function storyImageUrl(raw: string | null | undefined): string | null {
   if (!raw || raw.startsWith("data:")) return null;
+  if (Object.values(CATEGORY_PHOTOS).includes(raw)) return null;
   if (raw.startsWith("/__l5e/assets-v1/")) return raw;
   try {
     const url = new URL(raw.trim());

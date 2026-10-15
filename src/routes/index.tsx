@@ -2,24 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import introUrl from "@/assets/intro.mp4";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import { imageKitUrl } from "@/lib/imagekit";
-
-type ImgItem = { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
-function FadeImg({ item, className, alt = "", eager = false }: { item: ImgItem; className: string; alt?: string; eager?: boolean }) {
-  const list = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
-  const attempts = useMemo(() => list.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value))) ]), [list]);
-  const [index, setIndex] = useState(0);
-  const [failed, setFailed] = useState(false);
-  const src = attempts[index];
-  if (failed || !src) return <div className={`${className} flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-950 px-6 text-center text-white/75`} role="img" aria-label={`Fotografia indisponível; categoria ${item.category ?? "Notícias"}`}><span className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">{item.category ?? "Notícias"}</span><span className="text-sm">Fotografia indisponível</span></div>;
-  return <img key={src} src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" fetchPriority={eager ? "high" : "low"} loading={eager ? "eager" : "lazy"} onError={() => {
-    const next = index + 1;
-    if (next < attempts.length) setIndex(next);
-    else {
-      setFailed(true);
-      console.info("feed_image_failed", JSON.stringify({ category: item.category, imageStatus: item.imageStatus, attempted: list.length }));
-    }
-  }} className={`${className} transition-opacity duration-150`} />;
-}
+import { FeedImage } from "@/components/feed-image";
 
 function StoryTitle({
   title,
@@ -638,7 +621,7 @@ function SavedList({
               </p>
             </div>
             {(
-              <FadeImg
+              <FeedImage
                 item={item}
                 className="size-20 shrink-0 rounded-lg object-cover"
               />
@@ -1032,7 +1015,7 @@ function Index() {
                   style={{ height: "var(--slide-h, var(--feed-h, 100svh))" }}
                 >
                   {true ? (
-                    <FadeImg
+                    <FeedImage
                       item={a}
                       alt={a.title}
                       eager={i < 2}

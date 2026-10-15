@@ -7,7 +7,7 @@ import { generateCloudflareOne } from "./title-generation.cloudflare.server";
 import { imageKitUrl } from "./imagekit";
 import { finalImageUrl, guaranteedImage } from "./image-policy";
 import { sceneQuery } from "./image-search.server";
-import { inspectImage } from "./image-dimensions.server";
+import { inspectImage, chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
@@ -127,7 +127,7 @@ async function fromArticlePage(url: string): Promise<string | null> {
         if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
       } catch { /* metadado inválido */ }
     }
-    return candidates.find((v) => !isLowResImage(v) && !/logo|default|placeholder|\.svg/i.test(v)) ?? null;
+    return await chooseOriginal(candidates);
   } catch {
     return null;
   }
@@ -246,18 +246,22 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         if (!ai || !isPublishableTitle(ai, n.title)) return null;
         return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
       }));
-      for (const item of titled) {
+      const verifiedImages = await Promise.all(titled.map((item) =>
+        item ? chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : [])) : Promise.resolve(null)
+      ));
+      for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
+        const item = titled[itemIndex];
         if (!item) continue;
         const { n, titulo, resumo } = item;
         const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
-        const rawImage = (n.imageCandidates ?? (n.image ? [n.image] : [])).find((url) => url && !isLowResImage(url)) ?? null;
+        const rawImage = verifiedImages[itemIndex] ?? null;
         const row = {
           id: n.id,
           source: (n.source || "Lusa").slice(0, 120),
           category,
           url: n.url.slice(0, 2000),
           image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
-          image_query: rawImage ? null : titulo,
+          image_query: rawImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
           original_title: n.title.slice(0, 500),
           titulo_inedito: titulo.slice(0, 180),
           resumo: resumo.slice(0, 300),
@@ -284,7 +288,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     if (!expired()) {
       const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(4);
       await Promise.all((missing ?? []).map(async (m) => {
-        const term = (m.titulo_inedito ?? m.image_query ?? "").trim();
+        const term = (m.image_query ?? m.titulo_inedito ?? "").trim();
         try {
           const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
           if (!img) return;

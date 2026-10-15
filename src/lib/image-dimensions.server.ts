@@ -69,12 +69,9 @@ export async function inspectImage(url: string): Promise<ImageDimensions | null>
 }
 
 export async function chooseOriginal(candidates: string[]): Promise<string | null> {
-  let acceptable: string | null = null;
-  for (const url of [...new Set(candidates)].slice(0, 4)) {
-    const size = await inspectImage(url);
-    if (!size || !adequateImage(size)) continue;
-    if (size.width >= 1200) return url;
-    acceptable ??= url;
-  }
-  return acceptable;
+  const urls = [...new Set(candidates)].filter((url) => /^https:\/\//i.test(url)).slice(0, 2);
+  const inspected = await Promise.all(urls.map(async (url) => ({ url, size: await inspectImage(url) })));
+  return inspected
+    .filter((item) => item.size && adequateImage(item.size))
+    .sort((a, b) => (b.size?.width ?? 0) - (a.size?.width ?? 0))[0]?.url ?? null;
 }

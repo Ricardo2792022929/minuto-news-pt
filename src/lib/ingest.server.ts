@@ -237,9 +237,9 @@ async function fromWikipedia(entity: string): Promise<string | null> {
   }
 }
 
-async function findHdImage(term: string, used: Set<string>): Promise<string[]> {
+async function findHdImage(term: string, used: Set<string>, description = ""): Promise<string[]> {
   if (!term.trim()) return [];
-  const queries = imageSearchTerms(term);
+  const queries = imageSearchTerms(term, description);
   const preferred = await sceneQuery(term);
   if (preferred && !queries.includes(preferred)) queries.unshift(preferred);
   const providers: [string, (query: string, used: Set<string>) => Promise<string | null>][] = [
@@ -375,10 +375,11 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     if (!expired()) {
       const { data: missing } = await db.from("articles").select("id,url,image_query,image_status,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).limit(4);
       await Promise.all((missing ?? []).map(async (m) => {
-        const term = [m.original_title, m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
+        const term = (m.original_title ?? m.titulo_inedito ?? "").trim();
+        const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
         try {
           const articleImage = await fromArticlePage(m.url);
-          const found = articleImage ? [articleImage] : await findHdImage(term, used);
+          const found = articleImage ? [articleImage] : await findHdImage(term, used, description);
           const img = found[0];
           if (!img) return;
           await db.from("articles").update({ image: finalImageUrl(img, m.category, m.original_title ?? m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_status: articleImage ? "original" : "search", image_candidates: found, image_query: null }).eq("id", m.id);

@@ -204,6 +204,7 @@ function Intro({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
+    // Fecha sempre, mesmo que o vídeo pare ou o browser não dispare "ended".
     const hard = window.setTimeout(finish, 5000);
     const close = () => finish();
     const onTime = () => {
@@ -591,53 +592,53 @@ function SavedList({
         </button>
       </div>
       {!items.length ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-          <Bookmark className="size-10 text-muted-foreground/40" />
-          <p className="font-display text-xl font-bold">Ainda sem guardadas</p>
-          <p className="text-sm text-muted-foreground">
-            Toca em "Guardar" numa notícia para a encontrares aqui.
-          </p>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+        <Bookmark className="size-10 text-muted-foreground/40" />
+        <p className="font-display text-xl font-bold">Ainda sem guardadas</p>
+        <p className="text-sm text-muted-foreground">
+          Toca em "Guardar" numa notícia para a encontrares aqui.
+        </p>
+      </div>
       ) : (
-        <div className="flex-1 overflow-y-auto px-4 pb-8 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="mb-4 cursor-pointer rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md"
-              onClick={() => onOpen(item)}
-            >
-              <div className="flex gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-live">
-                    {item.source} · {item.category}
-                  </div>
-                  <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-[11px] font-medium text-muted-foreground">
-                    {timeAgo(item.publishedAt)} · {" "}
-                    {formatClock(new Date(item.publishedAt))}
-                  </p>
-                </div>
-                {
-                  <FeedImage
-                    item={item}
-                    className="size-20 shrink-0 rounded-lg object-cover"
-                  />
-                }
+    <div className="flex-1 overflow-y-auto px-4 pb-8 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className="mb-4 cursor-pointer rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md"
+          onClick={() => onOpen(item)}
+        >
+          <div className="flex gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-live">
+                {item.source} · {item.category}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(item.id);
-                }}
-                className="mt-2 text-[11px] font-semibold text-muted-foreground hover:text-live"
-              >
-                Remover
-              </button>
+              <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+                {timeAgo(item.publishedAt)} ·{" "}
+                {formatClock(new Date(item.publishedAt))}
+              </p>
             </div>
-          ))}
+            {(
+              <FeedImage
+                item={item}
+                className="size-20 shrink-0 rounded-lg object-cover"
+              />
+            )}
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(item.id);
+            }}
+            className="mt-2 text-[11px] font-semibold text-muted-foreground hover:text-live"
+          >
+            Remover
+          </button>
         </div>
+      ))}
+    </div>
       )}
     </div>
   );
@@ -685,7 +686,6 @@ function useLockedFeedHeight() {
     };
   }, []);
 }
-
 function Index() {
   useLockedFeedHeight();
   const [mounted, setMounted] = useState(false);
@@ -718,6 +718,7 @@ function Index() {
 
   const fetchNews = useServerFn(getNews);
 
+  // Estado local (preferências e guardados)
   useEffect(() => {
     try {
       const savedRaw = localStorage.getItem(SAVED_KEY);
@@ -1007,96 +1008,104 @@ function Index() {
 
       {tab === "feed" ? (
         <>
+          {/* Feed */}
           <div ref={feedRef} className="absolute inset-x-0 bottom-0 overflow-hidden" style={{ top: mastheadH, touchAction: "none" }}>
             <div ref={trackRef} className="will-change-transform">
-              {articles.map((a, i) => {
-                const fresh = Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
-                return (
-                  <a
-                    key={a.id}
-                    href={cleanUrl(a.url)}
-                    target="_blank"
-                    onPointerDown={() => warmOrigin(a.url)}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (swiped.current) return;
-                    }}
-                    className="relative block w-full overflow-hidden bg-black"
-                    style={{ height: "var(--slide-h, var(--feed-h, 100svh))" }}
-                  >
-                    {true ? (
-                      <FeedImage
-                        item={a}
-                        alt={a.title}
-                        eager={i < 2}
-                        className="absolute inset-0 h-full w-full"
-                      />
-                    ) : (
-                      <div
-                        className={`absolute inset-0 ${
-                          a.id.charCodeAt(1) % 2 === 0
-                            ? "feed-grad-a"
-                            : "feed-grad-b"
-                        }`}
-                      />
-                    )}
-                    <div className="absolute inset-0 feed-scrim" />
+            {articles.map((a, i) => {
+              const fresh =
+                Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
+              return (
+                <a
+                  key={a.id}
+                  href={cleanUrl(a.url)}
+                  target="_blank"
+                  onPointerDown={() => warmOrigin(a.url)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (swiped.current) return;
+                  }}
+                  className="relative block w-full overflow-hidden bg-black"
+                  style={{ height: "var(--slide-h, var(--feed-h, 100svh))" }}
+                >
+                  {true ? (
+                    <FeedImage
+                      item={a}
+                      alt={a.title}
+                      eager={i < 2}
+                      className="absolute inset-0 h-full w-full"
+                    />
+                  ) : (
+                    <div
+                      className={`absolute inset-0 ${
+                        a.id.charCodeAt(1) % 2 === 0
+                          ? "feed-grad-a"
+                          : "feed-grad-b"
+                      }`}
+                    />
+                  )}
+                  <div className="absolute inset-0 feed-scrim" />
 
-                    {fresh && (
-                      <span className="absolute left-4 top-[104px] z-10 rounded-md bg-live px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live-foreground">
-                        Novo
-                      </span>
-                    )}
+                  {fresh && (
+                    <span className="absolute left-4 top-[104px] z-10 rounded-md bg-live px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live-foreground">
+                      Novo
+                    </span>
+                  )}
 
-                    <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/40 to-transparent px-5 pb-[max(1.35rem,calc(env(safe-area-inset-bottom)+0.85rem))] pr-[max(3.5rem,calc(env(safe-area-inset-right)+1rem))]">
-                      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
-                        <span className="text-live">{a.source}</span>
-                        <span className="text-feed-fg/60">·</span>
-                        <span className="text-feed-fg/80">{a.category}</span>
-                      </div>
-                      <StoryTitle
-                        title={a.title}
-                        open={openTitle === a.id}
-                        onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
-                      />
-                      <p className="mt-2.5 text-xs font-medium text-feed-fg/75">
-                        <span className="font-bold text-live">{timeAgo(a.publishedAt)}</span>{" "}
-                        · {formatClock(new Date(a.publishedAt))} · Toca para ler
-                      </p>
+                  {/* Bottom story */}
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/40 to-transparent px-5 pb-[max(1.35rem,calc(env(safe-area-inset-bottom)+0.85rem))] pr-20 pt-20">
+                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
+                      <span className="text-live">{a.source}</span>
+                      <span className="text-feed-fg/60">·</span>
+                      <span className="text-feed-fg/80">{a.category}</span>
                     </div>
+                    <StoryTitle
+                      title={a.title}
+                      open={openTitle === a.id}
+                      onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
+                    />
+                    <p className="mt-2.5 text-xs font-medium text-feed-fg/75">
+                      <span className="font-bold text-live">
+                        {timeAgo(a.publishedAt)}
+                      </span>{" "}
+                      · {formatClock(new Date(a.publishedAt))} · Toca para ler
+                    </p>
+                  </div>
 
-                    {i === 0 && (
-                      <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
-                        <ChevronDown className="size-6" />
-                      </div>
-                    )}
-                  </a>
-                );
-              })}
+                  {i === 0 && (
+                    <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
+                      <ChevronDown className="size-6" />
+                    </div>
+                  )}
+                </a>
+              );
+            })}
 
-              {isError && !articles.length && (
-                <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
-                  <p className="text-sm text-feed-fg/70">
-                    Não foi possível carregar as notícias. Tenta novamente dentro de instantes.
-                  </p>
-                </div>
-              )}
 
-              {query.isSuccess && !isError && !articles.length && (
-                <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
-                  <p className="font-display text-lg font-bold text-feed-fg/80">
-                    Sem notícias recentes nas últimas 24h
-                  </p>
-                </div>
-              )}
+            {isError && !articles.length && (
+              <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
+                <p className="text-sm text-feed-fg/70">
+                  Não foi possível carregar as notícias. Tenta novamente dentro
+                  de instantes.
+                </p>
+              </div>
+            )}
 
-              {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
-                <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center">
-                  <p className="text-sm font-medium text-feed-fg/70">
-                    Não há mais notícias recentes por agora. Volta daqui a pouco.
-                  </p>
-                </div>
-              )}
+            {query.isSuccess && !isError && !articles.length && (
+              <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
+                <p className="font-display text-lg font-bold text-feed-fg/80">
+                  Sem notícias recentes nas últimas 24h
+                </p>
+              </div>
+            )}
+
+            {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
+              <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center">
+                <p className="text-sm font-medium text-feed-fg/70">
+                  Não há mais notícias recentes por agora. Volta daqui a pouco.
+                </p>
+              </div>
+            )}
+
             </div>
           </div>
 
@@ -1123,6 +1132,7 @@ function Index() {
             </div>
           )}
 
+          {/* Top overlay: masthead + ticker + categories */}
           <div ref={mastheadRef} className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
             <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
               <div className="flex items-end justify-between">
@@ -1199,5 +1209,3 @@ function Index() {
     </div>
   );
 }
-
-export { Index as default };

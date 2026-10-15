@@ -92,9 +92,17 @@ async function fromPixabay(term: string, used: Set<string>) {
     hits = (d.hits ?? [])
       .filter((h) => {
         const tags = new Set(normalizeImageText(h.tags));
-        const matches = words.filter((word) => tags.has(word)).length;
-        const minimumMatches = words.length <= 1 ? 1 : 2;
-        return matches >= minimumMatches && adequateImage({ width: h.imageWidth, height: h.imageHeight });
+        const matches = words.filter((word) => tags.has(word) || [...tags].some((tag) =>
+          tag.length > 4 && word.length > 4 &&
+          (tag.startsWith(word.slice(0, 5)) || word.startsWith(tag.slice(0, 5))))).length;
+        const score = words.reduce((total, word) => {
+          const matched = tags.has(word) || [...tags].some((tag) =>
+            tag.length > 4 && word.length > 4 &&
+            (tag.startsWith(word.slice(0, 5)) || word.startsWith(tag.slice(0, 5))));
+          return total + (matched ? (word.length >= 7 ? 2 : 1) : 0);
+        }, 0);
+        return matches > 0 && score >= (words.length <= 2 ? 1 : 2) &&
+          adequateImage({ width: h.imageWidth, height: h.imageHeight });
       })
       .map((h) => ({ url: h.largeImageURL ?? h.fullHDURL ?? h.webformatURL, width: h.imageWidth, text: h.tags }));
     pixabayCache.set(k, { hits, expiresAt: Date.now() + PIXABAY_CACHE_TTL });

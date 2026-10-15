@@ -92,7 +92,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
           {failed && <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">{item.category ?? "Notícias"}</span>}
         </div>
       )}
-      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
+      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }} className="absolute inset-0 h-full w-full object-cover object-top animate-photo-in" />}
     </div>
   );
 }

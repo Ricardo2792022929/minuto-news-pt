@@ -707,6 +707,7 @@ function Index() {
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  const mastheadRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const countRef = useRef(0);
@@ -815,6 +816,17 @@ function Index() {
       img.src = src;
     }
   }, [articles]);
+
+  useEffect(() => {
+    const bar = mastheadRef.current;
+    const root = feedRef.current?.parentElement;
+    if (!bar || !root) return;
+    const apply = () => root.style.setProperty("--masthead-h", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [tab, tickerItems.length]);
 
   useEffect(() => {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
@@ -1019,7 +1031,7 @@ function Index() {
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="absolute inset-0 w-full h-full object-cover object-center"
+                      className="absolute inset-x-0 bottom-0 top-[var(--masthead-h,0px)] w-full"
                     />
                   ) : (
                     <div
@@ -1120,7 +1132,7 @@ function Index() {
           )}
 
           {/* Top overlay: masthead + ticker + categories */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
+          <div ref={mastheadRef} className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
             <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
               <div className="flex items-end justify-between">
                 <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">

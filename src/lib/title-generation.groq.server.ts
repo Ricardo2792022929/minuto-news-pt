@@ -5,7 +5,7 @@ const TIMEOUT_MS = 6_000;
 let groqCooldownUntil = 0;
 
 const SYSTEM = `És o editor do Flash Notícias. Resumes a notícia num título novo que prenda o scroll.
-- Português de Portugal.
+- Português de Portugal. Nunca inglês nem português do Brasil. Diz golo e equipa, não gol nem time.
 - No máximo 12 palavras. O ideal são 6 a 11.
 - É um resumo do facto, não o título original cortado. Escreve outra frase.
 - Começa por quem age ou pelo choque. Tom direto, tenso e provocador.
@@ -47,7 +47,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
         ],
       }),
     });

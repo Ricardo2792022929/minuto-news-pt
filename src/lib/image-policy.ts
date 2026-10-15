@@ -18,15 +18,9 @@ export const CATEGORY_PHOTOS: Record<string, string> = {
 
 const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso|roubo)/i;
 
-/** Imagem garantida (Picsum seedado) — sempre carrega, estável por ID. */
-export function guaranteedImage(id: string, category?: string): string {
-  const categorySeed: Record<string, string> = {
-    "Crime": "news-crime", "Política": "news-politics", "Economia": "news-economy",
-    "Desporto": "news-sport", "Mundo": "news-world", "Cultura": "news-culture", "Tech": "news-tech",
-  };
-  const seed = (id || categorySeed[category ?? ""] || category || "news")
-    .replace(/[^a-zA-Z0-9-]/g, "").slice(0, 48) || "news";
-  return `https://picsum.photos/seed/${seed}/1200/800`;
+/** Imagem ilustrativa local por categoria; não apresenta uma fotografia aleatória como se fosse da notícia. */
+export function guaranteedImage(_id: string, category?: string): string {
+  return CATEGORY_PHOTOS[category ?? "Mundo"] ?? photo4.url;
 }
 
 export function categoryImage(category?: string, title = "", id = ""): string {

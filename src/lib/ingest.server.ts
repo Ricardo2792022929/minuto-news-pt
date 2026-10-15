@@ -229,20 +229,24 @@ async function fromWikipedia(entity: string): Promise<string | null> {
   }
 }
 
-async function findHdImage(term: string, used: Set<string>): Promise<string | null> {
-  if (!term.trim()) return null;
+async function findHdImage(term: string, used: Set<string>): Promise<string[]> {
+  if (!term.trim()) return [];
   const queries = imageSearchTerms(term);
   const preferred = await sceneQuery(term);
   if (preferred && !queries.includes(preferred)) queries.unshift(preferred);
-  const providers: [string, (query: string, used: Set<string>) => Promise<string | null][] = [
+  const providers: [string, (query: string, used: Set<string>) => Promise<string | null>][] = [
     ["pexels", fromPexels], ["unsplash", fromUnsplash], ["pixabay", fromPixabay],
     ["wikimedia", fromWikimediaCommons], ["openverse", fromOpenverse],
   ];
-  for (const query of queries.slice(0, 3)) for (const [service, provider] of providers) {
-    try { const img = await provider(query, used); if (img) return img; }
-    catch { rejectImage(service, "provider_error"); }
+  for (const query of queries.slice(0, 3)) {
+    const found: string[] = [];
+    for (const [service, provider] of providers) {
+      try { const img = await provider(query, used); if (img) found.push(img); }
+      catch { rejectImage(service, "provider_error"); }
+    }
+    if (found.length) return found.slice(0, 5);
   }
-  return null;
+  return [];
 }
 
 export async function runIngest(): Promise<Record<string, unknown>> {
@@ -365,9 +369,11 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       await Promise.all((missing ?? []).map(async (m) => {
         const term = [m.original_title, m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
         try {
-          const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
+          const articleImage = await fromArticlePage(m.url);
+          const found = articleImage ? [articleImage] : await findHdImage(term, used);
+          const img = found[0];
           if (!img) return;
-          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.original_title ?? m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_status: "search", image_candidates: [img], image_query: null }).eq("id", m.id);
+          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.original_title ?? m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_status: articleImage ? "original" : "search", image_candidates: found, image_query: null }).eq("id", m.id);
         } catch { /* ignore */ }
       }));
     }

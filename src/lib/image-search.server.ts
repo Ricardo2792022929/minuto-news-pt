@@ -31,11 +31,11 @@ export function imageSearchTerms(title: string): string[] {
   const named = namedQuery(title);
   if (named) return [named];
   const terms = extractImageTerms(title);
-  if (!terms.length) return [title.slice(0, 60)];
+  if (!terms.length) return [title.trim().slice(0, 80)];
   const results: string[] = [];
   if (terms.length >= 2) results.push(terms.slice(0, 3).join(" "));
   if (terms.length >= 2) results.push(terms.slice(0, 2).join(" "));
-  return [...new Set(results)];
+  return [...new Set([...results, terms.join(" ")])];
 }
 
 export function namedQuery(title: string): string | null {

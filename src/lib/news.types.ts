@@ -8,4 +8,6 @@ export interface NewsItem {
   publishedAt: string;
   image?: string;
   imageCandidates?: string[];
+  imageStatus?: "original" | "search" | "provisional";
+  imageCandidates?: string[];
 }

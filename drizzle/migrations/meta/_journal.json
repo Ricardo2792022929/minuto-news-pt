@@ -29,6 +29,13 @@
       "when": 1791284301687,
       "tag": "0003_articles_resumo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792079963592,
+      "tag": "0004_story_image_pipeline",
+      "breakpoints": true
     }
   ]
 }

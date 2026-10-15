@@ -708,6 +708,7 @@ function Index() {
   const feedRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const mastheadRef = useRef<HTMLDivElement>(null);
+  const [mastheadH, setMastheadH] = useState(0);
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const countRef = useRef(0);
@@ -818,15 +819,15 @@ function Index() {
   }, [articles]);
 
   useEffect(() => {
+    if (!mounted || tab !== "feed") return;
     const bar = mastheadRef.current;
-    const root = feedRef.current?.parentElement;
-    if (!bar || !root) return;
-    const apply = () => root.style.setProperty("--masthead-h", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    if (!bar) return;
+    const apply = () => setMastheadH(Math.ceil(bar.getBoundingClientRect().height));
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(bar);
     return () => observer.disconnect();
-  }, [tab]);
+  }, [tab, mounted]);
 
   useEffect(() => {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
@@ -958,7 +959,7 @@ function Index() {
       view.removeEventListener("pointercancel", up);
       view.removeEventListener("wheel", wheel);
     };
-  }, [tab, mounted]);
+  }, [tab, mounted, mastheadH]);
 
   const tickerItems = useMemo(
     () =>
@@ -1008,7 +1009,7 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div ref={feedRef} className="absolute inset-0 overflow-hidden" style={{ touchAction: "none" }}>
+          <div ref={feedRef} className="absolute inset-x-0 bottom-0 overflow-hidden" style={{ top: mastheadH, touchAction: "none" }}>
             <div ref={trackRef} className="will-change-transform">
             {articles.map((a, i) => {
               const fresh =
@@ -1031,7 +1032,7 @@ function Index() {
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="absolute inset-x-0 bottom-0 top-[var(--masthead-h,0px)] w-full"
+                      className="absolute inset-0 h-full w-full"
                     />
                   ) : (
                     <div

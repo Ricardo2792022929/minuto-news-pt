@@ -18,10 +18,10 @@ function StoryTitle({
   const words = title.trim().split(/\s+/).filter(Boolean).length;
   const size =
     words > 10 || title.length > 78
-      ? "text-[clamp(1.18rem,4.8vw,1.5rem)]"
+      ? "text-[clamp(1.25rem,5vw,1.6rem)]"
       : words > 7
-        ? "text-[clamp(1.34rem,5.4vw,1.75rem)]"
-        : "text-[clamp(1.5rem,6.2vw,2rem)]";
+        ? "text-[clamp(1.42rem,5.7vw,1.85rem)]"
+        : "text-[clamp(1.58rem,6.5vw,2.1rem)]";
 
   useEffect(() => {
     const el = ref.current;
@@ -38,7 +38,7 @@ function StoryTitle({
       <h2
         ref={ref}
         className={`mt-1.5 w-full text-left font-display font-bold leading-[1.2] tracking-tight text-pretty break-words text-feed-fg drop-shadow-md ${size} ${
-          open ? "max-h-[40vh] overflow-y-auto" : "line-clamp-3"
+          open ? "max-h-[40vh] overflow-y-auto" : "line-clamp-4"
         }`}
       >
         {title}
@@ -1052,7 +1052,7 @@ function Index() {
                   )}
 
                   {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/40 to-transparent px-5 pb-[max(1.35rem,calc(env(safe-area-inset-bottom)+0.85rem))] pr-20 pt-20">
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-5 pb-[max(1.1rem,calc(env(safe-area-inset-bottom)+0.7rem))] pr-16 pt-16">
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
                       <span className="text-live">{a.source}</span>
                       <span className="text-feed-fg/60">·</span>

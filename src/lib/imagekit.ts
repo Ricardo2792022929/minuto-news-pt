@@ -1,19 +1,20 @@
-/** ImageKit permanente. Todas as fotos da app passam por aqui. */
+/** ImageKit centraliza a entrega e as transformações das imagens externas. */
 export const IMAGEKIT_ENDPOINT = "https://ik.imagekit.io/1aur3rser";
 
-/**
- * A ImageKit analisa a foto e centra na parte importante (fo-auto).
- * 1080x1680 é o espaço visível entre as abas e a barra de baixo.
- * Qualidade 85, formato automático, nitidez extra (e-sharpen). Sem ampliar à força.
- */
-const TRANSFORM = "tr:w-1080,h-1680,fo-auto,q-85,f-auto,e-sharpen-2";
+type ImageProfile = "feed" | "article";
 
-export function imageKitUrl(url: string | null | undefined): string | null {
+/** Perfis próprios: cartões horizontais no feed e imagens maiores no artigo. */
+const TRANSFORMS: Record<ImageProfile, string> = {
+  feed: "tr:w-1200,h-800,fo-auto,cm-extract,q-auto,f-auto",
+  article: "tr:w-1600,h-1000,fo-auto,cm-extract,q-auto,f-auto",
+};
+
+export function imageKitUrl(url: string | null | undefined, profile: ImageProfile = "feed"): string | null {
   if (!url || url.startsWith("/") || url.startsWith("data:")) return null;
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" || parsed.hostname === "ik.imagekit.io") return null;
-    return `${IMAGEKIT_ENDPOINT}/${TRANSFORM}/${url}`;
+    return `${IMAGEKIT_ENDPOINT}/${TRANSFORMS[profile]}/${url}`;
   } catch {
     return null;
   }

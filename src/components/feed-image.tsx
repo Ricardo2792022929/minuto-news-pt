@@ -31,6 +31,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   const [active, setActive] = useState(eager);
   const [ready, setReady] = useState<string | null>(null);
   const [attemptIndex, setAttemptIndex] = useState(0);
+  const [finished, setFinished] = useState(false);
   const urls = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
   const attempts = useMemo(() => urls.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value)))]), [urls]);
 
@@ -51,6 +52,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
     if (!active) return;
     let cancelled = false;
     setReady(null);
+    setFinished(false);
     const loadNext = async () => {
       for (let index = attemptIndex; index < attempts.length; index += 1) {
         const src = attempts[index];
@@ -63,6 +65,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
       }
       if (!cancelled) {
         setReady(null);
+        setFinished(true);
         console.info("feed_image_failed", JSON.stringify({ category: item.category, imageStatus: item.imageStatus, candidates: urls.length }));
       }
     };
@@ -70,7 +73,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
     return () => { cancelled = true; };
   }, [active, attemptIndex, attempts, item.category, item.imageStatus, urls.length]);
 
-  const failed = !ready && active && (attempts.length === 0 || attemptIndex >= attempts.length);
+  const failed = !ready && active && finished;
   return (
     <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (

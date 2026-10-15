@@ -86,6 +86,9 @@ export const getNews = createServerFn({ method: "GET" })
       category: string;
       url: string;
       image: string | null;
+      image_query: string | null;
+      image_status: "original" | "search" | "provisional" | null;
+      image_candidates: unknown;
       titulo_inedito: string;
       resumo: string | null;
       original_title: string | null;
@@ -102,7 +105,9 @@ export const getNews = createServerFn({ method: "GET" })
         excerpt,
         url: r.url,
         publishedAt: r.published_at,
-        image: r.image_query || r.image_status === "provisional" ? undefined : finalImageUrl(r.image, category, r.titulo_inedito, r.id) || undefined,\n        imageStatus: r.image_query ? "provisional" : (r.image_status ?? "original"),\n        imageCandidates: Array.isArray(r.image_candidates) ? r.image_candidates.filter((candidate): candidate is string => typeof candidate === "string") : [],
+        image: r.image_query || r.image_status === "provisional" ? undefined : finalImageUrl(r.image, category, r.titulo_inedito, r.id) || undefined,
+        imageStatus: r.image_query ? "provisional" : (r.image_status ?? "original"),
+        imageCandidates: Array.isArray(r.image_candidates) ? r.image_candidates.filter((candidate): candidate is string => typeof candidate === "string") : [],
       };
     };
     const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);

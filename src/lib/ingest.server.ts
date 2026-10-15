@@ -107,6 +107,39 @@ async function fromOpenverse(term: string, used: Set<string>) {
   return pickBest((d.results ?? []).map((r) => ({ ...r, text: r.title })), used, term);
 }
 
+async function fromWikimediaCommons(term: string, used: Set<string>) {
+  if (!term.trim()) return null;
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    generator: "search",
+    gsrsearch: `filetype:bitmap ${term.slice(0, 100)}`,
+    gsrnamespace: "6",
+    gsrlimit: "20",
+    prop: "imageinfo",
+    iiprop: "url|size|extmetadata",
+    iiurlwidth: "1600",
+  });
+  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
+    headers: { "User-Agent": "MinutoNews/1.0 (news image search)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return null;
+  const d = (await res.json()) as {
+    query?: { pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; extmetadata?: { LicenseShortName?: { value?: string } } }[]> };
+  };
+  const hits: Hit[] = Object.values(d.query?.pages ?? []).flatMap((page) => {
+    const info = page.imageinfo?.[0];
+    const license = info?.extmetadata?.LicenseShortName?.value ?? "";
+    // Usar apenas domínio público/CC0 para não publicar imagens que exijam atribuição sem a guardar.
+    if (!info || !/(public domain|cc0|creative commons zero)/i.test(license)) return [];
+    const url = info.thumburl ?? info.url;
+    if (!url || !/^https:\/\//.test(url) || /\.svg(?:\?|$)/i.test(url)) return [];
+    return [{ url, width: info.width, text: page.title ?? "" }];
+  });
+  return pickBest(hits, used, term);
+}
+
 async function fromArticlePage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -164,7 +197,7 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
       }
     } catch { /* continua */ }
   }
-  for (const fn of [fromPexels, fromUnsplash, fromPixabay, fromOpenverse]) {
+  for (const fn of [fromPexels, fromUnsplash, fromPixabay, fromWikimediaCommons, fromOpenverse]) {
     try {
       const img = await fn(query, used);
       if (img) return img;

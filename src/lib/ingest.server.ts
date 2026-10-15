@@ -16,9 +16,19 @@ const BUDGET_MS = 26_000;
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
-const pickRandom = (arr: Hit[], used: Set<string>) => {
-  const ok = arr.filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url));
-  const pick = ok[Math.floor(Math.random() * ok.length)]?.url ?? null;
+const pickBest = (arr: Hit[], used: Set<string>, term = "") => {
+  const words = term.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/\W+/).filter((word) => word.length > 2);
+  const candidates = arr
+    .filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`)
+      && /^https:\/\//.test(r.url) && !used.has(r.url))
+    .map((r) => {
+      const text = `${r.text ?? ""} ${r.url}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const matches = words.reduce((score, word) => score + (text.includes(word) ? 1 : 0), 0);
+      return { ...r, score: matches * 100 + Math.min(r.width ?? 0, 4000) / 1000 };
+    })
+    .sort((a, b) => b.score - a.score);
+  const pick = candidates[0]?.url ?? null;
   if (pick) used.add(pick);
   return pick;
 };
@@ -26,14 +36,14 @@ const pickRandom = (arr: Hit[], used: Set<string>) => {
 async function fromUnsplash(term: string, used: Set<string>) {
   const key = process.env["UNSPLASH_ACCESS_KEY"];
   if (!key) return null;
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
-    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(term)}&orientation=portrait&per_page=20&page=${page}&content_filter=high`,
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}&content_filter=high`,
     { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: { width: number; alt_description?: string; description?: string; urls: { raw: string } }[] };
-  return pickRandom((d.results ?? []).map((r) => ({ url: `${r.urls.raw}&w=800&q=80&fit=crop`, width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` })), used);
+  return pickBest((d.results ?? []).map((r) => { const imageUrl = new URL(r.urls.raw); imageUrl.searchParams.set("w", "1600"); imageUrl.searchParams.set("q", "80"); imageUrl.searchParams.set("fit", "crop"); return { url: imageUrl.toString(), width: r.width, text: `${r.alt_description ?? ""} ${r.description ?? ""}` }; }), used, term);
 }
 
 const PIXABAY_CACHE_TTL = 20 * 60 * 60_000;
@@ -47,7 +57,7 @@ async function fromPixabay(term: string, used: Set<string>) {
   if (!hits) {
     const params = new URLSearchParams({
       key, q: term.slice(0, 100), lang: "pt", image_type: "photo",
-      orientation: "horizontal", min_width: "800", min_height: "600",
+      orientation: "horizontal", min_width: "1000", min_height: "600",
       safesearch: "true", per_page: "20",
     });
     const res = await fetch(`https://pixabay.com/api/?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
@@ -76,25 +86,25 @@ async function fromPixabay(term: string, used: Set<string>) {
 async function fromPexels(term: string, used: Set<string>) {
   const key = process.env["PEXELS_API_KEY"];
   if (!key) return null;
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
-    `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=portrait&per_page=20&page=${page}`,
+    `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=landscape&per_page=20&page=${page}`,
     { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { photos?: { width: number; alt?: string; src: { large2x: string } }[] };
-  return pickRandom((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width, text: p.alt })), used);
+  return pickBest((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width, text: p.alt })), used, term);
 }
 
 async function fromOpenverse(term: string, used: Set<string>) {
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
     `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&category=photograph&page_size=20&page=${page}&mature=false`,
     { headers: { "User-Agent": "FlashNoticias/1.0" }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
-  return pickRandom((d.results ?? []).map((r) => ({ ...r, text: r.title })), used);
+  return pickBest((d.results ?? []).map((r) => ({ ...r, text: r.title })), used, term);
 }
 
 async function fromArticlePage(url: string): Promise<string | null> {
@@ -107,9 +117,15 @@ async function fromArticlePage(url: string): Promise<string | null> {
     const html = (await res.text()).slice(0, 200_000);
     const candidates: string[] = [];
     for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
-      if (!/(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["']/i.test(meta[0])) continue;
-      const value = meta[0].match(/content=["']([^"']+)["']/i)?.[1];
-      if (value) candidates.push(value);
+      const tag = meta[0];
+      const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+      if (!property || !["og:image", "og:image:secure_url", "twitter:image"].includes(property)) continue;
+      const value = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&");
+      if (!value) continue;
+      try {
+        const imageUrl = new URL(value, url);
+        if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
+      } catch { /* metadado inválido */ }
     }
     return candidates.find((v) => !isLowResImage(v) && !/logo|default|placeholder|\.svg/i.test(v)) ?? null;
   } catch {
@@ -139,7 +155,7 @@ async function findHdImage(term: string, used: Set<string>): Promise<string | nu
   if (!term) return null;
   const query = (await sceneQuery(term)).trim();
   if (!query) return null;
-  if (query.split(/\s+/).length >= 2) {
+  if (/^Pope (Leo XIV|Francis)$/i.test(query)) {
     try {
       const wiki = await fromWikipedia(query);
       if (wiki && !used.has(wiki)) {

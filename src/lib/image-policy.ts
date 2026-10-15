@@ -20,7 +20,12 @@ const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso
 
 /** Imagem garantida (Picsum seedado) — sempre carrega, estável por ID. */
 export function guaranteedImage(id: string, category?: string): string {
-  const seed = (id || category || "news").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "flash";
+  const categorySeed: Record<string, string> = {
+    "Crime": "news-crime", "Política": "news-politics", "Economia": "news-economy",
+    "Desporto": "news-sport", "Mundo": "news-world", "Cultura": "news-culture", "Tech": "news-tech",
+  };
+  const seed = (id || categorySeed[category ?? ""] || category || "news")
+    .replace(/[^a-zA-Z0-9-]/g, "").slice(0, 48) || "news";
   return `https://picsum.photos/seed/${seed}/1200/800`;
 }
 
@@ -40,7 +45,7 @@ export function finalImageUrl(raw: string | null | undefined, category?: string,
     if (/logo|placeholder|default|blank|pixel|1x1|spacer/i.test(url.pathname + url.search)) {
       return guaranteedImage(id, category);
     }
-    if (/(^|\.)(images\.unsplash\.com|images\.pexels\.com|[^.]+\.imgix\.net)$/.test(url.hostname)) {
+    if (url.hostname === "images.unsplash.com" || url.hostname === "images.pexels.com" || url.hostname.endsWith(".imgix.net")) {
       url.searchParams.set("w", "1200");
       url.searchParams.set("q", "80");
       url.searchParams.set("fit", "crop");

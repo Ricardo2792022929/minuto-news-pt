@@ -9,6 +9,7 @@ import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
 import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
+import { imageFromArticlePage } from "./article-image.server";
 import { chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
@@ -180,27 +181,8 @@ async function fromWikimediaCommons(term: string, used: Set<string>, storyTitle 
 
 async function fromArticlePage(url: string): Promise<string | null> {
   try {
-    const res = await imageRequest("article", url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0)", "Accept-Language": "pt-PT" },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 200_000);
-    const candidates: string[] = [];
-    for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
-      const tag = meta[0];
-      const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-      if (!property || !["og:image", "og:image:secure_url", "twitter:image"].includes(property)) continue;
-      const value = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1]?.replace(/&amp;/g, "&");
-      if (!value) continue;
-      try {
-        const imageUrl = new URL(value, url);
-        if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
-      } catch { /* metadado inválido */ }
-    }
-    metric("article").resultsFound += candidates.length;
-    const chosen = await chooseOriginal(candidates);
-    if (!chosen) { rejectImage("article", candidates.length ? "rejected_candidate" : "no_results"); return null; }
+    const chosen = await imageFromArticlePage(url);
+    if (!chosen) { rejectImage("article", "no_results"); return null; }
     metric("article").accepted++;
     return chosen;
   } catch {
@@ -396,7 +378,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     if (!expired()) {
       const { data: recentImages } = await db.from("articles").select("image").not("image", "is", null).order("published_at", { ascending: false }).limit(80);
       for (const row of recentImages ?? []) if (row.image) rememberImage(used, row.image);
-      const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).limit(4);
+      const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).order("published_at", { ascending: false }).limit(6);
       await Promise.all((missing ?? []).map(async (m) => {
         const term = (m.original_title ?? m.titulo_inedito ?? "").trim();
         const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();

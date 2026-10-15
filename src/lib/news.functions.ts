@@ -327,6 +327,21 @@ export const getNews = createServerFn({ method: "GET" })
         pendingFixes.map((fix) => db.from("articles").update({ category: fix.category }).eq("id", fix.id)),
       );
     }
+    const bare = mixed.filter((item) => !item.image).slice(0, 4);
+    if (bare.length && process.env["SUPABASE_SERVICE_ROLE_KEY"]) {
+      try {
+        const { imageFromArticlePage } = await import("./article-image.server");
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await Promise.all(bare.map(async (item) => {
+          const image = storyImageUrl(await imageFromArticlePage(item.url));
+          if (!image) return;
+          item.image = image;
+          item.imageStatus = "original";
+          await supabaseAdmin.from("articles").update({ image, image_query: null }).eq("id", item.id);
+        }));
+      } catch { /* o feed abre mesmo que a fotografia da fonte falhe */ }
+    }
+
     return { items: mixed, total, hasMore: nextOffset < total, nextOffset };
   });
 

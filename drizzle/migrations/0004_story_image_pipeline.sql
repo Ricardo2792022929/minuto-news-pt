@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS public.image_api_metrics (
   failures integer NOT NULL DEFAULT 0,
   latency_ms integer NOT NULL DEFAULT 0,
   rejection_reasons jsonb NOT NULL DEFAULT '{}'::jsonb,
+  run_id text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.image_api_metrics ADD COLUMN IF NOT EXISTS run_id text;
 ALTER TABLE public.image_api_metrics ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.image_api_metrics TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.image_api_metrics_id_seq TO service_role;

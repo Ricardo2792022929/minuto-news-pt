@@ -28,12 +28,21 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   eager?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const failedSrc = useRef(new Set<string>());
+  const generation = useRef(0);
   const [active, setActive] = useState(eager);
   const [ready, setReady] = useState<string | null>(null);
-  const [attemptIndex, setAttemptIndex] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [nonce, setNonce] = useState(0);
   const urls = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
   const attempts = useMemo(() => urls.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value)))]), [urls]);
+  const attemptKey = attempts.join("\n");
+
+  useEffect(() => {
+    failedSrc.current = new Set();
+    setReady(null);
+    setFinished(false);
+  }, [item.id, attemptKey]);
 
   useEffect(() => {
     const element = container.current;
@@ -50,20 +59,22 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
 
   useEffect(() => {
     if (!active) return;
+    const token = ++generation.current;
     let cancelled = false;
-    setReady(null);
-    setFinished(false);
     const loadNext = async () => {
-      for (let index = attemptIndex; index < attempts.length; index += 1) {
-        const src = attempts[index];
-        if (!src) continue;
+      for (const src of attempts) {
+        if (!src || failedSrc.current.has(src)) continue;
         try {
           await preloadImage(src);
-          if (!cancelled) { setAttemptIndex(index); setReady(src); }
+          if (cancelled || token !== generation.current) return;
+          setReady(src);
+          setFinished(false);
           return;
-        } catch { /* tenta a próxima URL desta notícia */ }
+        } catch {
+          failedSrc.current.add(src);
+        }
       }
-      if (!cancelled) {
+      if (!cancelled && token === generation.current) {
         setReady(null);
         setFinished(true);
         console.info("feed_image_failed", JSON.stringify({ category: item.category, imageStatus: item.imageStatus, candidates: urls.length }));
@@ -71,18 +82,18 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
     };
     void loadNext();
     return () => { cancelled = true; };
-  }, [active, attemptIndex, attempts, item.category, item.imageStatus, urls.length]);
+  }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length]);
 
   const failed = !ready && active && finished;
   return (
     <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-950 px-6 text-center text-white/75" role="img" aria-label={`Fotografia indisponível; categoria ${item.category ?? "Notícias"}`}>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-950 px-6 text-center text-white/75" role="img" aria-label={failed ? `Fotografia indisponível; categoria ${item.category ?? "Notícias"}` : `A carregar fotografia; categoria ${item.category ?? "Notícias"}`}>
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">{item.category ?? "Notícias"}</span>
-          <span className="text-sm">Fotografia indisponível</span>
+          {failed && <span className="text-sm">Fotografia indisponível</span>}
         </div>
       )}
-      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { setReady(null); setAttemptIndex((index) => index + 1); }} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
+      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }} className="absolute inset-0 h-full w-full object-cover object-center animate-photo-in" />}
     </div>
   );
 }

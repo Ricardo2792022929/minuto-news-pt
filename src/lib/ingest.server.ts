@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
 import { generateOne, GatewayError, validTitle, isPublishableTitle } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
@@ -5,8 +6,8 @@ import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
 import { generateCloudflareOne } from "./title-generation.cloudflare.server";
 import { imageKitUrl } from "./imagekit";
-import { finalImageUrl, guaranteedImage } from "./image-policy";
-import { sceneQuery, imageSearchTerms } from "./image-search.server";
+import { storyImageUrl } from "./image-policy";
+import { sceneQuery, imageSearchTerms, namedQuery } from "./image-search.server";
 import { inspectImage, chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
@@ -14,8 +15,13 @@ const BATCH = 10;
 const MAX_BATCHES = 2;
 const BUDGET_MS = 26_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
-let imageMetrics: Record<string, ImageMetric> = {};
-function metric(service: string): ImageMetric { return imageMetrics[service] ??= { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
+const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
+function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
+function metric(service: string): ImageMetric {
+  const bag = imageMetricsStore.getStore();
+  if (!bag) return emptyMetric();
+  return bag[service] ??= emptyMetric();
+}
 function rejectImage(service: string, reason: string) { const m = metric(service); m.rejectionReasons[reason] = (m.rejectionReasons[reason] ?? 0) + 1; }
 function missingImageKey(service: string) { metric(service).failures++; rejectImage(service, "missing_api_key"); }
 async function imageRequest(service: string, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -23,10 +29,24 @@ async function imageRequest(service: string, input: RequestInfo | URL, init?: Re
   try {
     const response = await fetch(input, init);
     if (!response.ok) { m.failures++; rejectImage(service, `http_${response.status}`); }
-    else try { const payload = await response.clone().json() as Record<string, unknown>; for (const key of ["results", "photos", "hits", "pages"]) if (Array.isArray(payload[key])) { m.resultsFound += (payload[key] as unknown[]).length; break; } } catch { /* resposta sem JSON */ }
+    else try {
+      const payload = await response.clone().json() as Record<string, unknown>;
+      for (const key of ["results", "photos", "hits", "pages"]) {
+        if (Array.isArray(payload[key])) {
+          const count = (payload[key] as unknown[]).length;
+          m.resultsFound += count;
+          if (!count) rejectImage(service, "no_results");
+          break;
+        }
+      }
+    } catch { /* resposta sem JSON */ }
     return response;
-  } catch (error) { m.failures++; rejectImage(service, error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network_error"); throw error; }
-  finally { m.latencyMs += Date.now() - started; }
+  } catch (error) {
+    m.failures++;
+    const name = error instanceof Error ? error.name : "";
+    rejectImage(service, name === "TimeoutError" || name === "AbortError" ? "timeout" : "network_error");
+    throw error;
+  } finally { m.latencyMs += Date.now() - started; }
 }
 
 type Hit = { url: string; width?: number; text?: string | undefined };
@@ -42,18 +62,22 @@ const normalizeImageText = (value: string) => value.toLowerCase().normalize("NFD
   .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
 const pickBest = (arr: Hit[], used: Set<string>, term: string, service: string) => {
   const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
-  if (!words.length) { rejectImage(service, "no_specific_terms"); return null; }
+  const entities = new Set(normalizeImageText((term.match(/\b\p{Lu}[\p{L}'’.-]{2,}/gu) ?? []).join(" ")));
+  if (!words.length && !entities.size) { rejectImage(service, "no_specific_terms"); return null; }
   const candidates = arr.filter((r) => (r.width ?? 0) >= 640 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`) && /^https:\/\//.test(r.url) && !used.has(r.url))
     .map((r) => {
       const textWords = new Set(normalizeImageText(`${r.text ?? ""} ${r.url}`));
-      const matches = words.filter((word) => textWords.has(word) || [...textWords].some((candidate) => candidate.length > 4 && word.length > 4 && (candidate.startsWith(word.slice(0, 5)) || word.startsWith(candidate.slice(0, 5)))));
-      const phrase = normalizeImageText(r.text ?? "").join(" "), title = normalizeImageText(term).join(" ");
-      const bonus = title.length > 12 && phrase.includes(title.slice(0, 18)) ? 2 : 0;
-      return { ...r, score: matches.reduce((sum, word) => sum + (word.length >= 7 ? 2 : 1), 0) + bonus };
-    }).filter((r) => r.score >= (words.length <= 2 ? 1 : 2)).sort((x, y) => y.score - x.score || (y.width ?? 0) - (x.width ?? 0));
+      const matches = [...new Set([...(words.length ? words : [...entities])])].filter((word) => textWords.has(word) || [...textWords].some((candidate) => candidate.length > 4 && word.length > 4 && (candidate.startsWith(word.slice(0, 5)) || word.startsWith(candidate.slice(0, 5)))));
+      const phrase = normalizeImageText(r.text ?? "").join(" ");
+      const generic = /\b(background|abstract|wallpaper|texture|pattern|skyline|flag|bandeira)\b/.test(phrase);
+      const entityHit = matches.some((word) => entities.has(word));
+      if (generic && !entityHit) return { ...r, score: 0, entityHit: false };
+      const score = matches.reduce((sum, word) => sum + (entityHit && entities.has(word) ? 2 : word.length >= 7 ? 2 : 1), 0);
+      return { ...r, score, entityHit };
+    }).filter((r) => r.entityHit || r.score >= ((words.length <= 2) ? 1 : 2)).sort((x, y) => y.score - x.score || (y.width ?? 0) - (x.width ?? 0));
   const pick = candidates.find((r) => !used.has(r.url))?.url ?? null;
   if (pick) { used.add(pick); metric(service).accepted++; }
-  else rejectImage(service, arr.length ? "not_relevant_or_too_small" : "no_results");
+  else rejectImage(service, arr.length ? "rejected_candidate" : "no_results");
   return pick;
 };
 
@@ -164,7 +188,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
     .map((page) => page.title ?? "")
     .filter((title) => /^File:/i.test(title))
     .slice(0, 20);
-  if (!titles.length) return null;
+  if (!titles.length) { rejectImage("wikimedia", searchData.pages?.length ? "rejected_candidate" : "no_results"); return null; }
 
   const params = new URLSearchParams({
     action: "query",
@@ -195,7 +219,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
 
 async function fromArticlePage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, {
+    const res = await imageRequest("article", url, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0)", "Accept-Language": "pt-PT" },
       signal: AbortSignal.timeout(5000),
     });
@@ -213,7 +237,11 @@ async function fromArticlePage(url: string): Promise<string | null> {
         if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
       } catch { /* metadado inválido */ }
     }
-    return await chooseOriginal(candidates);
+    metric("article").resultsFound += candidates.length;
+    const chosen = await chooseOriginal(candidates);
+    if (!chosen) { rejectImage("article", candidates.length ? "rejected_candidate" : "no_results"); return null; }
+    metric("article").accepted++;
+    return chosen;
   } catch {
     return null;
   }
@@ -222,15 +250,19 @@ async function fromArticlePage(url: string): Promise<string | null> {
 async function fromWikipedia(entity: string): Promise<string | null> {
   if (!entity) return null;
   try {
-    const res = await fetch(
+    const res = await imageRequest("wikipedia",
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entity.trim().replace(/\s+/g, "_"))}?redirect=true`,
       { headers: { "User-Agent": "FlashNoticias/1.0 (news app)" }, signal: AbortSignal.timeout(5000) },
     );
     if (!res.ok) return null;
     const d = (await res.json()) as { type?: string; originalimage?: { source: string; width: number }; thumbnail?: { source: string; width: number } };
-    if (d.type === "disambiguation") return null;
+    if (d.type === "disambiguation") { rejectImage("wikipedia", "rejected_candidate"); return null; }
     const img = d.originalimage ?? d.thumbnail;
-    if (!img || img.width < 500 || !/^https:\/\//.test(img.source) || /\.svg/i.test(img.source) || MAP_RE.test(img.source)) return null;
+    if (!img || img.width < 500 || !/^https:\/\//.test(img.source) || /\.svg/i.test(img.source) || MAP_RE.test(img.source)) {
+      rejectImage("wikipedia", "rejected_candidate");
+      return null;
+    }
+    metric("wikipedia").accepted++;
     return img.source;
   } catch {
     return null;
@@ -242,25 +274,42 @@ async function findHdImage(term: string, used: Set<string>, description = ""): P
   const queries = imageSearchTerms(term, description);
   const preferred = await sceneQuery(term);
   if (preferred && !queries.includes(preferred)) queries.unshift(preferred);
+  const found: string[] = [];
+  const named = namedQuery(term);
+  if (named) {
+    try {
+      const portrait = await fromWikipedia(named);
+      if (portrait && !used.has(portrait)) { used.add(portrait); found.push(portrait); }
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "";
+      if (name !== "TimeoutError" && name !== "AbortError" && name !== "TypeError") rejectImage("wikipedia", "provider_error");
+    }
+  }
   const providers: [string, (query: string, used: Set<string>) => Promise<string | null>][] = [
     ["pexels", fromPexels], ["unsplash", fromUnsplash], ["pixabay", fromPixabay],
     ["wikimedia", fromWikimediaCommons], ["openverse", fromOpenverse],
   ];
   for (const query of queries.slice(0, 3)) {
-    const found: string[] = [];
     for (const [service, provider] of providers) {
+      if (found.length >= 5) return found;
       try { const img = await provider(query, used); if (img) found.push(img); }
-      catch { rejectImage(service, "provider_error"); }
+      catch (error) {
+        const name = error instanceof Error ? error.name : "";
+        if (name !== "TimeoutError" && name !== "AbortError" && name !== "TypeError") rejectImage(service, "provider_error");
+      }
     }
     if (found.length) return found.slice(0, 5);
   }
-  return [];
+  return found.slice(0, 5);
 }
 
 export async function runIngest(): Promise<Record<string, unknown>> {
+  return imageMetricsStore.run({}, () => runIngestWithMetrics());
+}
+
+async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
   const started = Date.now();
-  imageMetrics = {};
   const expired = () => Date.now() - started > BUDGET_MS;
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
@@ -340,15 +389,17 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         const { n, titulo, resumo } = item;
         const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
         const rawImage = verifiedImages[itemIndex] ?? null;
+        const safeImage = storyImageUrl(rawImage);
+        const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
         const row = {
           id: n.id,
           source: (n.source || "Lusa").slice(0, 120),
           category,
           url: n.url.slice(0, 2000),
-          image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
-          image_status: rawImage ? "original" : "provisional",
-          image_candidates: (n.imageCandidates ?? []).filter((candidate) => candidate !== rawImage).slice(0, 4),
-          image_query: rawImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
+          image: safeImage,
+          image_status: safeImage ? "original" : "provisional",
+          image_candidates: sameStory,
+          image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
           original_title: n.title.slice(0, 500),
           titulo_inedito: titulo.slice(0, 180),
           resumo: resumo.slice(0, 300),
@@ -356,8 +407,9 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           published_at: n.publishedAt,
         };
         let { error } = await db.from("articles").insert(row);
-        if (error && error.code !== "23505") {
-          const again = await db.from("articles").insert({ ...row, image_query: row.image_query, image_status: "provisional", image: guaranteedImage(n.id, category) });
+        if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
+          const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
+          const again = await db.from("articles").insert(legacy);
           error = again.error;
         }
         if (error) {
@@ -380,9 +432,10 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         try {
           const articleImage = await fromArticlePage(m.url);
           const found = articleImage ? [articleImage] : await findHdImage(term, used, description);
-          const img = found[0];
-          if (!img) return;
-          await db.from("articles").update({ image: finalImageUrl(img, m.category, m.original_title ?? m.titulo_inedito, m.id) || guaranteedImage(m.id, m.category), image_status: articleImage ? "original" : "search", image_candidates: found, image_query: null }).eq("id", m.id);
+          const safeFound = [...new Set(found.map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate)))];
+          const img = safeFound[0];
+          if (!img) { rejectImage(articleImage ? "article" : "search", "rejected_candidate"); return; }
+          await db.from("articles").update({ image: img, image_status: articleImage ? "original" : "search", image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
         } catch { /* ignore */ }
       }));
     }
@@ -438,17 +491,21 @@ export async function runIngest(): Promise<Record<string, unknown>> {
       }
     }
 
-    const imageMetricsRows = Object.entries(imageMetrics).map(([service, values]) => ({ service, ...values, rejection_reasons: values.rejectionReasons }));
+    const bag = imageMetricsStore.getStore() ?? {};
+    const runId = crypto.randomUUID();
+    const imageMetricsRows = Object.entries(bag).map(([service, value]) => ({
+      service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted,
+      failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons, run_id: runId,
+    }));
+    let metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
     if (imageMetricsRows.length) {
-      const metricRows = Object.entries(imageMetrics).map(([service, value]) => ({
-        service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted,
-        failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons,
-      }));
-      const { error: metricsError } = await db.from("image_api_metrics").insert(metricRows);
-      if (metricsError) console.error("image_api_metrics_write_failed", metricsError.message);
+      const { error: metricsError } = await db.from("image_api_metrics").insert(imageMetricsRows);
+      if (metricsError) {
+        metricsPersist = "metrics_persist_failed";
+        console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
+      }
     }
-    console.info("image_api_metrics", JSON.stringify(imageMetricsRows));
-    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows };
+    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

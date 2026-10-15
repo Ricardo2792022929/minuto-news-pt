@@ -75,6 +75,7 @@ export type Database = {
           rejection_reasons: Json
           requests: number
           results_found: number
+          run_id: string | null
           service: string
         }
         Insert: {
@@ -86,6 +87,7 @@ export type Database = {
           rejection_reasons?: Json
           requests?: number
           results_found?: number
+          run_id?: string | null
           service: string
         }
         Update: {
@@ -97,6 +99,7 @@ export type Database = {
           rejection_reasons?: Json
           requests?: number
           results_found?: number
+          run_id?: string | null
           service?: string
         }
         Relationships: []

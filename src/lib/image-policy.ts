@@ -30,6 +30,26 @@ export function categoryImage(category?: string, title = "", id = ""): string {
   return guaranteedImage(id || category || "cat", category);
 }
 
+/** URL da própria notícia. Nunca devolve foto de categoria, stock ou Picsum. */
+export function storyImageUrl(raw: string | null | undefined): string | null {
+  if (!raw || Object.values(CATEGORY_PHOTOS).includes(raw) || raw.startsWith("/") || raw.startsWith("data:")) return null;
+  try {
+    const url = new URL(raw.trim());
+    if (url.protocol !== "https:") return null;
+    if (url.hostname === "picsum.photos" || url.hostname.endsWith(".picsum.photos")) return null;
+    if (/logo|placeholder|default|blank|pixel|1x1|spacer/i.test(url.pathname + url.search)) return null;
+    if (url.hostname === "images.unsplash.com" || url.hostname === "images.pexels.com" || url.hostname.endsWith(".imgix.net")) {
+      url.searchParams.set("w", "1200");
+      url.searchParams.set("q", "80");
+      url.searchParams.set("fit", "crop");
+      url.searchParams.set("auto", "format");
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function finalImageUrl(raw: string | null | undefined, category?: string, title = "", id = ""): string {
   if (raw?.startsWith("/__l5e/assets-v1/")) return raw;
   try {

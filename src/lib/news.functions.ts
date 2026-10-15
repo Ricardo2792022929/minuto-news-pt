@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { NewsItem } from "./news.types";
-import { finalImageUrl } from "./image-policy";
+import { storyImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
 import { isPublishableTitle } from "./title-generation.server";
@@ -77,6 +77,8 @@ export const getNews = createServerFn({ method: "GET" })
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
     const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
+    const legacyCols = "id,source,category,url,image,image_query,titulo_inedito,resumo,original_title,published_at";
+    let imageColumnsReady = true;
     const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) =>
       isPublishableTitle(r.titulo_inedito, r.original_title);
     const fixes: { id: string; category: string }[] = [];
@@ -87,8 +89,8 @@ export const getNews = createServerFn({ method: "GET" })
       url: string;
       image: string | null;
       image_query: string | null;
-      image_status: "original" | "search" | "provisional" | null;
-      image_candidates: unknown;
+      image_status?: "original" | "search" | "provisional" | null;
+      image_candidates?: unknown;
       titulo_inedito: string;
       resumo: string | null;
       original_title: string | null;
@@ -97,6 +99,12 @@ export const getNews = createServerFn({ method: "GET" })
       const excerpt = (r.resumo ?? "").trim();
       const category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
       if (category !== r.category) fixes.push({ id: r.id, category });
+      const provisional = Boolean(r.image_query) || r.image_status === "provisional";
+      const image = provisional ? undefined : storyImageUrl(r.image) ?? undefined;
+      const imageCandidates = (Array.isArray(r.image_candidates) ? r.image_candidates : [])
+        .filter((candidate): candidate is string => typeof candidate === "string")
+        .map((candidate) => storyImageUrl(candidate))
+        .filter((candidate): candidate is string => Boolean(candidate) && candidate !== image);
       return {
         id: r.id,
         source: r.source,
@@ -105,9 +113,9 @@ export const getNews = createServerFn({ method: "GET" })
         excerpt,
         url: r.url,
         publishedAt: r.published_at,
-        image: r.image_query || r.image_status === "provisional" ? undefined : finalImageUrl(r.image, category, r.titulo_inedito, r.id) || undefined,
-        imageStatus: r.image_query ? "provisional" : (r.image_status ?? "original"),
-        imageCandidates: Array.isArray(r.image_candidates) ? r.image_candidates.filter((candidate): candidate is string => typeof candidate === "string") : [],
+        ...(image ? { image } : {}),
+        imageStatus: provisional ? "provisional" : r.image_status === "search" ? "search" : "original",
+        imageCandidates: [...new Set(imageCandidates)],
       };
     };
     const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);
@@ -138,7 +146,7 @@ export const getNews = createServerFn({ method: "GET" })
     let ordered: NewsItem[] = [];
     if (useInterests) {
       const need = Math.min(data.offset + data.limit + 40, 400);
-      const [insideRes, broadRes] = await Promise.all([
+      let [insideRes, broadRes] = await Promise.all([
         db
           .from("articles")
           .select(cols, { count: "exact" })
@@ -153,6 +161,15 @@ export const getNews = createServerFn({ method: "GET" })
           .order("published_at", { ascending: false })
           .range(0, Math.min(need, 120) - 1),
       ]);
+      if ((insideRes.error || broadRes.error) && imageColumnsReady && /image_status|image_candidates/i.test((insideRes.error ?? broadRes.error)?.message ?? "")) {
+        imageColumnsReady = false;
+        const retried = await Promise.all([
+          db.from("articles").select(legacyCols, { count: "exact" }).gte("published_at", since).in("category", interests).order("published_at", { ascending: false }).range(0, need - 1),
+          db.from("articles").select(legacyCols).gte("published_at", since).order("published_at", { ascending: false }).range(0, Math.min(need, 120) - 1),
+        ]);
+        insideRes = retried[0] as typeof insideRes;
+        broadRes = retried[1] as typeof broadRes;
+      }
       if (insideRes.error) {
         console.error(insideRes.error);
         return { items: [], total: 0, hasMore: false, nextOffset: data.offset };
@@ -180,7 +197,19 @@ export const getNews = createServerFn({ method: "GET" })
         .order("id", { ascending: true })
         .range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
       if (data.category) q = q.eq("category", data.category);
-      const { data: rows, error, count } = await q;
+      const first = await q;
+      let rows = first.data;
+      let error = first.error;
+      let count = first.count;
+      if (error && imageColumnsReady && /image_status|image_candidates/i.test(error.message)) {
+        imageColumnsReady = false;
+        let again = db.from("articles").select(legacyCols, { count: "exact" }).gte("published_at", since).order("published_at", { ascending: false }).order("id", { ascending: true }).range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
+        if (data.category) again = again.eq("category", data.category);
+        const retry = await again;
+        rows = retry.data as typeof rows;
+        error = retry.error;
+        count = retry.count;
+      }
       if (error) {
         console.error(error);
         return { items: [], total: 0, hasMore: false, nextOffset: data.offset };

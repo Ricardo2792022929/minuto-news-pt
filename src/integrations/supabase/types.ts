@@ -52,6 +52,8 @@ export type Database = {
           created_at?: string
           id?: string
           image?: string | null
+          image_candidates?: Json
+          image_status?: string
           image_query?: string | null
           original_title?: string
           published_at?: string

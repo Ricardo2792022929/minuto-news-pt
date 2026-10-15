@@ -109,29 +109,44 @@ async function fromOpenverse(term: string, used: Set<string>) {
 
 async function fromWikimediaCommons(term: string, used: Set<string>) {
   if (!term.trim()) return null;
-  const params = new URLSearchParams({
-    action: "query",
-    format: "json",
-    generator: "search",
-    gsrsearch: `filetype:bitmap ${term.slice(0, 100)}`,
-    gsrnamespace: "6",
-    gsrlimit: "20",
-    prop: "imageinfo",
-    iiprop: "url|size|extmetadata",
-    iiurlwidth: "1600",
-  });
-  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
+  // Use Wikimedia's REST search first, then retrieve Commons file metadata
+  // through the MediaWiki API so we can enforce the license policy.
+  const restUrl = new URL("https://commons.wikimedia.org/w/rest.php/v1/search/page");
+  restUrl.searchParams.set("q", term.slice(0, 100));
+  restUrl.searchParams.set("limit", "30");
+  const res = await fetch(restUrl.toString(), {
     headers: { "User-Agent": "MinutoNews/1.0 (news image search)" },
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) return null;
-  const d = (await res.json()) as {
-    query?: { pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; extmetadata?: { LicenseShortName?: { value?: string } } }[]> };
+  const searchData = (await res.json()) as {
+    pages?: { title?: string; thumbnail?: { url?: string; width?: number; height?: number } | null }[];
   };
-  const hits: Hit[] = Object.values(d.query?.pages ?? []).flatMap((page) => {
+  const titles = (searchData.pages ?? [])
+    .map((page) => page.title ?? "")
+    .filter((title) => /^File:/i.test(title))
+    .slice(0, 20);
+  if (!titles.length) return null;
+
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    prop: "imageinfo",
+    titles: titles.join("|"),
+    iiprop: "url|size|extmetadata",
+    iiurlwidth: "1600",
+  });
+  const metaRes = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
+    headers: { "User-Agent": "MinutoNews/1.0 (news image search)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!metaRes.ok) return null;
+  const metadata = (await metaRes.json()) as {
+    query?: { pages?: Record<string, { title?: string; imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; extmetadata?: { LicenseShortName?: { value?: string } } }[]> } };
+  };
+  const hits: Hit[] = Object.values(metadata.query?.pages ?? []).flatMap((page) => {
     const info = page.imageinfo?.[0];
     const license = info?.extmetadata?.LicenseShortName?.value ?? "";
-    // Usar apenas domínio público/CC0 para não publicar imagens que exijam atribuição sem a guardar.
     if (!info || !/(public domain|cc0|creative commons zero)/i.test(license)) return [];
     const url = info.thumburl ?? info.url;
     if (!url || !/^https:\/\//.test(url) || /\.svg(?:\?|$)/i.test(url)) return [];

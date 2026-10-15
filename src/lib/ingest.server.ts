@@ -97,7 +97,7 @@ async function fromPexels(term: string, used: Set<string>) {
 }
 
 async function fromOpenverse(term: string, used: Set<string>) {
-  const page = 1 + Math.floor(Math.random() * 3);
+  const page = 1;
   const res = await fetch(
     `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&size=large&category=photograph&page_size=20&page=${page}&mature=false`,
     { headers: { "User-Agent": "FlashNoticias/1.0" }, signal: AbortSignal.timeout(8000) },

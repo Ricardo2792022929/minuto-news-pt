@@ -133,8 +133,8 @@ async function fromOpenverse(term: string, used: Set<string>) {
     { headers: { "User-Agent": "FlashNoticias/1.0" }, signal: AbortSignal.timeout(8000) },
   );
   if (!res.ok) return null;
-  const d = (await res.json()) as { results?: (Hit & { title?: string })[] };
-  return pickBest((d.results ?? []).map((r) => ({ ...r, text: r.title })), used, term, "openverse");
+  const d = (await res.json()) as { results?: (Hit & { title?: string; description?: string })[] };
+  return pickBest((d.results ?? []).map((r) => ({ ...r, text: `${r.title ?? ""} ${r.description ?? ""}` })), used, term, "openverse");
 }
 
 async function fromWikimediaCommons(term: string, used: Set<string>) {

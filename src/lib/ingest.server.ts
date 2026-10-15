@@ -16,17 +16,30 @@ const BUDGET_MS = 26_000;
 
 type Hit = { url: string; width?: number; text?: string | undefined };
 const MAP_RE = /\b(map|maps|mapa|atlas|globe)\b/i;
+const IMAGE_STOP_WORDS = new Set([
+  "para", "como", "mais", "sobre", "apos", "depois", "antes", "hoje", "ontem",
+  "anuncia", "anunciou", "diz", "disse", "afirma", "revela", "chega", "chegou",
+  "portugal", "portugues", "portuguesa", "noticia", "noticias", "investimento",
+  "milhoes", "milhao", "euros", "novo", "nova", "novos", "novas", "pode", "podem",
+  "com", "sem", "entre", "contra", "sobre", "devido", "apos", "segundo"
+]);
+const normalizeImageText = (value: string) => value.toLowerCase().normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
 const pickBest = (arr: Hit[], used: Set<string>, term = "") => {
-  const words = term.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .split(/\W+/).filter((word) => word.length > 2);
+  // Use distinctive words only; a generic category match is not enough to claim an image
+  // represents a specific news event, person, company or place.
+  const words = [...new Set(normalizeImageText(term).filter((word) =>
+    word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
+  if (!words.length) return null;
   const candidates = arr
     .filter((r) => (r.width ?? 0) >= 1000 && !MAP_RE.test(`${r.text ?? ""} ${r.url}`)
       && /^https:\/\//.test(r.url) && !used.has(r.url))
     .map((r) => {
-      const text = `${r.text ?? ""} ${r.url}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const matches = words.reduce((score, word) => score + (text.includes(word) ? 1 : 0), 0);
-      return { ...r, score: matches * 100 + Math.min(r.width ?? 0, 4000) / 1000 };
+      const textWords = new Set(normalizeImageText(`${r.text ?? ""} ${r.url}`));
+      const matched = words.filter((word) => textWords.has(word));
+      return { ...r, matches: matched.length, score: matched.length * 100 + Math.min(r.width ?? 0, 4000) / 1000 };
     })
+    .filter((r) => r.matches >= (words.length === 1 ? 1 : 2))
     .sort((a, b) => b.score - a.score);
   const pick = candidates[0]?.url ?? null;
   if (pick) used.add(pick);
@@ -63,9 +76,14 @@ async function fromPixabay(term: string, used: Set<string>) {
     const res = await fetch(`https://pixabay.com/api/?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const d = (await res.json()) as { hits?: { webformatURL: string; largeImageURL?: string; imageURL?: string; fullHDURL?: string; imageWidth: number; imageHeight: number; tags: string }[] };
-    const words = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length > 3 && !["para", "como", "mais", "sobre", "apos", "hoje", "anuncia", "portugal", "portugues", "noticias"].includes(w));
+    const words = [...new Set(normalizeImageText(term).filter((word) => word.length > 3 && !IMAGE_STOP_WORDS.has(word)))];
     hits = (d.hits ?? [])
-      .filter((h) => { const tags = h.tags.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/); return words.some((w) => tags.includes(w)) && adequateImage({ width: h.imageWidth, height: h.imageHeight }); })
+      .filter((h) => {
+        const tags = new Set(normalizeImageText(h.tags));
+        const matches = words.filter((word) => tags.has(word)).length;
+        const minimumMatches = words.length <= 1 ? 1 : 2;
+        return matches >= minimumMatches && adequateImage({ width: h.imageWidth, height: h.imageHeight });
+      })
       .map((h) => ({ url: h.largeImageURL ?? h.fullHDURL ?? h.webformatURL, width: h.imageWidth, text: h.tags }));
     pixabayCache.set(k, { hits, expiresAt: Date.now() + PIXABAY_CACHE_TTL });
     if (pixabayCache.size > 200) {

@@ -122,7 +122,7 @@ async function fromPexels(term: string, used: Set<string>) {
   );
   if (!res.ok) return null;
   const d = (await res.json()) as { photos?: { width: number; alt?: string; src: { large2x: string } }[] };
-  return pickBest((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width, text: p.alt })), used, term);
+  return pickBest((d.photos ?? []).map((p) => ({ url: p.src.large2x, width: p.width, text: p.alt })), used, term, "pexels");
 }
 
 async function fromOpenverse(term: string, used: Set<string>) {
@@ -344,7 +344,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
         };
         let { error } = await db.from("articles").insert(row);
         if (error && error.code !== "23505") {
-          const again = await db.from("articles").insert({ ...row, image_query: null, image: guaranteedImage(n.id, category) });
+          const again = await db.from("articles").insert({ ...row, image_query: row.image_query, image_status: "provisional", image: guaranteedImage(n.id, category) });
           error = again.error;
         }
         if (error) {
@@ -424,7 +424,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
 
     const imageMetricsRows = Object.entries(imageMetrics).map(([service, values]) => ({ service, ...values, rejection_reasons: values.rejectionReasons }));
     if (imageMetricsRows.length) {
-      const { error: metricsError } = await db.from("image_api_metrics").insert(imageMetricsRows.map(({ rejectionReasons: _reasons, ...row }) => row));
+      const { error: metricsError } = await db.from("image_api_metrics").insert(Object.entries(imageMetrics).map(([service, value]) => ({ service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted, failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons })));
       if (metricsError) console.error("image_api_metrics_write_failed", metricsError.message);
     }
     console.info("image_api_metrics", JSON.stringify(imageMetricsRows));

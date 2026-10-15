@@ -1,168 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import introUrl from "@/assets/intro.mp4";
-import { excessiveEnlargement } from "@/lib/image-quality";
-import { categoryImage } from "@/lib/image-policy";
 import { LIGA_CLUBS } from "@/lib/clubs";
-
-// Banco de FOTOGRAFIAS REAIS (Wikimedia Commons) por tema — usado só quando a
-// notícia não tem foto ou a foto falha. Garante que nenhum cartão fica preto.
-const WM = (path: string) => `https://upload.wikimedia.org/wikipedia/commons/${path}`;
-const REAL_POOL: Record<string, string[]> = {
-  Crime: [
-    WM("4/4c/Police_car_lights.jpg"),
-    WM("3/3d/Police_Lights.jpg"),
-    WM("f/f0/2009-04-06_Scotts_Valley_Chase_07.jpg"),
-  ],
-  Política: [
-    WM("c/c4/Portuguese_Parliament_building_front_fachade.jpg"),
-    WM("1/18/Estonian_parliament_building.jpg"),
-    WM("1/1c/Malta%E2%80%99s_Parliament_building_in_Valletta_%28cropped%29.jpg"),
-    WM("e/e2/Old_Parliament_Building%2C_Colombo.JPG"),
-  ],
-  Economia: [
-    WM("8/86/10_euro_banknotes_and_10_euro_cent_coins_20180207.jpg"),
-    WM("5/55/Twenty_euro_banknote_and_coins.jpg"),
-  ],
-  Desporto: [
-    WM("0/05/Petrovskiy_football_stadium_in_SPB.jpg"),
-    WM("5/54/Laugardalsv%C3%B6llur%2C_Iceland%27s_national_football_stadium.jpg"),
-    WM("f/f4/Football_stadium_in_Tren%C4%8D%C3%ADn%2C_Slovakia.jpg"),
-    WM("4/4c/FC_Prishtina%2C_football_stadium.jpg"),
-  ],
-  Mundo: [
-    WM("3/3e/1_singapore_city_skyline_dusk_panorama_2011.jpg"),
-    WM("9/95/Ho_Chi_Minh_City_Skyline.jpg"),
-    WM("f/f6/Ho_Chi_Minh_City_Skyline_%28night%29.jpg"),
-    WM("d/df/Sharjah_city_skyline_in_2015.jpg"),
-  ],
-  Cultura: [
-    WM("b/bb/Concert_crowd_%28Unsplash%29.jpg"),
-    WM("2/2f/Bocelli-concert-crowd-in-abu-dhabi-du-arena-du-live.jpg"),
-    WM("c/c5/Home_Free_concert_crowd_%2843188702631%29.jpg"),
-    WM("d/de/Go_Between_Bridge_Concert_Crowd_%285160324936%29.jpg"),
-  ],
-  Tech: [
-    WM("f/f3/Digital_nomad_telecommuting_work_on_laptop_computer.jpg"),
-    WM("b/b8/X7200_laptop_computer.JPG"),
-    WM("d/d0/Young_people_texting_on_smartphones_using_thumbs.JPG"),
-    WM("9/96/Samsung_Galaxy_Android_Smartphone.jpg"),
-  ],
-};
-const ALL_REAL = Object.values(REAL_POOL).flat();
-const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso|roubo)/i;
-const hashId = (id: string) => {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h;
-};
-type ImgItem = { id?: string; image?: string; category?: string; title?: string };
-// Candidatas por ordem: foto da notícia → fotos reais do tema → resto do banco.
-const candidatesFor = (n: ImgItem) => {
-  const key = CRIME_RE.test(n.title ?? "") ? "Crime" : (n.category ?? "Mundo");
-  const themed = REAL_POOL[key] ?? REAL_POOL["Mundo"] ?? [];
-  const h = hashId(n.id ?? "");
-  const rot = (arr: string[]) => arr.map((_, i) => arr[(h + i) % arr.length] as string);
-  // Desporto nunca recorre a outros temas (sem mapas/cidades)
-  const rest = key === "Desporto" ? [] : ALL_REAL.filter((u) => !themed.includes(u));
-  // Último recurso: imagem garantida (Picsum seedado por ID) — sempre carrega.
-  const guaranteed = `https://picsum.photos/seed/${(n.id || "news").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "flash"}/1200/800`;
-  return [...(n.image ? [n.image] : []), ...rot(themed), ...rot(rest), categoryImage(n.category, n.title), guaranteed];
-};
 import { imageKitUrl } from "@/lib/imagekit";
 
-// Tamanho otimizado para telemóvel (~800-960px, comprimido).
-const optimizeImage = (url: string) => {
-  try {
-    const u = new URL(url);
-    if (u.hostname === "upload.wikimedia.org" && !u.pathname.includes("/thumb/")) {
-      const m = u.pathname.match(/^\/wikipedia\/commons\/(\w\/\w\w)\/([^/]+)$/);
-      if (m && m[1] && m[2] && !/\.(svg|tiff?)$/i.test(m[2]))
-        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/1200px-${m[2]}`;
-      return url;
+type ImgItem = { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
+function FadeImg({ item, className, alt = "", eager = false }: { item: ImgItem; className: string; alt?: string; eager?: boolean }) {
+  const list = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
+  const attempts = useMemo(() => list.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value))) ]), [list]);
+  const [index, setIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const src = attempts[index];
+  if (failed || !src) return <div className={`${className} flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-950 px-6 text-center text-white/75`} role="img" aria-label={`Fotografia indisponível; categoria ${item.category ?? "Notícias"}`}><span className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">{item.category ?? "Notícias"}</span><span className="text-sm">Fotografia indisponível</span></div>;
+  return <img key={src} src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" fetchPriority={eager ? "high" : "low"} loading={eager ? "eager" : "lazy"} onError={() => {
+    const next = index + 1;
+    if (next < attempts.length) setIndex(next);
+    else {
+      setFailed(true);
+      console.info("feed_image_failed", JSON.stringify({ category: item.category, imageStatus: item.imageStatus, attempted: list.length }));
     }
-    if (
-      u.hostname.includes("unsplash.com") ||
-      u.hostname.includes("pexels.com") ||
-      u.hostname.includes("imgix.net")
-    ) {
-      u.searchParams.set("w", "1200");
-      u.searchParams.set("q", "80");
-      u.searchParams.set("auto", "format");
-      u.searchParams.set("fit", "crop");
-      return u.toString();
-    }
-    return url;
-  } catch {
-    return url;
-  }
-};
-// Imagem oculta até descarregar por completo; se falhar passa à candidata seguinte.
-function FadeImg({
-  item,
-  className,
-  alt = "",
-  eager = false,
-}: {
-  item: ImgItem;
-  className: string;
-  alt?: string;
-  eager?: boolean;
-}) {
-  const list = useMemo(
-    () => candidatesFor(item),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [item.id, item.image, item.category, item.title],
-  );
-  const [idx, setIdx] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [useKit, setUseKit] = useState(true);
-  const raw = list[Math.min(idx, list.length - 1)] ?? `https://picsum.photos/seed/flash${idx}/1200/800`;
-  const kit = useKit ? imageKitUrl(raw) : null;
-  const src = kit ?? (raw === item.image ? raw : optimizeImage(raw));
-  const imgRef = useRef<HTMLImageElement>(null);
-  useEffect(() => {
-    const image = imgRef.current;
-    if (image?.complete && image.naturalWidth > 0) setLoaded(true);
-  }, [src]);
-  return (
-    <img
-      ref={imgRef}
-      key={src}
-      src={src}
-      alt={alt}
-      referrerPolicy="no-referrer"
-      decoding="async"
-      fetchPriority={eager ? "high" : "low"}
-      loading={eager ? "eager" : "lazy"}
-      onLoad={(event) => {
-        const image = event.currentTarget;
-        if (!kit && raw === item.image && excessiveEnlargement({ width: image.naturalWidth, height: image.naturalHeight }, image.clientWidth, image.clientHeight)) {
-          setLoaded(false);
-          setUseKit(true);
-          setIdx((current) => Math.min(current + 1, list.length - 1));
-          return;
-        }
-        setLoaded(true);
-      }}
-      onError={() => {
-        if (idx < list.length - 1) {
-          setLoaded(false);
-          setUseKit(true);
-          setIdx(idx + 1);
-          return;
-        }
-        if (kit) {
-          setLoaded(false);
-          setUseKit(false);
-          return;
-        }
-        setLoaded(true);
-      }}
-      className={`${className} transition-opacity duration-150 ${
-        loaded ? "opacity-100" : "opacity-0"
-      }`}
-    />
-  );
+  }} className={`${className} transition-opacity duration-150`} />;
 }
 
 function StoryTitle({

@@ -156,7 +156,7 @@ export const getNews = createServerFn({ method: "GET" })
           .range(0, need - 1),
         db
           .from("articles")
-          .select(cols)
+          .select(legacyCols)
           .gte("published_at", since)
           .order("published_at", { ascending: false })
           .range(0, Math.min(need, 120) - 1),
@@ -243,7 +243,7 @@ export const getNews = createServerFn({ method: "GET" })
     const loadDay = async (onlyInterests: boolean) => {
       let oq = db
         .from("articles")
-        .select(cols)
+        .select(legacyCols)
         .gte("published_at", daySince)
         .lte("published_at", dayUntil)
         .order("published_at", { ascending: false })
@@ -282,7 +282,7 @@ export const getNews = createServerFn({ method: "GET" })
     if (allowClub && data.club) {
       const { data: clubRows } = await db
         .from("articles")
-        .select(cols)
+        .select(legacyCols)
         .gte("published_at", daySince)
         .eq("category", "Desporto")
         .order("published_at", { ascending: false })

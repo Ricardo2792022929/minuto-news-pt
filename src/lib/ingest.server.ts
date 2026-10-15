@@ -425,7 +425,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let rewritten = 0;
     let recategorized = 0;
     if (!expired()) {
-      const { data: missing } = await db.from("articles").select("id,url,image_query,image_status,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).limit(4);
+      const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).limit(4);
       await Promise.all((missing ?? []).map(async (m) => {
         const term = (m.original_title ?? m.titulo_inedito ?? "").trim();
         const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
@@ -435,7 +435,10 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           const safeFound = [...new Set(found.map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate)))];
           const img = safeFound[0];
           if (!img) { rejectImage(articleImage ? "article" : "search", "rejected_candidate"); return; }
-          await db.from("articles").update({ image: img, image_status: articleImage ? "original" : "search", image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
+          const saved = await db.from("articles").update({ image: img, image_status: articleImage ? "original" : "search", image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
+          if (saved.error && /image_status|image_candidates/i.test(saved.error.message)) {
+            await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
+          }
         } catch { /* ignore */ }
       }));
     }

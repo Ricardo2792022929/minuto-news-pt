@@ -1,41 +1,40 @@
-/** Extrai as palavras mais importantes de um título para pesquisa de imagens. */
+/** Termos de pesquisa que preservam o título e as entidades específicas da notícia. */
 const STOP = new Set([
   "a", "o", "as", "os", "de", "da", "do", "das", "dos", "em", "no", "na", "nos", "nas",
   "um", "uma", "uns", "umas", "e", "ou", "mas", "para", "por", "com", "sem", "sobre",
   "que", "se", "the", "of", "and", "to", "in", "on", "for", "with", "from", "by",
   "anuncia", "diz", "afirma", "revela", "hoje", "ontem", "amanha", "portugal", "portugues",
-  "portuguesa", "noticias", "noticia", "ultimas", "ultima", "hora", "breaking"
+  "portuguesa", "noticias", "noticia", "ultimas", "ultima", "hora", "breaking", "segundo",
+  "pode", "podem", "deve", "devem", "apos", "antes", "durante", "novo", "nova", "novos", "novas",
 ]);
-
 const ANIMAL = new Set(["leao", "leão", "lion", "tigre", "tiger", "aguia", "eagle", "lobo", "wolf", "urso", "bear", "touro", "bull"]);
-
 const NAMED: [RegExp, string][] = [
   [/papa\s+le[aã]o|le[aã]o\s+xiv/i, "Pope Leo XIV"],
   [/papa\s+francisco/i, "Pope Francis"],
 ];
 
-export function extractImageTerms(title: string): string[] {
-  const normalized = title
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const words = normalized.split(" ").filter((w) => w.length > 3 && !STOP.has(w) && !ANIMAL.has(w));
-  return words.slice(0, 4);
+const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+export function extractImageTerms(title: string, description = ""): string[] {
+  const words = normalize(`${title} ${description.slice(0, 320)}`)
+    .split(" ").filter((word) => word.length > 3 && !STOP.has(word) && !ANIMAL.has(word));
+  return [...new Set(words)].slice(0, 8);
 }
 
-/** Gera termos de pesquisa progressivos (do mais específico ao mais genérico). */
-export function imageSearchTerms(title: string): string[] {
+/** O título integral é sempre a primeira pesquisa; as seguintes alargam gradualmente. */
+export function imageSearchTerms(title: string, description = ""): string[] {
   const named = namedQuery(title);
   if (named) return [named];
-  const terms = extractImageTerms(title);
-  if (!terms.length) return [title.trim().slice(0, 80)];
-  const results: string[] = [];
-  if (terms.length >= 2) results.push(terms.slice(0, 3).join(" "));
-  if (terms.length >= 2) results.push(terms.slice(0, 2).join(" "));
-  return [...new Set([...results, terms.join(" ")])];
+  const original = title.trim().replace(/\s+/g, " ").slice(0, 140);
+  const terms = extractImageTerms(title, description);
+  const queries = [
+    original,
+    terms.slice(0, 6).join(" "),
+    terms.slice(0, 4).join(" "),
+    terms.slice(0, 3).join(" "),
+  ].filter(Boolean);
+  return [...new Set(queries)].slice(0, 4);
 }
 
 export function namedQuery(title: string): string | null {
@@ -45,13 +44,11 @@ export function namedQuery(title: string): string | null {
 
 export function riskyImageTitle(title: string): boolean {
   if (namedQuery(title)) return true;
-  const normalized = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const normalized = normalize(title);
   return [...ANIMAL].some((word) => normalized.includes(word));
 }
 
-/** Pesquisa de imagem sem gastar a API de resumo. Nomes como Papa Leão não viram animais. */
+/** Mantém pessoas, equipas, empresas e locais do título, incluindo a sua grafia original. */
 export async function sceneQuery(title: string): Promise<string> {
-  const named = namedQuery(title);
-  if (named) return named;
-  return imageSearchTerms(title)[0] ?? title.slice(0, 60);
+  return namedQuery(title) ?? title.trim().replace(/\s+/g, " ").slice(0, 140);
 }

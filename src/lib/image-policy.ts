@@ -32,7 +32,8 @@ export function categoryImage(category?: string, title = "", id = ""): string {
 
 /** URL da própria notícia. Nunca devolve foto de categoria, stock ou Picsum. */
 export function storyImageUrl(raw: string | null | undefined): string | null {
-  if (!raw || Object.values(CATEGORY_PHOTOS).includes(raw) || raw.startsWith("/") || raw.startsWith("data:")) return null;
+  if (!raw || raw.startsWith("data:")) return null;
+  if (raw.startsWith("/__l5e/assets-v1/")) return raw;
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== "https:") return null;

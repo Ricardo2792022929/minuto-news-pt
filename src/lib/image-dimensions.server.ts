@@ -44,7 +44,7 @@ export function dimensionsFromHeader(bytes: Uint8Array): ImageDimensions | null 
 export async function inspectImage(url: string): Promise<ImageDimensions | null> {
   try {
     if (!url.startsWith("https://")) return null;
-    const response = await fetch(url, { headers: { Range: "bytes=0-65535" }, signal: AbortSignal.timeout(2500) });
+    const response = await fetch(url, { headers: { Range: "bytes=0-65535" }, signal: AbortSignal.timeout(5000) });
     if (!response.ok || !response.body) return null;
     const reader = response.body.getReader();
     const header = new Uint8Array(65_536);

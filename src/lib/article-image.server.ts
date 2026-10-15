@@ -5,7 +5,7 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
   try {
     const res = await fetch(pageUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0)", "Accept-Language": "pt-PT" },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(8000),
       redirect: "follow",
     });
     if (!res.ok) return null;
@@ -24,7 +24,7 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
     }
     const chosen = await chooseOriginal([...new Set(candidates)]);
     if (chosen) return chosen;
-    return candidates.find((url) => /\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url) && !/logo|placeholder|icon|sprite/i.test(url)) ?? null;
+    return candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !/logo|placeholder|icon|sprite/i.test(url)].every(Boolean)) ?? null;
   } catch {
     return null;
   }

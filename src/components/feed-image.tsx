@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { imageKitUrl } from "@/lib/imagekit";
+import { categoryImage } from "@/lib/image-policy";
 
 const downloads = new Map<string, Promise<string>>();
 export function preloadImage(src: string): Promise<string> {
@@ -85,14 +86,29 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length]);
 
   const failed = !ready && active && finished;
+  const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
+
   return (
     <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
-          {failed && <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">{item.category ?? "Notícias"}</span>}
+          {failed ? (
+            // Show a category illustration instead of a plain black background when image loading fails
+            <img src={fallbackSrc ?? ""} alt={item.category ?? "Notícias"} className="absolute inset-0 h-full w-full object-cover" />
+          ) : null}
+          {failed && <span className="relative z-10 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">{item.category ?? "Notícias"}</span>}
         </div>
       )}
-      {ready && <img src={ready} alt={alt} decoding="async" referrerPolicy="no-referrer" onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }} className="absolute inset-0 h-full w-full object-cover object-top animate-photo-in" />}
+      {ready && (
+        <img
+          src={ready}
+          alt={alt}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
     </div>
   );
 }

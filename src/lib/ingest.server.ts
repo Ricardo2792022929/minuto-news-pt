@@ -257,7 +257,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
           category,
           url: n.url.slice(0, 2000),
           image: finalImageUrl(rawImage, category, n.title, n.id) || guaranteedImage(n.id, category),
-          image_query: rawImage ? null : titulo,
+          image_query: rawImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
           original_title: n.title.slice(0, 500),
           titulo_inedito: titulo.slice(0, 180),
           resumo: resumo.slice(0, 300),
@@ -284,7 +284,7 @@ export async function runIngest(): Promise<Record<string, unknown>> {
     if (!expired()) {
       const { data: missing } = await db.from("articles").select("id,url,image_query,category,titulo_inedito").not("image_query", "is", null).limit(4);
       await Promise.all((missing ?? []).map(async (m) => {
-        const term = (m.titulo_inedito ?? m.image_query ?? "").trim();
+        const term = (m.image_query ?? m.titulo_inedito ?? "").trim();
         try {
           const img = (await fromArticlePage(m.url)) ?? (await findHdImage(term, used));
           if (!img) return;

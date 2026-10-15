@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { NewsItem } from "./news.types";
-import { finalImageUrl, guaranteedImage } from "./image-policy";
+import { finalImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
 import { isPublishableTitle } from "./title-generation.server";
@@ -76,7 +76,7 @@ export const getNews = createServerFn({ method: "GET" })
     const since = new Date(now - 24 * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
-    const cols = "id,source,category,url,image,titulo_inedito,resumo,original_title,published_at";
+    const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
     const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) =>
       isPublishableTitle(r.titulo_inedito, r.original_title);
     const fixes: { id: string; category: string }[] = [];
@@ -102,7 +102,7 @@ export const getNews = createServerFn({ method: "GET" })
         excerpt,
         url: r.url,
         publishedAt: r.published_at,
-        image: finalImageUrl(r.image, category, r.titulo_inedito, r.id) || guaranteedImage(r.id, r.category),
+        image: r.image_query || r.image_status === "provisional" ? undefined : finalImageUrl(r.image, category, r.titulo_inedito, r.id) || undefined,\n        imageStatus: r.image_query ? "provisional" : (r.image_status ?? "original"),\n        imageCandidates: Array.isArray(r.image_candidates) ? r.image_candidates.filter((candidate): candidate is string => typeof candidate === "string") : [],
       };
     };
     const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);

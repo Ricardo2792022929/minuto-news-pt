@@ -150,7 +150,7 @@ async function fromWikimediaCommons(term: string, used: Set<string>) {
     if (!info || !/(public domain|cc0|creative commons zero)/i.test(license)) return [];
     const url = info.thumburl ?? info.url;
     if (!url || !/^https:\/\//.test(url) || /\.svg(?:\?|$)/i.test(url)) return [];
-    return [{ url, width: info.width, text: page.title ?? "" }];
+    return [{ url, width: info.width ?? 0, text: page.title ?? "" }];
   });
   return pickBest(hits, used, term);
 }

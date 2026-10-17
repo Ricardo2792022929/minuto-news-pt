@@ -871,26 +871,31 @@ function Index() {
     let startY = 0;
     let tracking = false;
     let horizontal = false;
+    let decided = false;
 
     const down = (event: PointerEvent) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       tracking = true;
       horizontal = false;
+      decided = false;
       startX = event.clientX;
       startY = event.clientY;
     };
     const move = (event: PointerEvent) => {
-      if (!tracking || horizontal) return;
+      if (!tracking || decided) return;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 1.4) horizontal = true;
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      decided = true;
+      horizontal = Math.abs(dx) > Math.abs(dy);
+      if (horizontal) event.preventDefault();
     };
     const up = (event: PointerEvent) => {
       if (!tracking) return;
       tracking = false;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (horizontal && Math.abs(dx) > 56) {
+      if (horizontal && Math.abs(dx) > 40) {
         swiped.current = true;
         window.setTimeout(() => { swiped.current = false; }, 500);
         const dir = dx < 0 ? "left" : "right";
@@ -930,7 +935,7 @@ function Index() {
     };
 
     view.addEventListener("pointerdown", down);
-    view.addEventListener("pointermove", move);
+    view.addEventListener("pointermove", move, { passive: false });
     view.addEventListener("pointerup", up);
     view.addEventListener("pointercancel", up);
     view.addEventListener("scroll", onScroll, { passive: true });
@@ -998,7 +1003,7 @@ function Index() {
             className={`absolute inset-x-0 bottom-0 z-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
               slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
             }`}
-            style={{ top: mastheadH, scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
+            style={{ top: mastheadH, scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
           >
             {articles.map((a, i) => {
               const fresh =

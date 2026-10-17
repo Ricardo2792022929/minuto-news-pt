@@ -657,9 +657,25 @@ function LiveWhen() {
 
 function LiveDateLine() {
   const now = useClock();
+  const [city, setCity] = useState("Lisboa");
+  useEffect(() => {
+    let active = true;
+    const cached = sessionStorage.getItem("flash:city");
+    if (cached) { setCity(cached); return; }
+    fetch("https://ipwho.is/")
+      .then((res) => res.json())
+      .then((data: { success?: boolean; city?: string; country_code?: string }) => {
+        if (!active || !data.success || !data.city) return;
+        const label = data.country_code === "PT" ? data.city : `${data.city}`;
+        sessionStorage.setItem("flash:city", label);
+        setCity(label);
+      })
+      .catch(() => { /* fica Lisboa */ });
+    return () => { active = false; };
+  }, []);
   return (
     <p className="mt-0.5 text-[11px] capitalize text-feed-fg/60">
-      {formatDate(now)} · Lisboa
+      {formatDate(now)} · {city}
     </p>
   );
 }

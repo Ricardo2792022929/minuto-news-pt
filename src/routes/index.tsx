@@ -833,132 +833,94 @@ function Index() {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [category]);
   const swiped = useRef(false);
+  const trackLock = useRef(false);
 
   useEffect(() => {
     pageRef.current = 0;
     setPage(0);
-    const track = trackRef.current;
     const view = feedRef.current;
-    if (!track || !view) return;
-    track.style.transition = "none";
-    track.style.transform = "translate3d(0, 0, 0)";
+    if (view) view.scrollTo({ top: 0 });
   }, [category, club, interests]);
 
   useEffect(() => {
     if (tab !== "feed") return;
     const view = feedRef.current;
-    const track = trackRef.current;
-    if (!view || !track) return;
+    if (!view) return;
 
-    const height = () => {
-      const px = view.clientHeight || window.innerHeight;
-      view.style.setProperty("--slide-h", `${px}px`);
-      return px;
-    };
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const place = (pageIndex: number, drag: number, animate: boolean, speed = 0) => {
-      const max = Math.max(countRef.current - 1, 0);
-      const clamped = Math.max(0, Math.min(max, pageIndex));
-      const ms = reduced ? 0 : Math.round(Math.min(400, Math.max(280, 380 - Math.abs(speed) * 90)));
-      track.style.transition = animate && ms ? `transform ${ms}ms cubic-bezier(.16,1,.3,1)` : "none";
-      track.style.transform = `translate3d(0, ${-clamped * height() + drag}px, 0)`;
-    };
-    place(pageRef.current, 0, false);
+    const height = () => view.clientHeight || window.innerHeight;
+    const indexFromScroll = () => Math.round(view.scrollTop / Math.max(height(), 1));
 
     let startX = 0;
     let startY = 0;
-    let lastY = 0;
-    let lastT = 0;
-    let velocity = 0;
     let tracking = false;
+    let horizontal = false;
 
     const down = (event: PointerEvent) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       tracking = true;
+      horizontal = false;
       startX = event.clientX;
-      startY = lastY = event.clientY;
-      lastT = performance.now();
-      velocity = 0;
-      view.setPointerCapture(event.pointerId);
+      startY = event.clientY;
     };
     const move = (event: PointerEvent) => {
-      if (!tracking) return;
+      if (!tracking || horizontal) return;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 16) return;
-      const now = performance.now();
-      const dt = now - lastT;
-      if (dt > 0) velocity = (event.clientY - lastY) / dt;
-      lastY = event.clientY;
-      lastT = now;
-      const atStart = pageRef.current <= 0 && dy > 0;
-      const atEnd = pageRef.current >= countRef.current - 1 && dy < 0;
-      place(pageRef.current, atStart || atEnd ? dy * 0.28 : dy, false);
+      if (Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 1.4) horizontal = true;
     };
     const up = (event: PointerEvent) => {
       if (!tracking) return;
       tracking = false;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
+      if (horizontal && Math.abs(dx) > 56) {
         swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 600);
+        window.setTimeout(() => { swiped.current = false; }, 500);
         setCategory((current) => {
           const index = CATEGORIES.indexOf(current);
-          const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
-          return CATEGORIES[next];
+          return CATEGORIES[dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
-        place(pageRef.current, 0, true, velocity);
         return;
       }
-      const h = height();
-      let next = pageRef.current;
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
-        const item = articlesRef.current[pageRef.current];
+        const item = articlesRef.current[indexFromScroll()];
         if (item) {
           const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
           if (cap?.isNativePlatform?.()) void openArticle(item.url);
           else window.open(cleanUrl(item.url), "_blank", "noopener");
         }
-        place(next, 0, false);
-        return;
       }
-      if (dy < -h * 0.16 || velocity < -0.45) next += 1;
-      else if (dy > h * 0.16 || velocity > 0.45) next -= 1;
-      next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), next));
+    };
+    const onScroll = () => {
+      const next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), indexFromScroll()));
       if (next !== pageRef.current) {
-        swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 600);
+        pageRef.current = next;
+        setPage(next);
+        if (next >= countRef.current - 3) fetchMoreRef.current();
       }
-      pageRef.current = next;
-      setPage(next);
-      place(next, 0, true, velocity);
-      if (next >= countRef.current - 3) fetchMoreRef.current();
     };
     const wheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) < 12) return;
+      if (Math.abs(event.deltaY) < 12 || trackLock.current) return;
       event.preventDefault();
-      if (track.dataset.lock === "1") return;
-      track.dataset.lock = "1";
+      trackLock.current = true;
       const dir = event.deltaY > 0 ? 1 : -1;
       const next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), pageRef.current + dir));
-      pageRef.current = next;
-      setPage(next);
-      place(next, 0, true);
-      if (next >= countRef.current - 3) fetchMoreRef.current();
-      window.setTimeout(() => { delete track.dataset.lock; }, 420);
+      view.scrollTo({ top: next * height(), behavior: "smooth" });
+      window.setTimeout(() => { trackLock.current = false; }, 420);
     };
 
     view.addEventListener("pointerdown", down);
     view.addEventListener("pointermove", move);
     view.addEventListener("pointerup", up);
     view.addEventListener("pointercancel", up);
+    view.addEventListener("scroll", onScroll, { passive: true });
     view.addEventListener("wheel", wheel, { passive: false });
     return () => {
       view.removeEventListener("pointerdown", down);
       view.removeEventListener("pointermove", move);
       view.removeEventListener("pointerup", up);
       view.removeEventListener("pointercancel", up);
+      view.removeEventListener("scroll", onScroll);
       view.removeEventListener("wheel", wheel);
     };
   }, [tab, mounted, mastheadH]);
@@ -1011,8 +973,11 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div ref={feedRef} className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH, touchAction: "none" }}>
-            <div ref={trackRef} className="will-change-transform">
+          <div
+            ref={feedRef}
+            className="absolute inset-x-0 bottom-0 z-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={{ top: mastheadH, scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
+          >
             {articles.map((a, i) => {
               const fresh =
                 Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
@@ -1026,8 +991,8 @@ function Index() {
                     e.preventDefault();
                     if (swiped.current) return;
                   }}
-                  className="relative block w-full overflow-hidden bg-black"
-                  style={{ height: "var(--slide-h, var(--feed-h, 100svh))" }}
+                  className="relative block w-full snap-start snap-always overflow-hidden bg-black"
+                  style={{ height: "100%", scrollSnapStop: "always" }}
                 >
                   {true ? (
                     <FeedImage
@@ -1101,14 +1066,13 @@ function Index() {
             )}
 
             {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
-              <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center">
+              <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center" style={{ scrollSnapStop: "always" }}>
                 <p className="text-sm font-medium text-feed-fg/70">
                   Não há mais notícias recentes por agora. Volta daqui a pouco.
                 </p>
               </div>
             )}
 
-            </div>
           </div>
 
           {articles[page] && (

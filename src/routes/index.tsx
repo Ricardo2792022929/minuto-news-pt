@@ -855,10 +855,12 @@ function Index() {
       view.style.setProperty("--slide-h", `${px}px`);
       return px;
     };
-    const place = (pageIndex: number, drag: number, animate: boolean) => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const place = (pageIndex: number, drag: number, animate: boolean, speed = 0) => {
       const max = Math.max(countRef.current - 1, 0);
       const clamped = Math.max(0, Math.min(max, pageIndex));
-      track.style.transition = animate ? "transform 460ms cubic-bezier(.16,1,.3,1)" : "none";
+      const ms = reduced ? 0 : Math.round(Math.min(400, Math.max(280, 380 - Math.abs(speed) * 90)));
+      track.style.transition = animate && ms ? `transform ${ms}ms cubic-bezier(.16,1,.3,1)` : "none";
       track.style.transform = `translate3d(0, ${-clamped * height() + drag}px, 0)`;
     };
     place(pageRef.current, 0, false);
@@ -906,7 +908,7 @@ function Index() {
           const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
           return CATEGORIES[next];
         });
-        place(pageRef.current, 0, true);
+        place(pageRef.current, 0, true, velocity);
         return;
       }
       const h = height();
@@ -930,7 +932,7 @@ function Index() {
       }
       pageRef.current = next;
       setPage(next);
-      place(next, 0, true);
+      place(next, 0, true, velocity);
       if (next >= countRef.current - 3) fetchMoreRef.current();
     };
     const wheel = (event: WheelEvent) => {
@@ -944,7 +946,7 @@ function Index() {
       setPage(next);
       place(next, 0, true);
       if (next >= countRef.current - 3) fetchMoreRef.current();
-      window.setTimeout(() => { delete track.dataset.lock; }, 560);
+      window.setTimeout(() => { delete track.dataset.lock; }, 420);
     };
 
     view.addEventListener("pointerdown", down);

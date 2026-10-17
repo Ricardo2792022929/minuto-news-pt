@@ -4,19 +4,24 @@ const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct
 const TIMEOUT_MS = 8_000;
 let cloudflareCooldownUntil = 0;
 
-const SYSTEM = `És o editor do Flash Notícias. Resumes a notícia num título novo que prenda o scroll.
-- Português de Portugal. Nunca inglês nem português do Brasil. Diz golo e equipa, não gol nem time.
-- No máximo 12 palavras. O ideal são 6 a 11.
-- É um resumo do facto, não o título original cortado. Escreve outra frase.
-- Tom direto e tenso, mas o protagonista tem de ser o mesmo do original.
-- Não atribuas uma derrota, um golo, uma frase ou uma decisão a outro clube ou pessoa. Se o Nacional perde, o título não pode dizer que o Benfica lamenta a derrota.
-- Não inventes mortos, números, nomes ou acusações que não estejam no título.
-- Sem prefixos e sem dois-pontos. Frase completa.
-- O resumo é 1 frase curta com o facto.
-- Responde só com JSON {"titulo","resumo"}.
+const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a imagem num feed vertical de telemóvel. Tem de ser lido em menos de 2 segundos e dizer exactamente o que aconteceu.
+
+REGRAS DO TÍTULO:
+- Português de Portugal. Diz golo e equipa, não gol nem time.
+- 6 a 10 palavras. Máximo 12. Uma frase completa e fechada.
+- Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora).
+- Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
+- O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido.
+- Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico).
+- Não inventes mortos, números, nomes ou acusações que não estejam no original.
+- Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
+- Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
+
+RESUMO: 1 frase curta, só com o facto.
+Responde só com JSON {"titulo","resumo"}.
 
 Incorreto: {"titulo": "Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas"}
-Correto: {"titulo": "Sánchez marca eleições e abala Espanha"}`;
+Correto: {"titulo": "Sánchez marca eleições e dissolve o parlamento"}`;
 
 function validSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;

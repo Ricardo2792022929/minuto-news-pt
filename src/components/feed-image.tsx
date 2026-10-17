@@ -89,7 +89,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
 
   return (
-    <div ref={container} className={`${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
+    <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
           {failed ? (

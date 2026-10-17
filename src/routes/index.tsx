@@ -1009,7 +1009,7 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div ref={feedRef} className="absolute inset-x-0 bottom-0 overflow-hidden" style={{ top: mastheadH, touchAction: "none" }}>
+          <div ref={feedRef} className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH, touchAction: "none" }}>
             <div ref={trackRef} className="will-change-transform">
             {articles.map((a, i) => {
               const fresh =
@@ -1110,10 +1110,15 @@ function Index() {
           </div>
 
           {articles[page] && (
-            <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-3">
+            <div className="pointer-events-auto absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-3">
               <button
                 type="button"
-                onClick={() => toggleSave(articles[page])}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleSave(articles[page]);
+                }}
                 aria-label={savedMap[articles[page].id] ? "Guardado" : "Guardar"}
                 className={`flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white ${
                   savedMap[articles[page].id] ? "border-live bg-live/70 text-live-foreground" : ""
@@ -1123,7 +1128,12 @@ function Index() {
               </button>
               <button
                 type="button"
-                onClick={() => setTab("saved")}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTab("saved");
+                }}
                 aria-label="Guardadas"
                 className="flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white"
               >

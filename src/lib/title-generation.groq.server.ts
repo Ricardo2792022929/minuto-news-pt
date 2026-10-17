@@ -8,7 +8,7 @@ const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a im
 
 REGRAS DO TÍTULO:
 - Português de Portugal. Diz golo e equipa, não gol nem time.
-- 6 a 10 palavras. Máximo 12. Uma frase completa e fechada.
+- 6 a 10 palavras. Máximo 10. Uma frase completa e fechada.
 - Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora).
 - Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido.
@@ -53,7 +53,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
         ],
       }),
     });

@@ -9,7 +9,7 @@ const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a im
 
 REGRAS DO TÍTULO:
 - Português de Portugal. Diz golo, equipa, facto, autocarro, comboio. Nunca gol, time, você, equipe, ônibus, trem.
-- 6 a 10 palavras. Máximo 12. Uma frase completa e fechada.
+- 6 a 10 palavras. Máximo 10. Uma frase completa e fechada.
 - Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora, Breaking).
 - Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido, nem quem falou, demitiu, marcou ou morreu.
@@ -93,11 +93,11 @@ function clausesOf(text: string): string[][] {
 }
 
 function finishClause(words: string[]): string[] {
-  let capped = words.length > 12 ? words.slice(0, 12) : [...words];
+  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
   while (capped.length > 4 && isIncomplete(capped)) {
     const joined = capped.join(" ");
     const cut = joined.search(/\s+(e|que)\s+\S+$/i);
-    if (cut > 12) {
+    if (cut > 10) {
       const next = joined.slice(0, cut).split(/\s+/).filter(Boolean);
       if (next.length >= 4 && !isIncomplete(next)) return next;
     }
@@ -172,7 +172,7 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   return prefix >= 4 && prefix / c.length >= 0.55;
 }
 
-/** No máximo 12 palavras e sempre uma frase fechada. */
+/** No máximo 10 palavras e sempre uma frase fechada. Corta em vez de rejeitar. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
@@ -180,7 +180,7 @@ export function forceMax10Words(raw: string): string {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const usable = (words: string[]) => words.length >= 4 && words.length <= 12 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
+  const usable = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
   if (usable(all)) return pack(all);
   const clauses = clausesOf(t);
   const preferred = clauses.filter((c) => !isFillerStart(c));
@@ -189,10 +189,10 @@ export function forceMax10Words(raw: string): string {
     if (usable(done)) return pack(done);
   }
   const done = finishClause(all);
-  if (done.length >= 4 && done.length <= 12 && !isIncomplete(done)) return pack(done);
+  if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
   const rest = [...all];
   while (rest.length > 3 && isIncomplete(rest)) rest.pop();
-  if (rest.length >= 4 && rest.length <= 12 && !isIncomplete(rest)) return pack(rest);
+  if (rest.length >= 4 && rest.length <= 10 && !isIncomplete(rest)) return pack(rest);
   return t.trim();
 }
 
@@ -263,14 +263,22 @@ export function swapsStoryActor(candidate: string, original: string): boolean {
   return false;
 }
 
+/** Recusa um número que o título original não tem. */
+function inventsNumber(candidate: string, original: string): boolean {
+  const numbers = (text: string) => new Set((text.match(/\d[\d.]*/g) ?? []).map((n) => n.replace(/\./g, "")));
+  const known = numbers(original);
+  for (const number of numbers(candidate)) if (!known.has(number)) return true;
+  return false;
+}
+
 export function validTitle(raw: unknown, original?: string): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
-  if (words.length < 4 || words.length > 12 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original))) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || inventsNumber(forced, original))) return null;
   return forced;
 }
 
@@ -287,9 +295,9 @@ export function backupTitle(original: string): string {
     .trim();
   if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
   const forced = forceMax10Words(t);
-  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 12) return forced;
+  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
   const words = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const capped = words.slice(0, 12);
+  const capped = words.slice(0, 10);
   while (capped.length > 4 && isIncomplete(capped)) capped.pop();
   const chosen = capped.length >= 4 ? capped : words.slice(0, 8);
   return pack(chosen.length ? chosen : ["Notícia", "em", "atualização", "agora"]);
@@ -338,7 +346,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, até 12 palavras. Não copies nem cortes o original.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}`;
+    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

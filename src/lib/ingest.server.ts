@@ -328,8 +328,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
-        const swapped = Boolean(g && swapsStoryActor(g.titulo, n.title));
-        const titulo = ai && isPublishableTitle(ai, n.title) ? ai : swapped ? backupTitle(n.title) : null;
+        const titulo = ai && isPublishableTitle(ai, n.title) ? ai : backupTitle(n.title);
         if (!titulo) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));

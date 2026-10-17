@@ -719,6 +719,7 @@ function Index() {
   const [interests, setInterests] = useState<string[]>([]);
   const [category, setCategory] = useState<Category>("Tudo");
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
+  const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
@@ -899,12 +900,13 @@ function Index() {
         swiped.current = true;
         window.setTimeout(() => { swiped.current = false; }, 500);
         const dir = dx < 0 ? "left" : "right";
+        setPrevArticles(articlesRef.current);
         setSlide(dir);
         setCategory((current) => {
           const index = CATEGORIES.indexOf(current);
           return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
-        window.setTimeout(() => setSlide(null), 340);
+        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 340);
         return;
       }
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
@@ -998,13 +1000,31 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div
-            ref={feedRef}
-            className={`absolute inset-x-0 bottom-0 z-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-              slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
-            }`}
-            style={{ top: mastheadH, scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
-          >
+          <div className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH }}>
+            {slide && prevArticles.length > 0 && (
+              <div
+                className={`absolute inset-0 z-10 overflow-hidden ${slide === "left" ? "animate-exit-left" : "animate-exit-right"}`}
+              >
+                <div className="relative h-full w-full overflow-hidden bg-black">
+                  {prevArticles[0] && (
+                    <>
+                      <FeedImage item={prevArticles[0]} alt="" className="absolute inset-0 h-full w-full" />
+                      <div className="absolute inset-0 feed-scrim" />
+                      <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8">
+                        <h2 className="font-display text-2xl font-bold text-white">{prevArticles[0].title}</h2>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            <div
+              ref={feedRef}
+              className={`absolute inset-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
+              }`}
+              style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+            >
             {articles.map((a, i) => {
               const fresh =
                 Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
@@ -1100,6 +1120,7 @@ function Index() {
               </div>
             )}
 
+            </div>
           </div>
 
           {articles[page] && (
@@ -1179,8 +1200,9 @@ function Index() {
                       const from = CATEGORIES.indexOf(category);
                       const to = CATEGORIES.indexOf(c);
                       if (to !== from) {
+                        setPrevArticles(articlesRef.current);
                         setSlide(to > from ? "left" : "right");
-                        window.setTimeout(() => setSlide(null), 340);
+                        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 340);
                       }
                       setCategory(c);
                     }}

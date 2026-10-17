@@ -67,7 +67,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
@@ -730,6 +730,8 @@ function Index() {
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
   const [dragX, setDragX] = useState(0);
   const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
+  const [sidePreview, setSidePreview] = useState<{ left?: NewsItem; right?: NewsItem }>({});
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
@@ -858,8 +860,28 @@ function Index() {
   }, [tab, mounted]);
 
   useEffect(() => {
-    document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-  }, [category]);
+    if (!mounted) return;
+    const index = CATEGORIES.indexOf(category);
+    const neighbors = [CATEGORIES[index - 1], CATEGORIES[index + 1]].filter(Boolean);
+    for (const neighbor of neighbors) {
+      const key = ["news", neighbor, interests.join(","), club];
+      queryClient.prefetchInfiniteQuery({
+        queryKey: key,
+        queryFn: ({ pageParam }) => fetchNews({ data: { offset: pageParam as number, limit: PAGE_SIZE, category: neighbor === "Tudo" ? undefined : neighbor, interests, club: club || undefined } }),
+        initialPageParam: 0,
+      }).then(() => {
+        const data = queryClient.getQueryData<{ pages: { items: NewsItem[] }[] }>(key);
+        const first = data?.pages?.[0]?.items?.[0];
+        if (!first) return;
+        const side = CATEGORIES.indexOf(neighbor) < index ? "left" : "right";
+        setSidePreview((prev) => ({ ...prev, [side]: first }));
+        if (first.image) {
+          const img = new Image();
+          img.src = imageKitUrl(first.image) ?? first.image;
+        }
+      });
+    }
+  }, [category, mounted, interests, club, queryClient, fetchNews]);
   const swiped = useRef(false);
   const trackLock = useRef(false);
 
@@ -1021,14 +1043,27 @@ function Index() {
           <div className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH }}>
             {dragX !== 0 && (
               <div
-                className="absolute inset-0 z-20 bg-black"
-                style={{ transform: `translateX(${dragX > 0 ? dragX - window.innerWidth : dragX + window.innerWidth}px)` }}
+                className="absolute inset-0 z-20 overflow-hidden bg-black"
+                style={{ transform: `translateX(${dragX > 0 ? dragX - (typeof window !== "undefined" ? window.innerWidth : 400) : dragX + (typeof window !== "undefined" ? window.innerWidth : 400)}px)` }}
               >
-                <div className="flex h-full items-center justify-center text-white/60">
-                  <span className="text-sm font-semibold uppercase tracking-widest">
-                    {CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)] ?? ""}
-                  </span>
-                </div>
+                {(() => {
+                  const preview = dragX < 0 ? sidePreview.right : sidePreview.left;
+                  return preview ? (
+                    <>
+                      <FeedImage item={preview} alt="" className="absolute inset-0 h-full w-full" />
+                      <div className="absolute inset-0 feed-scrim" />
+                      <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8">
+                        <h2 className="font-display text-2xl font-bold text-white">{preview.title}</h2>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-white/60">
+                      <span className="text-sm font-semibold uppercase tracking-widest">
+                        {CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)] ?? ""}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {slide && prevArticles.length > 0 && (

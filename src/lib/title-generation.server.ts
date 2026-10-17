@@ -1,5 +1,6 @@
 // Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
 // Confirmado via API para esta chave; thinkingLevel "minimal" é o mínimo aceite (thinkingBudget 0 dá 400).
+import { LIGA_CLUBS } from "./clubs";
 const MODEL = "gemini-flash-lite-latest";
 const TIMEOUT_MS = 6_000;
 let geminiCooldownUntil = 0;
@@ -11,9 +12,9 @@ REGRAS OBRIGATÓRIAS PARA O TÍTULO:
 - Diz golo, equipa, facto, autocarro e comboio. Não digas gol, time, você, equipe, ônibus ou trem.
 - NO MÁXIMO 12 palavras. O ideal são 6 a 11.
 - É um RESUMO do facto, não o título original cortado.
-- Escreve outra frase. Não copies a ordem nem as primeiras palavras do original.
-- Começa pela pessoa, clube ou pelo choque do que aconteceu.
-- Tom direto, tenso e provocador. O leitor tem de querer saber o resto.
+- Escreve outra frase, mas nunca mudes quem fez o quê.
+- O clube, a pessoa ou a empresa a quem o facto acontece no original tem de ser o mesmo no título novo.
+- Se o Nacional lamenta uma derrota, não escrevas que o Benfica lamenta a derrota. Não troques vencedor e vencido.
 - Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título.
 - Sem prefixos (Urgente, Crise, Atenção, Última hora, Breaking) e sem dois-pontos.
 - Frase completa e fechada. Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
@@ -203,6 +204,67 @@ export function isPublishableTitle(candidate: string | null | undefined, origina
   return validTitle(candidate, original || undefined) !== null;
 }
 
+function foldTitle(value: string): string {
+  return value.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+}
+
+function clubsInTitle(text: string): string[] {
+  const folded = foldTitle(text);
+  const hits: { id: string; index: number }[] = [];
+  for (const club of LIGA_CLUBS) {
+    if (club.id === "nacional" && folded.includes("selecao")) continue;
+    for (const key of club.keys) {
+      const index = key.includes(" ") ? folded.indexOf(key) : folded.search(new RegExp(`(?:^|\\s)${key}(?:\\s|$)`));
+      if (index >= 0) hits.push({ id: club.id, index });
+    }
+  }
+  hits.sort((a, b) => a.index - b.index);
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const hit of hits) {
+    if (seen.has(hit.id)) continue;
+    seen.add(hit.id);
+    ordered.push(hit.id);
+  }
+  return ordered;
+}
+
+function clubsDoing(text: string, pattern: RegExp): string[] {
+  const found: string[] = [];
+  for (const clause of text.split(/\s+\be\b\s+|\s+\bmas\b\s+|[,;]/i)) {
+    if (!pattern.test(foldTitle(clause))) continue;
+    const club = clubsInTitle(clause)[0];
+    if (club) found.push(club);
+  }
+  return found;
+}
+
+/** Recusa um título que põe a derrota, a vitória ou a frase noutro clube. */
+export function swapsStoryActor(candidate: string, original: string): boolean {
+  const lostBy = /\b(lamenta|lamentam|lamentou|perde|perdeu|perderam|falha|falhou|sofre|sofreu|encaixa|encaixou|goleado|goleada|derrotado|derrotada)\b/;
+  const wonBy = /\b(vence|venceu|vencem|venceram|goleia|goleou|goleiam|ganha|ganhou|triunfa|triunfou|impoe|impõe)\b/;
+  const loserOf = (text: string) => {
+    const losers = clubsDoing(text, lostBy);
+    for (const match of foldTitle(text).matchAll(/derrota d[oa]s?\s+([a-z0-9 ]{3,40})/g)) {
+      const club = clubsInTitle(match[1] ?? "")[0];
+      if (club) losers.push(club);
+    }
+    return losers;
+  };
+  const lostCandidate = loserOf(candidate);
+  const lostOriginal = loserOf(original);
+  const wonCandidate = clubsDoing(candidate, wonBy);
+  const wonOriginal = clubsDoing(original, wonBy);
+  if (lostCandidate[0] && lostOriginal[0] && lostCandidate[0] !== lostOriginal[0]) return true;
+  if (lostCandidate[0] && wonOriginal.includes(lostCandidate[0]) && !lostOriginal.includes(lostCandidate[0])) return true;
+  if (wonCandidate[0] && wonOriginal[0] && wonCandidate[0] !== wonOriginal[0]) return true;
+  if (wonCandidate[0] && lostOriginal.includes(wonCandidate[0]) && !wonOriginal.includes(wonCandidate[0])) return true;
+  const firstCandidate = clubsInTitle(candidate)[0];
+  const originalClubs = clubsInTitle(original);
+  if (firstCandidate && originalClubs.length > 0 && !originalClubs.includes(firstCandidate)) return true;
+  return false;
+}
+
 export function validTitle(raw: unknown, original?: string): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);
@@ -210,7 +272,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const words = forced.split(/\s+/).filter(Boolean);
   if (words.length < 4 || words.length > 12 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original))) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original))) return null;
   return forced;
 }
 

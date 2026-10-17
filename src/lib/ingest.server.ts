@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPublishableTitle } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPublishableTitle, backupTitle, swapsStoryActor } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
@@ -328,8 +328,10 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
-        if (!ai || !isPublishableTitle(ai, n.title)) return null;
-        return { n, titulo: ai, resumo: g?.resumo || n.excerpt?.trim() || ai };
+        const swapped = Boolean(g && swapsStoryActor(g.titulo, n.title));
+        const titulo = ai && isPublishableTitle(ai, n.title) ? ai : swapped ? backupTitle(n.title) : null;
+        if (!titulo) return null;
+        return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
       const verifiedImages = await Promise.all(titled.map((item) =>
         item ? chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : [])) : Promise.resolve(null)
@@ -418,7 +420,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     }
 
     if (!expired()) {
-      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(20);
+      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
       for (const row of recent ?? []) {
         if (expired() || rewritten >= 12) break;
         if (!row.original_title || !row.titulo_inedito) continue;
@@ -430,6 +432,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
         if (!next) { try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
         if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next || swapsStoryActor(next, row.original_title)) next = backupTitle(row.original_title);
         if (!next || next === row.titulo_inedito) continue;
         const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
         if (!error) rewritten++;

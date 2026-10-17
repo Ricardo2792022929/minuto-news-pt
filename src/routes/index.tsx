@@ -904,7 +904,7 @@ function Index() {
           const index = CATEGORIES.indexOf(current);
           return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
-        window.setTimeout(() => setSlide(null), 360);
+        window.setTimeout(() => setSlide(null), 340);
         return;
       }
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
@@ -1180,7 +1180,7 @@ function Index() {
                       const to = CATEGORIES.indexOf(c);
                       if (to !== from) {
                         setSlide(to > from ? "left" : "right");
-                        window.setTimeout(() => setSlide(null), 360);
+                        window.setTimeout(() => setSlide(null), 340);
                       }
                       setCategory(c);
                     }}

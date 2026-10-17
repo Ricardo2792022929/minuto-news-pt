@@ -718,6 +718,7 @@ function Index() {
   }, []);
   const [interests, setInterests] = useState<string[]>([]);
   const [category, setCategory] = useState<Category>("Tudo");
+  const [slide, setSlide] = useState<"left" | "right" | null>(null);
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
@@ -892,10 +893,13 @@ function Index() {
       if (horizontal && Math.abs(dx) > 56) {
         swiped.current = true;
         window.setTimeout(() => { swiped.current = false; }, 500);
+        const dir = dx < 0 ? "left" : "right";
+        setSlide(dir);
         setCategory((current) => {
           const index = CATEGORIES.indexOf(current);
-          return CATEGORIES[dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
+          return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
+        window.setTimeout(() => setSlide(null), 360);
         return;
       }
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
@@ -991,7 +995,9 @@ function Index() {
           {/* Feed */}
           <div
             ref={feedRef}
-            className="absolute inset-x-0 bottom-0 z-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className={`absolute inset-x-0 bottom-0 z-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
+            }`}
             style={{ top: mastheadH, scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
           >
             {articles.map((a, i) => {
@@ -1164,7 +1170,15 @@ function Index() {
                   <button
                     key={c}
                     data-cat={c}
-                    onClick={() => setCategory(c)}
+                    onClick={() => {
+                      const from = CATEGORIES.indexOf(category);
+                      const to = CATEGORIES.indexOf(c);
+                      if (to !== from) {
+                        setSlide(to > from ? "left" : "right");
+                        window.setTimeout(() => setSlide(null), 360);
+                      }
+                      setCategory(c);
+                    }}
                     className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
                       category === c
                         ? "bg-live text-live-foreground"

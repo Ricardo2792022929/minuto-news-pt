@@ -858,7 +858,7 @@ function Index() {
     const place = (pageIndex: number, drag: number, animate: boolean) => {
       const max = Math.max(countRef.current - 1, 0);
       const clamped = Math.max(0, Math.min(max, pageIndex));
-      track.style.transition = animate ? "transform 340ms cubic-bezier(.16,1,.3,1)" : "none";
+      track.style.transition = animate ? "transform 460ms cubic-bezier(.16,1,.3,1)" : "none";
       track.style.transform = `translate3d(0, ${-clamped * height() + drag}px, 0)`;
     };
     place(pageRef.current, 0, false);
@@ -900,7 +900,7 @@ function Index() {
       const dy = event.clientY - startY;
       if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
         swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 500);
+        window.setTimeout(() => { swiped.current = false; }, 600);
         setCategory((current) => {
           const index = CATEGORIES.indexOf(current);
           const next = dx < 0 ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0);
@@ -926,7 +926,7 @@ function Index() {
       next = Math.max(0, Math.min(Math.max(countRef.current - 1, 0), next));
       if (next !== pageRef.current) {
         swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 500);
+        window.setTimeout(() => { swiped.current = false; }, 600);
       }
       pageRef.current = next;
       setPage(next);
@@ -944,7 +944,7 @@ function Index() {
       setPage(next);
       place(next, 0, true);
       if (next >= countRef.current - 3) fetchMoreRef.current();
-      window.setTimeout(() => { delete track.dataset.lock; }, 460);
+      window.setTimeout(() => { delete track.dataset.lock; }, 560);
     };
 
     view.addEventListener("pointerdown", down);

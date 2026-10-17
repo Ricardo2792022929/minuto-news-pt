@@ -729,6 +729,7 @@ function Index() {
   }, [category]);
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
   const [dragX, setDragX] = useState(0);
+  const [settling, setSettling] = useState(false);
   const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
   const [sidePreview, setSidePreview] = useState<{ left?: NewsItem; right?: NewsItem }>({});
   const queryClient = useQueryClient();
@@ -938,17 +939,24 @@ function Index() {
         swiped.current = true;
         window.setTimeout(() => { swiped.current = false; }, 400);
         const dir = dx < 0 ? "left" : "right";
-        setPrevArticles(articlesRef.current);
-        setSlide(dir);
-        setDragX(0);
-        setCategory((current) => {
-          const index = CATEGORIES.indexOf(current);
-          return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
-        });
-        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 260);
+        const width = view.clientWidth || window.innerWidth;
+        const target = dir === "left" ? -width : width;
+        setSettling(true);
+        setDragX(target);
+        window.setTimeout(() => {
+          setPrevArticles(articlesRef.current);
+          setCategory((current) => {
+            const index = CATEGORIES.indexOf(current);
+            return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
+          });
+          setDragX(0);
+          setSettling(false);
+        }, 180);
         return;
       }
+      setSettling(true);
       setDragX(0);
+      window.setTimeout(() => setSettling(false), 180);
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
         const item = articlesRef.current[indexFromScroll()];
         if (item) {
@@ -1044,7 +1052,10 @@ function Index() {
             {dragX !== 0 && (
               <div
                 className="absolute inset-0 z-20 overflow-hidden bg-black"
-                style={{ transform: `translateX(${dragX > 0 ? dragX - (typeof window !== "undefined" ? window.innerWidth : 400) : dragX + (typeof window !== "undefined" ? window.innerWidth : 400)}px)` }}
+                style={{
+                  transform: `translateX(${dragX > 0 ? dragX - (typeof window !== "undefined" ? window.innerWidth : 400) : dragX + (typeof window !== "undefined" ? window.innerWidth : 400)}px)`,
+                  transition: settling ? "transform 180ms cubic-bezier(.22,1,.36,1)" : undefined,
+                }}
               >
                 {(() => {
                   const preview = dragX < 0 ? sidePreview.right : sidePreview.left;
@@ -1093,6 +1104,7 @@ function Index() {
                 WebkitOverflowScrolling: "touch",
                 touchAction: "pan-y",
                 transform: dragX ? `translateX(${dragX}px)` : undefined,
+                transition: settling ? "transform 180ms cubic-bezier(.22,1,.36,1)" : undefined,
               }}
             >
             {articles.map((a, i) => {

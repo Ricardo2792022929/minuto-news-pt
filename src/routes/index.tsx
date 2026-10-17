@@ -719,14 +719,20 @@ function Index() {
   const [interests, setInterests] = useState<string[]>([]);
   const navRef = useRef<HTMLElement>(null);
   const [category, setCategory] = useState<Category>("Tudo");
-  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  const [indicator, setIndicator] = useState({ left: 0, width: 72 });
   useEffect(() => {
-    const nav = navRef.current;
-    if (!nav) return;
-    const btn = nav.querySelector<HTMLElement>(`[data-cat="${category}"]`);
-    if (!btn) return;
-    setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
-  }, [category]);
+    if (!mounted) return;
+    const measure = () => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const btn = nav.querySelector<HTMLElement>(`[data-cat="${category}"]`);
+      if (!btn) return;
+      setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
+    };
+    measure();
+    const timer = window.setTimeout(measure, 50);
+    return () => window.clearTimeout(timer);
+  }, [category, mounted]);
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
   const [dragX, setDragX] = useState(0);
   const [settling, setSettling] = useState(false);
@@ -927,8 +933,10 @@ function Index() {
       if (!horizontal) return;
       event.preventDefault();
       const index = CATEGORIES.indexOf(category);
-      const atEdge = (dx > 0 && index <= 0) || (dx < 0 && index >= CATEGORIES.length - 1);
-      setDragX(atEdge ? dx * 0.3 : dx);
+      const atStart = index <= 0 && dx > 0;
+      const atEnd = index >= CATEGORIES.length - 1 && dx < 0;
+      if (atStart || atEnd) { setDragX(0); return; }
+      setDragX(dx);
     };
     const up = (event: PointerEvent) => {
       if (!tracking) return;

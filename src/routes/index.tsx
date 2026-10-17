@@ -728,6 +728,7 @@ function Index() {
     setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
   }, [category]);
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
+  const [dragX, setDragX] = useState(0);
   const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
@@ -892,32 +893,40 @@ function Index() {
       startY = event.clientY;
     };
     const move = (event: PointerEvent) => {
-      if (!tracking || decided) return;
+      if (!tracking) return;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      decided = true;
-      horizontal = Math.abs(dx) > Math.abs(dy);
-      if (horizontal) event.preventDefault();
+      if (!decided) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = true;
+        horizontal = Math.abs(dx) > Math.abs(dy);
+      }
+      if (!horizontal) return;
+      event.preventDefault();
+      const index = CATEGORIES.indexOf(category);
+      const atEdge = (dx > 0 && index <= 0) || (dx < 0 && index >= CATEGORIES.length - 1);
+      setDragX(atEdge ? dx * 0.3 : dx);
     };
     const up = (event: PointerEvent) => {
       if (!tracking) return;
       tracking = false;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (horizontal && Math.abs(dx) > 40) {
+      if (horizontal && Math.abs(dx) > 50) {
         swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 500);
+        window.setTimeout(() => { swiped.current = false; }, 400);
         const dir = dx < 0 ? "left" : "right";
         setPrevArticles(articlesRef.current);
         setSlide(dir);
+        setDragX(0);
         setCategory((current) => {
           const index = CATEGORIES.indexOf(current);
           return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
-        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 280);
+        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 260);
         return;
       }
+      setDragX(0);
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
         const item = articlesRef.current[indexFromScroll()];
         if (item) {
@@ -959,7 +968,7 @@ function Index() {
       view.removeEventListener("scroll", onScroll);
       view.removeEventListener("wheel", wheel);
     };
-  }, [tab, mounted, mastheadH]);
+  }, [tab, mounted, mastheadH, category]);
 
   const tickerItems = useMemo(
     () =>
@@ -1010,6 +1019,18 @@ function Index() {
         <>
           {/* Feed */}
           <div className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH }}>
+            {dragX !== 0 && (
+              <div
+                className="absolute inset-0 z-20 bg-black"
+                style={{ transform: `translateX(${dragX > 0 ? dragX - window.innerWidth : dragX + window.innerWidth}px)` }}
+              >
+                <div className="flex h-full items-center justify-center text-white/60">
+                  <span className="text-sm font-semibold uppercase tracking-widest">
+                    {CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)] ?? ""}
+                  </span>
+                </div>
+              </div>
+            )}
             {slide && prevArticles.length > 0 && (
               <div
                 className={`absolute inset-0 z-10 overflow-hidden ${slide === "left" ? "animate-exit-left" : "animate-exit-right"}`}
@@ -1032,7 +1053,12 @@ function Index() {
               className={`absolute inset-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                 slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
               }`}
-              style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+              style={{
+                scrollSnapType: "y mandatory",
+                WebkitOverflowScrolling: "touch",
+                touchAction: "pan-y",
+                transform: dragX ? `translateX(${dragX}px)` : undefined,
+              }}
             >
             {articles.map((a, i) => {
               const fresh =

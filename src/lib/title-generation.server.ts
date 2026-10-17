@@ -9,7 +9,7 @@ const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a im
 
 REGRAS DO TÍTULO:
 - Português de Portugal. Diz golo, equipa, facto, autocarro, comboio. Nunca gol, time, você, equipe, ônibus, trem.
-- 6 a 10 palavras. Máximo 10. Uma frase completa e fechada.
+- 6 a 10 palavras. Máximo 10. Uma frase completa e fechada, com verbo. Se não couber, escreve só a primeira oração completa. Nunca cortes a meio.
 - Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora, Breaking).
 - Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido, nem quem falou, demitiu, marcou ou morreu.
@@ -92,17 +92,21 @@ function clausesOf(text: string): string[][] {
   return parts;
 }
 
+const VERBS = /\b(marca|marcou|anuncia|anunciou|dissolve|dissolveu|vence|venceu|perde|perdeu|ganha|ganhou|marca|sofre|sofreu|admite|admitiu|acusa|acusou|nega|negou|pede|pediu|exige|exigiu|aprova|aprovou|rejeita|rejeitou|demite|demitiu|nomeia|nomeou|prende|prendeu|mata|matou|morre|morreu|sai|saiu|entra|entrou|volta|voltou|chega|chegou|parte|partiu|abre|abriu|fecha|fechou|sobe|subiu|desce|desceu|cai|caiu|conquista|conquistou|vence|venceu|elimina|eliminou|avanca|avança|recua|recuou|critica|criticou|elogia|elogiou|alerta|alertou|confirma|confirmou|revela|revelou|denuncia|denunciou|investiga|investigou|condena|condenou|absolve|absolveu|assina|assinou|rompe|rompeu|ameaca|ameaça|ameacou|retira|retirou|levanta|levantou|impoe|impõe|impôs|goleia|goleou|empatou|empata|marca|marcam|anunciam|vencem|perdem|saem|entram|voltam|chegam|morrem|prendem|aprovam|rejeitam|criticam|elogiam|confirmam|revelam)\b/i;
+
+function hasAction(words: string[]): boolean {
+  return VERBS.test(words.join(" "));
+}
+
 function finishClause(words: string[]): string[] {
-  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
-  while (capped.length > 4 && isIncomplete(capped)) {
-    const joined = capped.join(" ");
-    const cut = joined.search(/\s+(e|que)\s+\S+$/i);
-    if (cut > 10) {
-      const next = joined.slice(0, cut).split(/\s+/).filter(Boolean);
-      if (next.length >= 4 && !isIncomplete(next)) return next;
-    }
-    capped.pop();
+  const joined = words.join(" ");
+  const cut = joined.search(/\s+(e|que|mas|porque)\s+/i);
+  if (cut > 0) {
+    const head = joined.slice(0, cut).split(/\s+/).filter(Boolean);
+    if (head.length >= 4 && head.length <= 10 && !isIncomplete(head) && hasAction(head)) return head;
   }
+  let capped = words.length > 10 ? words.slice(0, 10) : [...words];
+  while (capped.length > 4 && (isIncomplete(capped) || !hasAction(capped))) capped.pop();
   return capped;
 }
 
@@ -172,7 +176,7 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   return prefix >= 4 && prefix / c.length >= 0.55;
 }
 
-/** No máximo 10 palavras e sempre uma frase fechada. Corta em vez de rejeitar. */
+/** No máximo 10 palavras, com verbo e frase fechada. Sem corte que fique sem sentido. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
@@ -180,20 +184,17 @@ export function forceMax10Words(raw: string): string {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const usable = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
-  if (usable(all)) return pack(all);
+  const complete = (words: string[]) => words.length >= 4 && words.length <= 10 && !isIncomplete(words) && !isFillerStart(words) && !endsAfterComma(words);
+  if (complete(all)) return pack(all);
   const clauses = clausesOf(t);
   const preferred = clauses.filter((c) => !isFillerStart(c));
   for (const clause of (preferred.length ? preferred : clauses)) {
     const done = finishClause(clause);
-    if (usable(done)) return pack(done);
+    if (complete(done) && (done.length === clause.length || hasAction(done))) return pack(done);
   }
   const done = finishClause(all);
-  if (done.length >= 4 && done.length <= 10 && !isIncomplete(done)) return pack(done);
-  const rest = [...all];
-  while (rest.length > 3 && isIncomplete(rest)) rest.pop();
-  if (rest.length >= 4 && rest.length <= 10 && !isIncomplete(rest)) return pack(rest);
-  return t.trim();
+  if (complete(done) && (done.length === all.length || hasAction(done))) return pack(done);
+  return "";
 }
 
 /** O título só pode aparecer se for um resumo novo, nunca o original nem um corte. */
@@ -296,11 +297,7 @@ export function backupTitle(original: string): string {
   if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
   const forced = forceMax10Words(t);
   if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
-  const words = t.split(/\s+/).map(stripToken).filter(Boolean);
-  const capped = words.slice(0, 10);
-  while (capped.length > 4 && isIncomplete(capped)) capped.pop();
-  const chosen = capped.length >= 4 ? capped : words.slice(0, 8);
-  return pack(chosen.length ? chosen : ["Notícia", "em", "atualização", "agora"]);
+  return "";
 }
 
 /** Quando a IA falha, tenta uma frase curta diferente do título original. */

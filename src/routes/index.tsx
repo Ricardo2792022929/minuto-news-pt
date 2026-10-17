@@ -717,7 +717,16 @@ function Index() {
     setShowIntro(false);
   }, []);
   const [interests, setInterests] = useState<string[]>([]);
+  const navRef = useRef<HTMLElement>(null);
   const [category, setCategory] = useState<Category>("Tudo");
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const btn = nav.querySelector<HTMLElement>(`[data-cat="${category}"]`);
+    if (!btn) return;
+    setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
+  }, [category]);
   const [slide, setSlide] = useState<"left" | "right" | null>(null);
   const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
   const [tab, setTab] = useState<"feed" | "saved">("feed");
@@ -906,7 +915,7 @@ function Index() {
           const index = CATEGORIES.indexOf(current);
           return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
         });
-        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 340);
+        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 280);
         return;
       }
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
@@ -1191,7 +1200,7 @@ function Index() {
                 </div>
               )}
 
-              <nav className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <nav ref={navRef} className="relative mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
@@ -1202,19 +1211,28 @@ function Index() {
                       if (to !== from) {
                         setPrevArticles(articlesRef.current);
                         setSlide(to > from ? "left" : "right");
-                        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 340);
+                        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 280);
                       }
                       setCategory(c);
                     }}
-                    className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+                    className={`relative z-10 shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors duration-200 ${
                       category === c
-                        ? "bg-live text-live-foreground"
-                        : "bg-feed-fg/10 text-feed-fg/80 hover:bg-feed-fg/20"
+                        ? "text-live-foreground"
+                        : "text-feed-fg/80"
                     }`}
                   >
                     {c}
                   </button>
                 ))}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-0 h-full rounded-full bg-live"
+                  style={{
+                    left: indicator.left,
+                    width: indicator.width,
+                    transition: "left 280ms cubic-bezier(.22,1,.36,1), width 280ms cubic-bezier(.22,1,.36,1)",
+                  }}
+                />
               </nav>
               <div className="mt-3 h-0.5 w-full bg-live" aria-hidden="true" />
             </div>

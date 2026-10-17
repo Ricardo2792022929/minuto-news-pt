@@ -208,10 +208,10 @@
   0% { transform: translateX(0); }
   100% { transform: translateX(100%); }
 }
-@utility animate-slide-left { animation: slide-left 320ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-slide-right { animation: slide-right 320ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-exit-left { animation: exit-left 320ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-exit-right { animation: exit-right 320ms cubic-bezier(.22,1,.36,1) both; }
+@utility animate-slide-left { animation: slide-left 260ms cubic-bezier(.22,1,.36,1) both; }
+@utility animate-slide-right { animation: slide-right 260ms cubic-bezier(.22,1,.36,1) both; }
+@utility animate-exit-left { animation: exit-left 260ms cubic-bezier(.22,1,.36,1) both; }
+@utility animate-exit-right { animation: exit-right 260ms cubic-bezier(.22,1,.36,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right { animation: none; }

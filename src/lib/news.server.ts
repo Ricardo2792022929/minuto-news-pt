@@ -31,7 +31,7 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.rtp.pt/noticias/rss", source: "RTP Notícias", fallbackCategory: "Mundo" },
   { url: "https://cnnportugal.iol.pt/rss", source: "CNN Portugal", fallbackCategory: "Mundo" },
   { url: "https://observador.pt/rss/geral/", source: "Observador", fallbackCategory: "Mundo" },
-  { url: "https://www.lusa.pt/rss", source: "Lusa", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss/search?q=site:lusa.pt&hl=pt-PT&gl=PT&ceid=PT:pt", source: "Lusa", fallbackCategory: "Mundo" },
   { url: "https://www.cmjornal.pt/rss", source: "Correio da Manhã", fallbackCategory: "Mundo" },
   { url: "https://www.noticiasaominuto.com/rss", source: "Notícias ao Minuto", fallbackCategory: "Mundo" },
   { url: "https://noticias.sapo.pt/rss", source: "SAPO Notícias", fallbackCategory: "Mundo" },

@@ -93,7 +93,7 @@ function clausesOf(text: string): string[][] {
   return parts;
 }
 
-const VERBS = /\b(marca|marcou|anuncia|anunciou|dissolve|dissolveu|vence|venceu|perde|perdeu|ganha|ganhou|marca|sofre|sofreu|admite|admitiu|acusa|acusou|nega|negou|pede|pediu|exige|exigiu|aprova|aprovou|rejeita|rejeitou|demite|demitiu|nomeia|nomeou|prende|prendeu|mata|matou|morre|morreu|sai|saiu|entra|entrou|volta|voltou|chega|chegou|parte|partiu|abre|abriu|fecha|fechou|sobe|subiu|desce|desceu|cai|caiu|conquista|conquistou|vence|venceu|elimina|eliminou|avanca|avança|recua|recuou|critica|criticou|elogia|elogiou|alerta|alertou|confirma|confirmou|revela|revelou|denuncia|denunciou|investiga|investigou|condena|condenou|absolve|absolveu|assina|assinou|rompe|rompeu|ameaca|ameaça|ameacou|retira|retirou|levanta|levantou|impoe|impõe|impôs|goleia|goleou|empatou|empata|marca|marcam|anunciam|vencem|perdem|saem|entram|voltam|chegam|morrem|prendem|aprovam|rejeitam|criticam|elogiam|confirmam|revelam)\b/i;
+const VERBS = /\b(marca|marcou|anuncia|anunciou|dissolve|dissolveu|vence|venceu|perde|perdeu|ganha|ganhou|sofre|sofreu|admite|admitiu|acusa|acusou|nega|negou|pede|pediu|exige|exigiu|aprova|aprovou|rejeita|rejeitou|demite|demitiu|nomeia|nomeou|prende|prendeu|mata|matou|morre|morreu|sai|saiu|entra|entrou|volta|voltou|chega|chegou|parte|partiu|abre|abriu|fecha|fechou|sobe|subiu|desce|desceu|cai|caiu|conquista|conquistou|elimina|eliminou|avanca|avança|avancou|avançou|recua|recuou|critica|criticou|elogia|elogiou|alerta|alertou|confirma|confirmou|revela|revelou|denuncia|denunciou|investiga|investigou|condena|condenou|absolve|absolveu|assina|assinou|rompe|rompeu|ameaca|ameaça|ameacou|retira|retirou|levanta|levantou|impoe|impõe|impôs|goleia|goleou|empatou|empata|marcam|anunciam|vencem|perdem|saem|entram|voltam|chegam|morrem|prendem|aprovam|rejeitam|criticam|elogiam|confirmam|revelam|promete|prometeu|empurra|empurrou|participa|participou|instala|instalam|instalou|continua|continuam|continuou|enche|enchem|encheu|considera|considerou|lamenta|lamentou|questiona|questionou|causa|causou|aposta|apostou|afasta|afastou|celebra|celebrou|regressa|regressou|compra|comprou|diz|disse|afirma|afirmou|fica|ficou|deixa|deixou|reune|reúne|reuniu|vive|viveu|edita|editou|provoca|provocou|garante|garantiu|lidera|liderou|aponta|apontou|regista|registou|insta|instou|prioriza|priorizou|elimina|eliminam|mantem|mantém|manteve|abre|abrem|fecha|fecham)\b/i;
 
 function hasAction(words: string[]): boolean {
   return VERBS.test(words.join(" "));
@@ -316,6 +316,13 @@ export function backupTitle(original: string): string {
   if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
   const forced = forceMax10Words(t);
   if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
+  const words = t.replace(/[“”"«»]/g, "").split(/\s+/).map((word) => word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")).filter(Boolean);
+  let capped = words.slice(0, 10);
+  while (capped.length > 4 && /^(de|da|do|das|dos|em|no|na|nos|nas|e|ou|que|para|com|por|a|o|as|os|um|uma)$/i.test(capped[capped.length - 1] ?? "")) capped.pop();
+  if (capped.length >= 4 && capped.length <= 10) {
+    const out = capped.join(" ");
+    return out.charAt(0).toUpperCase() + out.slice(1);
+  }
   return "";
 }
 

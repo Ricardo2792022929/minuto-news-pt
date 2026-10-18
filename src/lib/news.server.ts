@@ -31,7 +31,6 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.rtp.pt/noticias/rss", source: "RTP Notícias", fallbackCategory: "Mundo" },
   { url: "https://cnnportugal.iol.pt/rss", source: "CNN Portugal", fallbackCategory: "Mundo" },
   { url: "https://observador.pt/rss/geral/", source: "Observador", fallbackCategory: "Mundo" },
-  { url: "https://news.google.com/rss/search?q=site:lusa.pt&hl=pt-PT&gl=PT&ceid=PT:pt", source: "Lusa", fallbackCategory: "Mundo" },
   { url: "https://www.cmjornal.pt/rss", source: "Correio da Manhã", fallbackCategory: "Mundo" },
   { url: "https://www.noticiasaominuto.com/rss", source: "Notícias ao Minuto", fallbackCategory: "Mundo" },
   { url: "https://noticias.sapo.pt/rss", source: "SAPO Notícias", fallbackCategory: "Mundo" },
@@ -331,7 +330,6 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
     const title = stripHtml(String(item?.["title"] ?? ""));
     const link = String(item?.["link"] ?? item?.["@_href"] ?? "");
     if (!title || !link) continue;
-    if (feed.source === "Lusa" && /^(www\.lusa\.pt|fotogalerias|newsasset|desporto|galeria)/i.test(title.trim())) continue;
 
     const dateStr =
       item?.["pubDate"] ?? item?.["published"] ?? item?.["updated"] ?? item?.["dc:date"] ?? "";
@@ -382,7 +380,7 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
         "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0; +https://lovable.app)",
       Accept: "application/rss+xml, application/xml, text/xml, */*",
     },
-    signal: AbortSignal.timeout(feed.source === "Lusa" ? 8000 : 5000),
+    signal: AbortSignal.timeout(5000),
     redirect: "follow",
   });
   if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`);

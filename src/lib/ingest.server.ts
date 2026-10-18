@@ -289,9 +289,18 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     const knownTitles = (savedTitles ?? []).flatMap((r) => [r.original_title, r.titulo_inedito]).filter((title): title is string => typeof title === "string" && title.trim().length > 0);
     const desired = BATCH * MAX_BATCHES;
     const fallbackWindows = [60, 180, 360, 720, 1440];
-    const candidates = news.filter((n) => !existing.has(n.id) && !existing.has(normalizeArticleUrl(n.url)) && !hasSimilarTitle(n.title, knownTitles));
-    const pending: typeof news = [];
-    const selected = new Set<string>();
+    const fresh = news.filter((n) => !existing.has(n.id) && !existing.has(normalizeArticleUrl(n.url)));
+    const lusaPick: typeof news = [];
+    for (const n of fresh) {
+      if (n.source !== "Lusa" || lusaPick.length >= 4) continue;
+      if (hasSimilarTitle(n.title, lusaPick.map((item) => item.title))) continue;
+      lusaPick.push(n);
+      knownTitles.push(n.title);
+    }
+    const lusaIds = new Set(lusaPick.map((n) => n.id));
+    const candidates = fresh.filter((n) => !lusaIds.has(n.id) && !hasSimilarTitle(n.title, knownTitles));
+    const pending: typeof news = [...lusaPick];
+    const selected = new Set<string>(lusaIds);
     const addWindow = (olderThanMinutes: number, newerThanMinutes: number) => {
       for (const n of candidates) {
         const ageMinutes = (Date.now() - new Date(n.publishedAt).getTime()) / 60_000;
@@ -478,7 +487,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

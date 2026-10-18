@@ -1,3 +1,4 @@
+import { XMLParser } from "fast-xml-parser";
 import { scrapeLusa } from "./lusa-scraper.server";
 import type { NewsItem } from "./news.types";
 

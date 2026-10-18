@@ -28,5 +28,6 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
       }
     } catch { /* ignora */ }
   }
+  console.log("Lusa scraper found:", items.length, "items");
   return items.slice(0, 10);
 }

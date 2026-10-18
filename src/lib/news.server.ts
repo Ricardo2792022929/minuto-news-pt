@@ -404,6 +404,7 @@ export async function getAllNews(): Promise<NewsItem[]> {
       console.error("feed falhou:", FEEDS[i]?.source, String(r.reason));
       return;
     }
+    if (FEEDS[i]?.source === "Lusa") console.log("Lusa items:", r.value.length);
     for (const item of r.value) {
       const canonicalUrl = canonicalArticleUrl(item.url);
       if (seen.has(canonicalUrl)) continue;

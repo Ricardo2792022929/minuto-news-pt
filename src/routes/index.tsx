@@ -845,8 +845,8 @@ function Index() {
   hasMoreRef.current = Boolean(query.hasNextPage);
 
   useEffect(() => {
-    for (const item of articles.slice(0, 4)) warmOrigin(item.url);
-    for (const item of articles.slice(0, 6)) {
+    for (const item of articles.slice(0, 6)) warmOrigin(item.url);
+    for (const item of articles.slice(0, 8)) {
       const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
       if (!src) continue;
       const img = new Image();
@@ -854,6 +854,17 @@ function Index() {
       img.src = src;
     }
   }, [articles]);
+
+  useEffect(() => {
+    const next = articles.slice(page, page + 3);
+    for (const item of next) {
+      const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
+      if (!src) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+    }
+  }, [page, articles]);
 
   useEffect(() => {
     if (!mounted || tab !== "feed") return;

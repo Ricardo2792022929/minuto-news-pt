@@ -1,5 +1,11 @@
 import { chooseOriginal } from "./image-dimensions.server";
 
+const LOGO_PATTERN = /logo|placeholder|icon|sprite|ojogo|o-jogo|sapo.*brand|favicon|avatar|default.*image|no-image|sem-imagem/i;
+
+function isLogo(url: string): boolean {
+  return LOGO_PATTERN.test(url);
+}
+
 /** A fotografia principal da página da notícia, quando a fonte a publica. */
 export async function imageFromArticlePage(pageUrl: string): Promise<string | null> {
   try {
@@ -23,8 +29,8 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
       } catch { /* metadado inválido */ }
     }
     const chosen = await chooseOriginal([...new Set(candidates)]);
-    if (chosen) return chosen;
-    return candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !/logo|placeholder|icon|sprite/i.test(url)].every(Boolean)) ?? null;
+    if (chosen && !isLogo(chosen)) return chosen;
+    return candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !isLogo(url)].every(Boolean)) ?? null;
   } catch {
     return null;
   }

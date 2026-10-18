@@ -208,7 +208,7 @@ function extractImages(item: any): string[] {
   for (const raw of [...sorted, ...html]) {
     if (!raw) continue;
     const url = upgradeImageUrl(raw.replace(/&amp;/g, "&").trim());
-    if (/_default\.|default_|placeholder|logo/i.test(url)) continue; // imagens genéricas
+    if (/_default\.|default_|placeholder|logo|ojogo|o-jogo|sapo.*brand|favicon|brand.*logo|site-logo/i.test(url)) continue;
     if (!isLowResImage(url)) result.push(url);
   }
   return [...new Set(result)];

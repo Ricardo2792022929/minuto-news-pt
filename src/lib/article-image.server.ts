@@ -1,6 +1,6 @@
 import { chooseOriginal } from "./image-dimensions.server";
 
-const LOGO_PATTERN = /logo|placeholder|icon|sprite|ojogo|o-jogo|sapo.*brand|favicon|avatar|default.*image|no-image|sem-imagem|brand|thumb.*logo|jogo.*logo/i;
+const LOGO_PATTERN = /logo|placeholder|icon|sprite|ojogo|o-jogo|sapo.*brand|favicon|avatar|default.*image|no-image|sem-imagem|brand|thumb.*logo|jogo.*logo|jog.*logo|site.*logo|header.*logo|nav.*logo|footer.*logo/i;
 
 function isLogo(url: string): boolean {
   return LOGO_PATTERN.test(url);

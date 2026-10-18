@@ -387,7 +387,16 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         try {
           const articleImage = await fromArticlePage(m.url);
           const isRadio = /antena|radio/i.test(m.url) || /rtp.*antena/i.test(m.url);
-          const found = articleImage && !isRadio ? [articleImage] : isRadio ? [await imageFromSameStory(term)].filter(Boolean) : await findHdImage(term, used, description);
+          const isLogoImage = articleImage && /logo|ojogo|o-jogo|favicon|brand/i.test(articleImage);
+          let found: string[] = [];
+          if (articleImage && !isRadio && !isLogoImage) {
+            found = [articleImage];
+          } else if (isRadio || isLogoImage) {
+            const sameStory = await imageFromSameStory(term);
+            found = sameStory ? [sameStory] : await findHdImage(term, used, description);
+          } else {
+            found = await findHdImage(term, used, description);
+          }
           const safeFound = [...new Set(found.map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate)))];
           const img = safeFound[0];
           if (!img) {

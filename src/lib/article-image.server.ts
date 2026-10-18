@@ -10,12 +10,16 @@ function isLogo(url: string): boolean {
 export async function imageFromArticlePage(pageUrl: string): Promise<string | null> {
   try {
     const res = await fetch(pageUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0)", "Accept-Language": "pt-PT" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
+      },
       signal: AbortSignal.timeout(8000),
       redirect: "follow",
     });
     if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 200_000);
+    const html = (await res.text()).slice(0, 300_000);
     const candidates: string[] = [];
     for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
       const tag = meta[0];
@@ -28,9 +32,18 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
         if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
       } catch { /* metadado inválido */ }
     }
+    for (const img of html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) {
+      const src = img[1];
+      if (!src || /logo|icon|sprite|avatar|placeholder/i.test(src)) continue;
+      if (!/\.(?:jpe?g|png|webp)/i.test(src) && !/cdn-images\.rtp\.pt/i.test(src)) continue;
+      try {
+        const imageUrl = new URL(src, pageUrl);
+        if (imageUrl.protocol === "https:") candidates.push(imageUrl.toString());
+      } catch { /* ignora */ }
+    }
     const chosen = await chooseOriginal([...new Set(candidates)]);
     if (chosen && !isLogo(chosen)) return chosen;
-    const real = candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !isLogo(url)].every(Boolean));
+    const real = candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url) || /cdn-images\.rtp\.pt/i.test(url), !isLogo(url)].every(Boolean));
     if (real) return real;
     return candidates[0] ?? null;
   } catch {

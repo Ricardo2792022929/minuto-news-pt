@@ -30,7 +30,9 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
     }
     const chosen = await chooseOriginal([...new Set(candidates)]);
     if (chosen && !isLogo(chosen)) return chosen;
-    return candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !isLogo(url)].every(Boolean)) ?? null;
+    const real = candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url), !isLogo(url)].every(Boolean));
+    if (real) return real;
+    return candidates[0] ?? null;
   } catch {
     return null;
   }

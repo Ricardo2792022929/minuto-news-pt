@@ -205,13 +205,15 @@ function extractImages(item: any): string[] {
     return [...variants, firstImg(value)];
   });
   const result: string[] = [];
+  const logos: string[] = [];
   for (const raw of [...sorted, ...html]) {
     if (!raw) continue;
     const url = upgradeImageUrl(raw.replace(/&amp;/g, "&").trim());
-    if (/_default\.|default_|placeholder|logo|ojogo|o-jogo|sapo.*brand|favicon|brand.*logo|site-logo/i.test(url)) continue;
-    if (!isLowResImage(url)) result.push(url);
+    if (isLowResImage(url)) continue;
+    if (/_default\.|default_|placeholder|logo|ojogo|o-jogo|favicon/i.test(url)) logos.push(url);
+    else result.push(url);
   }
-  return [...new Set(result)];
+  return [...new Set(result.length ? result : logos)];
 }
 
 // CDNs que redimensionam (RTP, imgix, WordPress Photon): pede a versão HD.

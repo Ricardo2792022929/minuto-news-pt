@@ -9,7 +9,7 @@ import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
 import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
-import { imageFromArticlePage } from "./article-image.server";
+import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
 import { chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
@@ -386,7 +386,8 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
         try {
           const articleImage = await fromArticlePage(m.url);
-          const found = articleImage ? [articleImage] : await findHdImage(term, used, description);
+          const isRadio = /antena|radio/i.test(m.url) || /rtp.*antena/i.test(m.url);
+          const found = articleImage && !isRadio ? [articleImage] : isRadio ? [await imageFromSameStory(term)].filter(Boolean) : await findHdImage(term, used, description);
           const safeFound = [...new Set(found.map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate)))];
           const img = safeFound[0];
           if (!img) {

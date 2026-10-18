@@ -6,7 +6,26 @@ function isLogo(url: string): boolean {
   return LOGO_PATTERN.test(url);
 }
 
-/** A fotografia principal da página da notícia, quando a fonte a publica. */
+/** Procura a mesma notícia noutro site e devolve a imagem. */
+export async function imageFromSameStory(title: string): Promise<string | null> {
+  if (!title || title.length < 10) return null;
+  try {
+    const query = encodeURIComponent(title.slice(0, 80));
+    const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=pt-PT&gl=PT&ceid=PT:pt`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticias/1.0)" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const links = [...xml.matchAll(/<link>([^<]+)<\/link>/g)].map((m) => m[1]).filter((l) => l.startsWith("http") && !l.includes("news.google.com"));
+    for (const link of links.slice(0, 3)) {
+      if (/rtp\.pt/i.test(link)) continue;
+      const img = await imageFromArticlePage(link);
+      if (img && !isLogo(img)) return img;
+    }
+  } catch { /* ignora */ }
+  return null;
+}
 export async function imageFromArticlePage(pageUrl: string): Promise<string | null> {
   try {
     const res = await fetch(pageUrl, {

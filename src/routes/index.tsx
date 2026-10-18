@@ -1219,6 +1219,15 @@ function Index() {
               </div>
             )}
 
+            {query.isFetchingNextPage && (
+              <div className="flex w-full snap-start items-center justify-center" style={{ height: "var(--feed-h, 100svh)", scrollSnapStop: "always" }}>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="size-10 animate-spin rounded-full border-2 border-white/20 border-t-live" />
+                  <span className="text-xs font-medium text-white/60">A carregar</span>
+                </div>
+              </div>
+            )}
+
             {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
               <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center" style={{ scrollSnapStop: "always" }}>
                 <p className="text-sm font-medium text-feed-fg/70">

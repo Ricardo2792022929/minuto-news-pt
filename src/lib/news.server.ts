@@ -210,7 +210,7 @@ function extractImages(item: any): string[] {
     if (!raw) continue;
     const url = upgradeImageUrl(raw.replace(/&amp;/g, "&").trim());
     if (isLowResImage(url)) continue;
-    if (/_default\.|default_|placeholder|logo|ojogo|o-jogo|favicon/i.test(url)) logos.push(url);
+    if (/_default\.|default_|placeholder|logo|ojogo|o-jogo|favicon|brand|sapo.*logo|jogo.*logo/i.test(url)) logos.push(url);
     else result.push(url);
   }
   return [...new Set(result.length ? result : logos)];

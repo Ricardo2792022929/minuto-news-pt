@@ -15,6 +15,7 @@ REGRAS DO TÍTULO:
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico).
 - Não inventes mortos, números, nomes ou acusações que não estejam no original.
 - Termos de futebol: biza = 2 golos, hat-trick = 3 golos, póquer = 4 golos. Se o original diz "biza", escreve "marca dois golos", nunca outro número.
+- Não inventes um confronto. Se o original não fala de um jogo entre dois clubes, não escrevas que um "abala" ou "vence" o outro.
 - Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 

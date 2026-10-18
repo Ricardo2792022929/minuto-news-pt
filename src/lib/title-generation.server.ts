@@ -15,7 +15,7 @@ REGRAS DO TÍTULO:
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido, nem quem falou, demitiu, marcou ou morreu.
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico). A tensão vem do detalhe concreto.
 - Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título original.
-- Termos de futebol: biza = 2 golos, hat-trick = 3 golos, póquer = 4 golos, repóquer = 5 golos. Se o original diz "biza", o título diz "marca dois golos", nunca outro número.
+- Não inventes um confronto entre clubes. Se o original não fala de um jogo, vitória ou derrota entre dois clubes, o título não pode dizer que um "abala", "vence" ou "goleia" o outro.
 - Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 
@@ -265,7 +265,16 @@ export function swapsStoryActor(candidate: string, original: string): boolean {
   return false;
 }
 
-/** Recusa um número que o título original não tem, e traduz termos de futebol. */
+/** Recusa um título que inventa um confronto entre clubes que o original não tem. */
+const MATCH_VERBS = /\b(abala|abalam|vence|venceu|vencem|goleia|goleou|goleiam|derrota|derrotou|humilha|humilhou|esmaga|esmagou|atropela|atropelou)\b/;
+function inventsMatch(candidate: string, original: string): boolean {
+  const candidateClubs = clubsInTitle(candidate);
+  if (candidateClubs.length < 2) return false;
+  if (!MATCH_VERBS.test(foldTitle(candidate))) return false;
+  const originalClubs = clubsInTitle(original);
+  const originalHasMatch = MATCH_VERBS.test(foldTitle(original)) && originalClubs.length >= 2;
+  return !originalHasMatch;
+}
 const FOOTBALL_TERMS: Record<string, string> = { biza: "2", "hat-trick": "3", hatrick: "3", poquer: "4", repoquer: "4" };
 function inventsNumber(candidate: string, original: string): boolean {
   const numbers = (text: string) => {
@@ -289,7 +298,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const words = forced.split(/\s+/).filter(Boolean);
   if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || inventsNumber(forced, original))) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || inventsNumber(forced, original) || inventsMatch(forced, original))) return null;
   return forced;
 }
 

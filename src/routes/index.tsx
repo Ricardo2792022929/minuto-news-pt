@@ -893,6 +893,12 @@ function Index() {
   const trackLock = useRef(false);
 
   useEffect(() => {
+    if (!mounted) return;
+    const btn = navRef.current?.querySelector<HTMLElement>(`[data-cat="${category}"]`);
+    btn?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [category, mounted]);
+
+  useEffect(() => {
     pageRef.current = 0;
     setPage(0);
     const view = feedRef.current;

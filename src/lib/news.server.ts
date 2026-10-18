@@ -1,4 +1,4 @@
-import { XMLParser } from "fast-xml-parser";
+import { scrapeLusa } from "./lusa-scraper.server";
 import type { NewsItem } from "./news.types";
 
 export type { NewsItem };
@@ -396,15 +396,14 @@ export async function getAllNews(): Promise<NewsItem[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL) return cache.items;
 
   // Cada feed isolado: falha/timeout regista e segue para os outros.
-  const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+  const results = await Promise.allSettled([...FEEDS.map(fetchFeed), scrapeLusa()]);
   const seen = new Set<string>();
   const perSource = new Map<string, NewsItem[]>();
   results.forEach((r, i) => {
     if (r.status !== "fulfilled") {
-      console.error("feed falhou:", FEEDS[i]?.source, String(r.reason));
+      console.error("feed falhou:", i < FEEDS.length ? FEEDS[i]?.source : "Lusa scraper", String(r.reason));
       return;
     }
-    if (FEEDS[i]?.source === "Lusa") console.log("Lusa items:", r.value.length);
     for (const item of r.value) {
       const canonicalUrl = canonicalArticleUrl(item.url);
       if (seen.has(canonicalUrl)) continue;

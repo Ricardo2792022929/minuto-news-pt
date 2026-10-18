@@ -5,8 +5,8 @@ type ImageProfile = "feed" | "article";
 
 /** Perfis próprios: cartões horizontais no feed e imagens maiores no artigo. */
 const TRANSFORMS: Record<ImageProfile, string> = {
-  feed: "tr:w-1200,h-800,fo-auto,cm-extract,q-auto,f-auto",
-  article: "tr:w-1600,h-1000,fo-auto,cm-extract,q-auto,f-auto",
+  feed: "tr:w-1200,h-800,fo-auto,cm-extract,q-auto,f-auto,e-sharpen-80,e-brightness-10",
+  article: "tr:w-1600,h-1000,fo-auto,cm-extract,q-auto,f-auto,e-sharpen-80,e-brightness-10",
 };
 
 export function imageKitUrl(url: string | null | undefined, profile: ImageProfile = "feed"): string | null {

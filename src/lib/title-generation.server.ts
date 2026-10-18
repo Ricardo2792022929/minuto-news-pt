@@ -15,6 +15,7 @@ REGRAS DO TÍTULO:
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido, nem quem falou, demitiu, marcou ou morreu.
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico). A tensão vem do detalhe concreto.
 - Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título original.
+- Termos de futebol: biza = 2 golos, hat-trick = 3 golos, póquer = 4 golos, repóquer = 5 golos. Se o original diz "biza", o título diz "marca dois golos", nunca outro número.
 - Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 
@@ -264,11 +265,20 @@ export function swapsStoryActor(candidate: string, original: string): boolean {
   return false;
 }
 
-/** Recusa um número que o título original não tem. */
+/** Recusa um número que o título original não tem, e traduz termos de futebol. */
+const FOOTBALL_TERMS: Record<string, string> = { biza: "2", "hat-trick": "3", hatrick: "3", poquer: "4", repoquer: "4" };
 function inventsNumber(candidate: string, original: string): boolean {
-  const numbers = (text: string) => new Set((text.match(/\d[\d.]*/g) ?? []).map((n) => n.replace(/\./g, "")));
+  const numbers = (text: string) => {
+    const found = new Set((text.match(/\d[\d.]*/g) ?? []).map((n) => n.replace(/\./g, "")));
+    const lower = text.toLowerCase();
+    for (const [term, value] of Object.entries(FOOTBALL_TERMS)) {
+      if (lower.includes(term)) found.add(value);
+    }
+    return found;
+  };
   const known = numbers(original);
-  for (const number of numbers(candidate)) if (!known.has(number)) return true;
+  const candidateNumbers = (candidate.match(/\d[\d.]*/g) ?? []).map((n) => n.replace(/\./g, ""));
+  for (const number of candidateNumbers) if (!known.has(number)) return true;
   return false;
 }
 
@@ -343,7 +353,7 @@ export async function generateOne(title: string): Promise<GeneratedTitle | null>
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}`;
+    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

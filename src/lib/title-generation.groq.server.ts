@@ -14,6 +14,7 @@ REGRAS DO TÍTULO:
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido.
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico).
 - Não inventes mortos, números, nomes ou acusações que não estejam no original.
+- Termos de futebol: biza = 2 golos, hat-trick = 3 golos, póquer = 4 golos. Se o original diz "biza", escreve "marca dois golos", nunca outro número.
 - Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 

@@ -331,6 +331,7 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
     const title = stripHtml(String(item?.["title"] ?? ""));
     const link = String(item?.["link"] ?? item?.["@_href"] ?? "");
     if (!title || !link) continue;
+    if (feed.source === "Lusa" && /^(www\.lusa\.pt|fotogalerias|newsasset|desporto|galeria)/i.test(title.trim())) continue;
 
     const dateStr =
       item?.["pubDate"] ?? item?.["published"] ?? item?.["updated"] ?? item?.["dc:date"] ?? "";

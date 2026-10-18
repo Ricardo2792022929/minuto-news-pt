@@ -13,12 +13,12 @@ export async function imageFromSameStory(title: string): Promise<string | null> 
     const query = encodeURIComponent(title.slice(0, 80));
     const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=pt-PT&gl=PT&ceid=PT:pt`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; FlashNoticias/1.0)" },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
     const xml = await res.text();
     const links = [...xml.matchAll(/<link>([^<]+)<\/link>/g)].map((m) => m[1]).filter((l) => l.startsWith("http") && !l.includes("news.google.com"));
-    for (const link of links.slice(0, 3)) {
+    for (const link of links.slice(0, 2)) {
       if (/rtp\.pt/i.test(link)) continue;
       const img = await imageFromArticlePage(link);
       if (img && !isLogo(img)) return img;
@@ -34,7 +34,7 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(4000),
       redirect: "follow",
     });
     if (!res.ok) return null;

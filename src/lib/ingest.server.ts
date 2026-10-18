@@ -15,7 +15,7 @@ import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
 const MAX_BATCHES = 2;
-const BUDGET_MS = 26_000;
+const BUDGET_MS = 18_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
 function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }

@@ -1,6 +1,6 @@
 // Vai buscar o texto da notícia ao site original para dar contexto às APIs de título.
 // Tenta várias formas: artigo, dados estruturados, meta, e versão AMP.
-const TIMEOUT_MS = 5_000;
+const TIMEOUT_MS = 2_500;
 const MAX_CHARS = 1_500;
 
 const BROWSER_HEADERS = {

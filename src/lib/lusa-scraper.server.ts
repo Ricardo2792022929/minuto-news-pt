@@ -11,9 +11,9 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
       });
       if (!res.ok) continue;
       const html = await res.text();
-      const matches = [...html.matchAll(/href="(\/[^"]*\/article\/[^"]+)"[^>]*>([^<]{20,})/gi)];
+      const matches = [...html.matchAll(/href=['"]([^'"]*\/article\/[^'"]+)['"][^>]*>([^<]{15,})/gi)];
       for (const m of matches.slice(0, 5)) {
-        const url = `https://www.lusa.pt${m[1]}`;
+        const url = m[1].startsWith("http") ? m[1] : `https://www.lusa.pt${m[1]}`;
         const title = m[2].trim();
         if (title.length < 15) continue;
         items.push({

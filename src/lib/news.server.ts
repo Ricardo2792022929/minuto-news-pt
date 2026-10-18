@@ -382,7 +382,8 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
         "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0; +https://lovable.app)",
       Accept: "application/rss+xml, application/xml, text/xml, */*",
     },
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(feed.source === "Lusa" ? 8000 : 5000),
+    redirect: "follow",
   });
   if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`);
   return parseFeed(

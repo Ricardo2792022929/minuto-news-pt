@@ -356,13 +356,14 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
 }
 
 /** Uma notícia por pedido. Devolve null em qualquer falha (sem fallback). */
-export async function generateOne(title: string): Promise<GeneratedTitle | null> {
+export async function generateOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
   if (Date.now() < geminiCooldownUntil) return null;
   const started = Date.now();
   try {
-    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}`;
+    const context = articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : "";
+    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente. Usa o texto da notícia para perceber o contexto, mas o título tem de ser fiel ao facto principal.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}${context}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

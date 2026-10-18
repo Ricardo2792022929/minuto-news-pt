@@ -45,7 +45,7 @@ function parseJson(raw: string): { titulo?: unknown; resumo?: unknown } | null {
 }
 
 /** Quarta opção. Só corre quando Groq, Gemini e OpenRouter não entregam um título novo. */
-export async function generateNvidiaOne(title: string): Promise<GeneratedTitle | null> {
+export async function generateNvidiaOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const apiKey = process.env["NVIDIA_API_KEY"];
   if (!apiKey || Date.now() < nvidiaCooldownUntil) return null;
 
@@ -65,7 +65,7 @@ export async function generateNvidiaOne(title: string): Promise<GeneratedTitle |
         max_tokens: 500,
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
         ],
       }),
     });

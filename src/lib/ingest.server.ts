@@ -4,7 +4,7 @@ import { generateOne, GatewayError, validTitle, isPublishableTitle, backupTitle,
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
-import { generateCloudflareOne } from "./title-generation.cloudflare.server";
+import { scrapeArticleText } from "./article-scrape.server";
 import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
@@ -320,13 +320,14 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       if (expired()) break;
       const wave = queue.slice(offset, offset + 10);
       const titled = await Promise.all(wave.map(async (n) => {
+        const articleText = await scrapeArticleText(n.url).catch(() => null);
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         groqAttempts++;
-        try { g = await generateGroqOne(n.title); } catch { /* tenta a seguinte */ }
-        if (!g) { cloudflareAttempts++; try { g = await generateCloudflareOne(n.title); } catch { /* entra na mesma */ } }
-        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title); } catch { /* entra na mesma */ } }
-        if (!g) { geminiAttempts++; try { g = await generateOne(n.title); } catch { /* tenta a seguinte */ } }
-        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title); } catch { /* entra na mesma */ } }
+        try { g = await generateGroqOne(n.title, articleText); } catch { /* tenta a seguinte */ }
+        if (!g) { cloudflareAttempts++; try { g = await generateCloudflareOne(n.title, articleText); } catch { /* entra na mesma */ } }
+        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title, articleText); } catch { /* entra na mesma */ } }
+        if (!g) { geminiAttempts++; try { g = await generateOne(n.title, articleText); } catch { /* tenta a seguinte */ } }
+        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title, articleText); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
         const titulo = ai && isPublishableTitle(ai, n.title) ? ai : backupTitle(n.title);
         if (!titulo) return null;

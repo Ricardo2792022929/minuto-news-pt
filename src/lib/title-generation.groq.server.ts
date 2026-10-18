@@ -33,7 +33,7 @@ function validSummary(raw: unknown): string | null {
 }
 
 /** Gera título e resumo através da API Groq, exclusivamente no servidor. */
-export async function generateGroqOne(title: string): Promise<GeneratedTitle | null> {
+export async function generateGroqOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new GatewayError("GROQ_API_KEY em falta", 401);
   if (Date.now() < groqCooldownUntil) return null;
@@ -55,7 +55,7 @@ export async function generateGroqOne(title: string): Promise<GeneratedTitle | n
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
         ],
       }),
     });

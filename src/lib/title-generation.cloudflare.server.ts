@@ -45,7 +45,7 @@ function parseJson(raw: string): { titulo?: unknown; resumo?: unknown } | null {
 }
 
 /** Quinta opção. Só corre quando Groq, Gemini, OpenRouter e Nvidia não entregam um título novo. */
-export async function generateCloudflareOne(title: string): Promise<GeneratedTitle | null> {
+export async function generateCloudflareOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const token = process.env["CLOUDFLARE_API_TOKEN"];
   const account = process.env["CLOUDFLARE_ACCOUNT_ID"];
   if (!token || !account || Date.now() < cloudflareCooldownUntil) return null;
@@ -65,7 +65,7 @@ export async function generateCloudflareOne(title: string): Promise<GeneratedTit
         max_tokens: 180,
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}` },
+          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
         ],
       }),
     });

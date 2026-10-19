@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import introUrl from "@/assets/intro.mp4";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import { imageKitUrl } from "@/lib/imagekit";
@@ -1289,7 +1289,15 @@ function Index() {
                   </span>
                 </div>
               </div>
-              <LiveDateLine />
+              <div className="mt-1 flex items-center justify-between">
+                <LiveDateLine />
+                <Link
+                  to="/contacto"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-feed-fg/70 underline underline-offset-2"
+                >
+                  Contacto
+                </Link>
+              </div>
 
               {tickerItems.length > 0 && (
                 <div className="mt-2 overflow-hidden rounded-full bg-black/35 py-1.5">

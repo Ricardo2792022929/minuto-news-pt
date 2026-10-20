@@ -5,7 +5,6 @@ import type { NewsItem } from "./news.types";
 import { storyImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
-import { isPublishableTitle } from "./title-generation.server";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -79,8 +78,12 @@ export const getNews = createServerFn({ method: "GET" })
     const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
     const legacyCols = "id,source,category,url,image,image_query,titulo_inedito,resumo,original_title,published_at";
     let imageColumnsReady = true;
-    const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) =>
-      isPublishableTitle(r.titulo_inedito, r.original_title);
+    const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) => {
+      const title = (r.titulo_inedito || "").trim();
+      if (title.length < 8) return false;
+      if (/^(erro|error)\b/i.test(title)) return false;
+      return true;
+    };
     const fixes: { id: string; category: string }[] = [];
     const toItem = (r: {
       id: string;
@@ -342,7 +345,7 @@ export const getNews = createServerFn({ method: "GET" })
       } catch { /* o feed abre mesmo que a fotografia da fonte falhe */ }
     }
 
-    return { items: mixed, total, hasMore: nextOffset < total, nextOffset };
+    return { items: mixed, total, hasMore: data.offset + data.limit < Math.max(total, ordered.length), nextOffset };
   });
 
 export type GetNewsResult = {

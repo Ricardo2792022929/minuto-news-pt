@@ -846,6 +846,13 @@ function Index() {
   hasMoreRef.current = Boolean(query.hasNextPage);
 
   useEffect(() => {
+    if (!mounted || tab !== "feed") return;
+    if (articles.length < 12 && query.hasNextPage && !query.isFetchingNextPage) {
+      void query.fetchNextPage();
+    }
+  }, [mounted, tab, articles.length, query.hasNextPage, query.isFetchingNextPage, query]);
+
+  useEffect(() => {
     for (const item of articles.slice(0, 6)) warmOrigin(item.url);
     for (const item of articles.slice(0, 8)) {
       const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
@@ -1147,7 +1154,7 @@ function Index() {
                     if (swiped.current) return;
                   }}
                   className="relative block w-full snap-start snap-always overflow-hidden bg-black"
-                  style={{ height: "100%", scrollSnapStop: "always" }}
+                  style={{ height: "100%", minHeight: "100%", scrollSnapStop: "always" }}
                 >
                   {true ? (
                     <FeedImage
@@ -1221,11 +1228,8 @@ function Index() {
             )}
 
             {query.isFetchingNextPage && (
-              <div className="flex w-full snap-start items-center justify-center" style={{ height: "var(--feed-h, 100svh)", scrollSnapStop: "always" }}>
-                <div className="flex flex-col items-center gap-3">
-                  <div className="size-10 animate-spin rounded-full border-2 border-white/20 border-t-live" />
-                  <span className="text-xs font-medium text-white/60">A carregar</span>
-                </div>
+              <div className="flex w-full items-center justify-center py-6">
+                <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-live" />
               </div>
             )}
 

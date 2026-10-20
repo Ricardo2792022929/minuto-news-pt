@@ -160,7 +160,7 @@ function isPrefixCut(candidate: string, original: string): boolean {
   if (c.length < 4 || o.length <= c.length) return false;
   let i = 0;
   while (i < c.length && c[i] === o[i]) i++;
-  return i >= Math.min(5, c.length);
+  return i >= 6 && i / c.length >= 0.75;
 }
 
 /** O título publicado é só o original cortado, não um resumo novo. */
@@ -170,11 +170,11 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   if (c.length < 4 || !o.length) return false;
   const joinedCandidate = c.join(" ");
   const joinedOriginal = o.join(" ");
-  if (joinedCandidate === joinedOriginal || joinedOriginal.includes(joinedCandidate)) return true;
+  if (joinedCandidate === joinedOriginal) return true;
   let prefix = 0;
   const limit = Math.min(c.length, o.length);
   while (prefix < limit && c[prefix] === o[prefix]) prefix++;
-  return prefix >= 4 && prefix / c.length >= 0.55;
+  return prefix >= 6 && prefix / c.length >= 0.75;
 }
 
 /** No máximo 10 palavras, com verbo e frase fechada. Sem corte que fique sem sentido. */

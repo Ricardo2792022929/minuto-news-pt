@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPublishableTitle, backupTitle, swapsStoryActor } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPublishableTitle, isPastedTitle, backupTitle, swapsStoryActor } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
@@ -325,6 +325,25 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
     const queue = pending.slice(0, 20);
+    if (!expired()) {
+      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(20);
+      for (const row of recent ?? []) {
+        if (expired() || rewritten >= 8) break;
+        if (!row.original_title || !row.titulo_inedito) continue;
+        const pasted = isPastedTitle(row.titulo_inedito, row.original_title) || row.titulo_inedito.trim() === row.original_title.trim();
+        if (!pasted) continue;
+        let next: string | null = null;
+        try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
+        if (!next) { try { next = (await generateCloudflareOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next) { try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
+        if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
+        if (!next || swapsStoryActor(next, row.original_title) || isPastedTitle(next, row.original_title)) continue;
+        if (next === row.titulo_inedito) continue;
+        const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
+        if (!error) rewritten++;
+      }
+    }
     for (let offset = 0; offset < queue.length; offset += 10) {
       if (expired()) break;
       const wave = queue.slice(offset, offset + 10);

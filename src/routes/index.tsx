@@ -79,6 +79,7 @@ import {
   Landmark,
   Loader2,
   Palette,
+  Phone,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -1293,9 +1294,10 @@ function Index() {
                 <LiveDateLine />
                 <Link
                   to="/contacto"
-                  className="text-[11px] font-semibold uppercase tracking-wider text-feed-fg/70 underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-black shadow-lg shadow-yellow-400/30"
                 >
-                  Contacto
+                  <Phone className="size-3.5" />
+                  Contact
                 </Link>
               </div>
 

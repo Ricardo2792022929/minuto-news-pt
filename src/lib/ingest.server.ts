@@ -324,6 +324,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     const used = new Set<string>();
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
+    let rewritten = 0;
     const queue = pending.slice(0, 20);
     if (!expired()) {
       const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(20);
@@ -403,7 +404,6 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     }
 
     // Enriquecer as que ainda não têm imagem
-    let rewritten = 0;
     let recategorized = 0;
     if (!expired()) {
       const { data: recentImages } = await db.from("articles").select("image").not("image", "is", null).order("published_at", { ascending: false }).limit(80);

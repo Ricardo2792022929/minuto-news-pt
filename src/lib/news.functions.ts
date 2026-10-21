@@ -5,6 +5,7 @@ import type { NewsItem } from "./news.types";
 import { storyImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
+import { isPastedTitle } from "./title-shape";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -59,6 +60,12 @@ export const getNews = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<GetNewsResult> => {
     const url = process.env["SUPABASE_URL"]!;
     const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+    try {
+      const { rewriteOpenedTitles } = await import("./rewrite-open.server");
+      await rewriteOpenedTitles();
+    } catch (error) {
+      console.error("resumo", error instanceof Error ? error.message : error);
+    }
     const db = createClient(url, key, {
       auth: { persistSession: false },
       global: {
@@ -81,7 +88,9 @@ export const getNews = createServerFn({ method: "GET" })
     const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) => {
       const title = (r.titulo_inedito || "").trim();
       if (title.length < 8) return false;
+      if (title.split(/\s+/).filter(Boolean).length > 12) return false;
       if (/^(erro|error)\b/i.test(title)) return false;
+      if (r.original_title && isPastedTitle(title, r.original_title)) return false;
       return true;
     };
     const fixes: { id: string; category: string }[] = [];

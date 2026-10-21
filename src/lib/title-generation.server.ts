@@ -1,6 +1,7 @@
 // Geração de título + resumo com Google Gemini (chave própria GEMINI_API_KEY, só servidor).
 // Confirmado via API para esta chave; thinkingLevel "minimal" é o mínimo aceite (thinkingBudget 0 dá 400).
 import { LIGA_CLUBS } from "./clubs";
+import { isPastedTitle } from "./title-shape";
 const MODEL = "gemini-flash-lite-latest";
 const TIMEOUT_MS = 6_000;
 let geminiCooldownUntil = 0;
@@ -163,20 +164,6 @@ function isPrefixCut(candidate: string, original: string): boolean {
   return i >= 5 && i / c.length >= 0.7;
 }
 
-/** O título publicado é só o original cortado, não um resumo novo. */
-export function isPastedTitle(candidate: string, original: string): boolean {
-  const c = normWords(candidate);
-  const o = normWords(original);
-  if (c.length < 4 || !o.length) return false;
-  const joinedCandidate = c.join(" ");
-  const joinedOriginal = o.join(" ");
-  if (joinedCandidate === joinedOriginal) return true;
-  let prefix = 0;
-  const limit = Math.min(c.length, o.length);
-  while (prefix < limit && c[prefix] === o[prefix]) prefix++;
-  return prefix >= 5 && prefix / c.length >= 0.7;
-}
-
 /** No máximo 10 palavras, com verbo e frase fechada. Sem corte que fique sem sentido. */
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
@@ -302,21 +289,9 @@ export function validTitle(raw: unknown, original?: string): string | null {
   return forced;
 }
 
-/** Título curto quando a API de resumo está no limite. A notícia entra na mesma. */
-export function backupTitle(original: string): string {
-  const nicer = rewriteFallback(original);
-  if (nicer && !isPastedTitle(nicer, original) && !isPrefixCut(nicer, original)) return nicer;
+/** Nunca publica um corte do título original. Se a IA falhar, a notícia espera por um resumo. */
+export function backupTitle(_original: string): string {
   return "";
-}
-
-/** Quando a IA falha, tenta uma frase curta diferente do título original. */
-export function rewriteFallback(original: string): string | null {
-  const source = original.replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "").trim();
-  const direct = validTitle(source, source);
-  if (direct && !isPrefixCut(direct, source)) return direct;
-  const after = source.split(/[,;:]/).slice(1).join(" ").trim();
-  if (!after) return null;
-  return validTitle(after, source);
 }
 
 function validSummary(raw: unknown): string | null {

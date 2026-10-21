@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPublishableTitle, isPastedTitle, backupTitle, swapsStoryActor } from "./title-generation.server";
+import { generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
+import { generateCloudflareOne } from "./title-generation.cloudflare.server";
 import { scrapeArticleText } from "./article-scrape.server";
 import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
@@ -346,8 +347,8 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           const candidate = g && validTitle(g.titulo, n.title);
           if (candidate && isPublishableTitle(candidate, n.title)) ai = candidate;
         }
-        const titulo = ai || backupTitle(n.title);
-        if (!titulo) return null;
+        const titulo = ai;
+        if (!titulo || !isPublishableTitle(titulo, n.title)) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
       const verifiedImages = expired()
@@ -454,21 +455,50 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     }
 
     if (!expired()) {
-      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito").order("published_at", { ascending: false }).limit(40);
+      const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito, resumo").order("published_at", { ascending: false }).limit(80);
       for (const row of recent ?? []) {
-        if (expired() || rewritten >= 12) break;
+        if (expired() || rewritten >= 24) break;
         if (!row.original_title || !row.titulo_inedito) continue;
-        const pasted = !isPublishableTitle(row.titulo_inedito, row.original_title);
-        if (!pasted) continue;
+        if (isPublishableTitle(row.titulo_inedito, row.original_title)) continue;
         let next: string | null = null;
-        try { next = (await generateGroqOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ }
-        if (!next) { try { next = (await generateCloudflareOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
-        if (!next) { try { next = (await generateNvidiaOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
-        if (!next) { try { next = (await generateOne(row.original_title))?.titulo ?? null; } catch { /* tenta a seguinte */ } }
-        if (!next) { try { next = (await generateOpenRouterOne(row.original_title))?.titulo ?? null; } catch { /* ignora */ } }
-        if (!next || swapsStoryActor(next, row.original_title)) next = backupTitle(row.original_title);
-        if (!next || next === row.titulo_inedito) continue;
-        const { error } = await db.from("articles").update({ titulo_inedito: next }).eq("id", row.id);
+        let resumo: string | null = null;
+        try {
+          const groq = await generateGroqOne(row.original_title, row.resumo);
+          next = groq?.titulo ?? null;
+          resumo = groq?.resumo ?? null;
+        } catch { /* tenta a seguinte */ }
+        if (!next) {
+          try {
+            const cloudflare = await generateCloudflareOne(row.original_title, row.resumo);
+            next = cloudflare?.titulo ?? null;
+            resumo = cloudflare?.resumo ?? resumo;
+          } catch { /* ignora */ }
+        }
+        if (!next) {
+          try {
+            const nvidia = await generateNvidiaOne(row.original_title, row.resumo);
+            next = nvidia?.titulo ?? null;
+            resumo = nvidia?.resumo ?? resumo;
+          } catch { /* ignora */ }
+        }
+        if (!next) {
+          try {
+            const gemini = await generateOne(row.original_title, row.resumo);
+            next = gemini?.titulo ?? null;
+            resumo = gemini?.resumo ?? resumo;
+          } catch { /* tenta a seguinte */ }
+        }
+        if (!next) {
+          try {
+            const openrouter = await generateOpenRouterOne(row.original_title, row.resumo);
+            next = openrouter?.titulo ?? null;
+            resumo = openrouter?.resumo ?? resumo;
+          } catch { /* ignora */ }
+        }
+        if (!next || !isPublishableTitle(next, row.original_title) || swapsStoryActor(next, row.original_title)) continue;
+        const patch: { titulo_inedito: string; resumo?: string } = { titulo_inedito: next };
+        if (resumo) patch.resumo = resumo.slice(0, 300);
+        const { error } = await db.from("articles").update(patch).eq("id", row.id);
         if (!error) rewritten++;
       }
     }

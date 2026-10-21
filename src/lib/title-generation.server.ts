@@ -11,13 +11,13 @@ const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a im
 REGRAS DO TÍTULO:
 - Português de Portugal. Diz golo, equipa, facto, autocarro, comboio. Nunca gol, time, você, equipe, ônibus, trem.
 - 6 a 10 palavras. Máximo 10. Uma frase completa e fechada, com verbo. Se não couber, escreve só a primeira oração completa. Nunca cortes a meio.
-- Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora, Breaking).
-- Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
+- Afirmativo. Nunca uma pergunta: a pergunta esconde o que aconteceu. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora, Breaking).
+- Escreve como se contasses a notícia a alguém, numa frase falada. Ordem normal: quem, o que fez, o resultado. Não inverta a frase só para ficar diferente.
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido, nem quem falou, demitiu, marcou ou morreu.
-- Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico). A tensão vem do detalhe concreto.
+- Um facto, não o contexto. O interesse vem de um detalhe que já está na notícia: o resultado, o sítio ou o que a pessoa disse. Sem adjetivos vazios (chocante, incrível, histórico) e sem verbos de efeito (abala, mexe, marca).
 - Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título original.
 - Não inventes um confronto entre clubes. Se o original não fala de um jogo, vitória ou derrota entre dois clubes, o título não pode dizer que um "abala", "vence" ou "goleia" o outro.
-- Não copies a frase original. Escreve OUTRA frase, com palavras diferentes, com as mesmas pessoas e o mesmo desfecho. Se o original diz "X faz Y", escreve "Y acontece a X" ou "X consegue Y". Nunca deixes o título igual ao original nem só o original cortado.
+- Não copies a frase original. Diz o mesmo facto com outras palavras, na ordem em que se fala. Nunca deixes o título igual ao original nem só o original cortado.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 
 RESUMO: 1 frase curta, só com o facto.
@@ -328,7 +328,7 @@ export async function generateOne(title: string, articleText?: string | null): P
   const started = Date.now();
   try {
     const context = articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : "";
-    const prompt = `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente. Usa o texto da notícia para perceber o contexto, mas o título tem de ser fiel ao facto principal.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e dissolve o parlamento\nTítulo original: ${title}${context}`;
+    const prompt = `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente. Usa o texto da notícia para perceber o contexto, mas o título tem de ser fiel ao facto principal.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${context}`;
     const res = await callGemini(MODEL, apiKey, prompt);
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after") ?? 0);

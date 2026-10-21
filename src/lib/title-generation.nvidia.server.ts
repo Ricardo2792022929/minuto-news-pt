@@ -9,14 +9,14 @@ const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a im
 REGRAS DO TÍTULO:
 - Português de Portugal. Diz golo e equipa, não gol nem time.
 - 6 a 10 palavras. Máximo 10. Uma frase completa e fechada, com verbo. Se não couber, escreve só a primeira oração completa. Nunca cortes a meio.
-- Afirmativo. Nunca uma pergunta. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora).
-- Fórmula: sujeito + verbo forte + o facto concreto. Quem fez o quê, no início.
+- Afirmativo. Nunca uma pergunta: a pergunta esconde o que aconteceu. Nunca dois-pontos. Nunca prefixos (Urgente, Crise, Atenção, Última hora).
+- Escreve como se contasses a notícia a alguém, numa frase falada. Ordem normal: quem, o que fez, o resultado. Não inverta a frase só para ficar diferente.
 - O sujeito é o mesmo do original. Se o Nacional perde, o título não pode dizer que o Benfica lamenta. Não troques vencedor e vencido.
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico).
 - Não inventes mortos, números, nomes ou acusações que não estejam no original.
 - Termos de futebol: biza = 2 golos, hat-trick = 3 golos, póquer = 4 golos. Se o original diz "biza", escreve "marca dois golos", nunca outro número.
 - Não inventes um confronto. Se o original não fala de um jogo entre dois clubes, não escrevas que um "abala" ou "vence" o outro.
-- Não copies a frase original. Escreve OUTRA frase, com palavras diferentes, com as mesmas pessoas e o mesmo desfecho. Se o original diz "X faz Y", escreve "Y acontece a X" ou "X consegue Y". Nunca deixes o título igual ao original nem só o original cortado.
+- Não copies a frase original. Diz o mesmo facto com outras palavras, na ordem em que se fala. Nunca deixes o título igual ao original nem só o original cortado.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 
 RESUMO: 1 frase curta, só com o facto.
@@ -65,7 +65,7 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
         max_tokens: 500,
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Resume esse facto numa frase NOVA, em português de Portugal, de 6 a 10 palavras. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez marca eleições e abala Espanha\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
+          { role: "user", content: `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
         ],
       }),
     });

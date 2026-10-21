@@ -42,14 +42,14 @@ export function categoryImage(category?: string, title = "", id = ""): string {
 }
 
 /** URL da própria notícia. Nunca devolve foto de categoria, stock genérico ou Picsum. */
-export function storyImageUrl(raw: string | null | undefined): string | null {
+export function storyImageUrl(raw: string | null | undefined, allowStock = false): string | null {
   if (!raw || raw.startsWith("data:")) return null;
   if (Object.values(CATEGORY_PHOTOS).includes(raw)) return null;
   if (raw.startsWith("/__l5e/assets-v1/")) return raw;
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== "https:") return null;
-    if (isStockImage(url.toString())) return null;
+    if (!allowStock && isStockImage(url.toString())) return null;
     if (url.hostname === "picsum.photos" || url.hostname.endsWith(".picsum.photos")) return null;
     if (/logo|placeholder|default|blank|pixel|1x1|spacer/i.test(url.pathname + url.search)) return null;
     if (url.hostname === "images.unsplash.com" || url.hostname === "images.pexels.com" || url.hostname.endsWith(".imgix.net")) {

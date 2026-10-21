@@ -111,7 +111,7 @@ export const getNews = createServerFn({ method: "GET" })
       const excerpt = (r.resumo ?? "").trim();
       const category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
       if (category !== r.category) fixes.push({ id: r.id, category });
-      const image = storyImageUrl(r.image);
+      const image = storyImageUrl(r.image, r.image_status === "search");
       const imageCandidates = (Array.isArray(r.image_candidates) ? r.image_candidates : [])
         .filter((candidate): candidate is string => typeof candidate === "string")
         .map((candidate) => storyImageUrl(candidate))

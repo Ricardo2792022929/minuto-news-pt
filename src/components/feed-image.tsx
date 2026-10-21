@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { imageKitUrl } from "@/lib/imagekit";
+import { categoryImage } from "@/lib/image-policy";
 
 const downloads = new Map<string, Promise<string>>();
 export function preloadImage(src: string): Promise<string> {
@@ -85,11 +86,14 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length]);
 
   const failed = !ready && active && finished;
+  const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
 
   return (
     <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
-        <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"} />
+        <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
+          {fallbackSrc ? <img src={fallbackSrc} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+        </div>
       )}
       {ready && (
         <img

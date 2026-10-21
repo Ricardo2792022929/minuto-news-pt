@@ -148,9 +148,8 @@ function formatClock(d: Date) {
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("pt-PT", {
-    weekday: "long",
     day: "numeric",
-    month: "long",
+    month: "short",
   });
 }
 
@@ -696,7 +695,7 @@ function LiveDateLine() {
     return () => { active = false; };
   }, []);
   return (
-    <p className="mt-0.5 text-[11px] capitalize text-feed-fg/60">
+    <p className="min-w-0 truncate text-[11px] text-feed-fg/70">
       {formatDate(now)} · {city}
     </p>
   );
@@ -1162,9 +1161,9 @@ function Index() {
                       }`}
                     />
                   )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-black via-black/80 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/75 to-transparent" />
 
-                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))]">
+                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
                         {a.category}
@@ -1182,8 +1181,8 @@ function Index() {
                       open={openTitle === a.id}
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
-                    <div className="mt-4 flex items-end justify-between gap-3">
-                      <p className="pb-1 text-sm font-semibold text-white">Ler notícia</p>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">Ler notícia</p>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -1255,32 +1254,31 @@ function Index() {
             </div>
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-feed-bg via-feed-bg/75 to-transparent pb-10">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-feed-bg via-feed-bg/80 to-transparent pb-6">
             <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h1 className="font-display text-2xl font-black leading-none tracking-tight text-feed-fg">
-                    Flash<span className="text-live">Notícias</span>
-                  </h1>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className="relative flex size-1.5">
-                      <span className="absolute inset-0 animate-live-pulse rounded-full bg-live" />
-                      <span className="relative size-1.5 rounded-full bg-live" />
-                    </span>
-                    <LiveWhen />
-                  </div>
-                  <LiveDateLine />
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="font-display text-2xl font-black leading-none tracking-tight text-feed-fg">
+                  Flash<span className="text-live">Notícias</span>
+                </h1>
                 <Link
                   to="/contacto"
-                  className="pointer-events-auto mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1.5 text-[11px] font-bold text-black"
+                  className="pointer-events-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 text-[11px] font-bold text-black"
                 >
                   <Phone className="size-3.5" />
                   Contacto
                 </Link>
               </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="relative flex size-1.5 shrink-0">
+                  <span className="absolute inset-0 animate-live-pulse rounded-full bg-live" />
+                  <span className="relative size-1.5 rounded-full bg-live" />
+                </span>
+                <LiveWhen />
+                <span className="text-feed-fg/35">·</span>
+                <LiveDateLine />
+              </div>
 
-              <nav ref={navRef} className="pointer-events-auto relative mt-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <nav ref={navRef} className="pointer-events-auto relative mt-2.5 flex h-8 gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
@@ -1295,10 +1293,10 @@ function Index() {
                       }
                       setCategory(c);
                     }}
-                    className={`relative z-10 shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors duration-200 ${
+                    className={`relative z-10 flex h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold transition-colors duration-200 ${
                       category === c
                         ? "text-live-foreground"
-                        : "bg-feed-bg/45 text-feed-fg"
+                        : "bg-feed-bg/55 text-feed-fg"
                     }`}
                   >
                     {c}

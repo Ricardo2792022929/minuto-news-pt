@@ -766,8 +766,6 @@ function Index() {
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const mastheadRef = useRef<HTMLDivElement>(null);
-  const [mastheadH, setMastheadH] = useState(0);
   const pageRef = useRef(0);
   const [page, setPage] = useState(0);
   const countRef = useRef(0);
@@ -894,17 +892,6 @@ function Index() {
       img.src = src;
     }
   }, [page, articles]);
-
-  useEffect(() => {
-    if (!mounted || tab !== "feed") return;
-    const bar = mastheadRef.current;
-    if (!bar) return;
-    const apply = () => setMastheadH(Math.ceil(bar.getBoundingClientRect().height));
-    apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(bar);
-    return () => observer.disconnect();
-  }, [tab, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -1054,15 +1041,7 @@ function Index() {
       view.removeEventListener("scroll", onScroll);
       view.removeEventListener("wheel", wheel);
     };
-  }, [tab, mounted, mastheadH, category]);
-
-  const tickerItems = useMemo(
-    () =>
-      articles
-        .slice(0, 5)
-        .map((a) => `${a.source} · ${a.title}`),
-    [articles],
-  );
+  }, [tab, mounted, category]);
 
   const isError = query.isError;
 
@@ -1104,7 +1083,7 @@ function Index() {
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: mastheadH }}>
+          <div className="absolute inset-0 z-0 overflow-hidden">
             {dragX !== 0 && (
               <div
                 className="absolute inset-0 z-20 overflow-hidden bg-black"
@@ -1276,14 +1255,14 @@ function Index() {
             </div>
           </div>
 
-          <div ref={mastheadRef} className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
-            <div className="pointer-events-auto bg-feed-bg px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-feed-bg via-feed-bg/75 to-transparent pb-10">
+            <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h1 className="font-display text-[1.7rem] font-black leading-none tracking-tight text-feed-fg">
+                  <h1 className="font-display text-2xl font-black leading-none tracking-tight text-feed-fg">
                     Flash<span className="text-live">Notícias</span>
                   </h1>
-                  <div className="mt-2 flex items-center gap-1.5">
+                  <div className="mt-1.5 flex items-center gap-1.5">
                     <span className="relative flex size-1.5">
                       <span className="absolute inset-0 animate-live-pulse rounded-full bg-live" />
                       <span className="relative size-1.5 rounded-full bg-live" />
@@ -1294,27 +1273,14 @@ function Index() {
                 </div>
                 <Link
                   to="/contacto"
-                  className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1.5 text-[11px] font-bold text-black"
+                  className="pointer-events-auto mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1.5 text-[11px] font-bold text-black"
                 >
                   <Phone className="size-3.5" />
                   Contacto
                 </Link>
               </div>
 
-              {tickerItems.length > 0 && (
-                <div className="mt-2.5 overflow-hidden border-y border-feed-fg/10 py-1.5">
-                  <div className="flex w-max animate-ticker items-center whitespace-nowrap">
-                    {[...tickerItems, ...tickerItems].map((item, idx) => (
-                      <span key={idx} className="px-4 text-[11px] font-medium text-feed-fg/80">
-                        {item}
-                        <span className="pl-4 text-live">●</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <nav ref={navRef} className="relative mt-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <nav ref={navRef} className="pointer-events-auto relative mt-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
@@ -1329,10 +1295,10 @@ function Index() {
                       }
                       setCategory(c);
                     }}
-                    className={`relative z-10 shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors duration-200 ${
+                    className={`relative z-10 shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors duration-200 ${
                       category === c
                         ? "text-live-foreground"
-                        : "text-feed-fg/80"
+                        : "bg-feed-bg/45 text-feed-fg"
                     }`}
                   >
                     {c}

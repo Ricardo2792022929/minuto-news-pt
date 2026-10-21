@@ -16,7 +16,7 @@ REGRAS DO TÍTULO:
 - Um facto, não o contexto. Sem adjetivos vazios (chocante, incrível, histórico). A tensão vem do detalhe concreto.
 - Não inventes mortos, números, nomes, acusações ou desfechos que não estejam no título original.
 - Não inventes um confronto entre clubes. Se o original não fala de um jogo, vitória ou derrota entre dois clubes, o título não pode dizer que um "abala", "vence" ou "goleia" o outro.
-- Não copies a frase original. Escreve outra, com as mesmas pessoas e o mesmo desfecho.
+- Não copies a frase original. Escreve OUTRA frase, com palavras diferentes, com as mesmas pessoas e o mesmo desfecho. Se o original diz "X faz Y", escreve "Y acontece a X" ou "X consegue Y". Nunca deixes o título igual ao original nem só o original cortado.
 - Nunca termines em de, do, da, em, no, na, com, para, e, que, por.
 
 RESUMO: 1 frase curta, só com o facto.
@@ -160,7 +160,7 @@ function isPrefixCut(candidate: string, original: string): boolean {
   if (c.length < 4 || o.length <= c.length) return false;
   let i = 0;
   while (i < c.length && c[i] === o[i]) i++;
-  return i >= 8 && i / c.length >= 0.9;
+  return i >= 5 && i / c.length >= 0.7;
 }
 
 /** O título publicado é só o original cortado, não um resumo novo. */
@@ -174,7 +174,7 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   let prefix = 0;
   const limit = Math.min(c.length, o.length);
   while (prefix < limit && c[prefix] === o[prefix]) prefix++;
-  return prefix >= 8 && prefix / c.length >= 0.9;
+  return prefix >= 5 && prefix / c.length >= 0.7;
 }
 
 /** No máximo 10 palavras, com verbo e frase fechada. Sem corte que fique sem sentido. */
@@ -298,7 +298,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const words = forced.split(/\s+/).filter(Boolean);
   if (words.length < 4 || words.length > 10) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && swapsStoryActor(forced, original)) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original))) return null;
   return forced;
 }
 

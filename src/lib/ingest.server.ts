@@ -15,7 +15,7 @@ import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
 const MAX_BATCHES = 2;
-const BUDGET_MS = 25_000;
+const BUDGET_MS = 40_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
 function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
@@ -326,11 +326,11 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let saveError: string | null = null;
     let rewritten = 0;
     const queue = pending.slice(0, 20);
-    for (let offset = 0; offset < queue.length; offset += 10) {
+    for (let offset = 0; offset < queue.length; offset += 5) {
       if (expired()) break;
-      const wave = queue.slice(offset, offset + 10);
+      const wave = queue.slice(offset, offset + 5);
       const titled = await Promise.all(wave.map(async (n) => {
-        const articleText = await scrapeArticleText(n.url).catch(() => null);
+        const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         groqAttempts++;
         try { g = await generateGroqOne(n.title, articleText); } catch { /* tenta a seguinte */ }
@@ -339,13 +339,15 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         if (!g) { geminiAttempts++; try { g = await generateOne(n.title, articleText); } catch { /* tenta a seguinte */ } }
         if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title, articleText); } catch { /* entra na mesma */ } }
         const ai = g && validTitle(g.titulo, n.title);
-        const titulo = ai && isPublishableTitle(ai, n.title) ? ai : backupTitle(n.title);
+        const titulo = (ai && isPublishableTitle(ai, n.title) ? ai : null) || backupTitle(n.title);
         if (!titulo) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
-      const verifiedImages = await Promise.all(titled.map((item) =>
-        item ? chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : [])) : Promise.resolve(null)
-      ));
+      const verifiedImages = expired()
+        ? titled.map((item) => item?.n.image ?? null)
+        : await Promise.all(titled.map((item) =>
+            item ? chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : [])) : Promise.resolve(null)
+          ));
       for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
         const item = titled[itemIndex];
         if (!item) continue;

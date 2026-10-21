@@ -14,7 +14,7 @@ import { chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
-const MAX_BATCHES = 2;
+const MAX_BATCHES = 4;
 const BUDGET_MS = 40_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
@@ -325,19 +325,24 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
     let rewritten = 0;
-    const queue = pending.slice(0, 20);
+    const queue = pending.slice(0, 40);
     for (let offset = 0; offset < queue.length; offset += 5) {
       if (expired()) break;
       const wave = queue.slice(offset, offset + 5);
-      const titled = await Promise.all(wave.map(async (n) => {
+      const titled = await Promise.all(wave.map(async (n, waveIndex) => {
         const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
+        const start = (offset + waveIndex) % 5;
+        const order = [
+          async () => { groqAttempts++; return generateGroqOne(n.title, articleText); },
+          async () => { cloudflareAttempts++; return generateCloudflareOne(n.title, articleText); },
+          async () => { nvidiaAttempts++; return generateNvidiaOne(n.title, articleText); },
+          async () => { geminiAttempts++; return generateOne(n.title, articleText); },
+          async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
+        ];
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-        groqAttempts++;
-        try { g = await generateGroqOne(n.title, articleText); } catch { /* tenta a seguinte */ }
-        if (!g) { cloudflareAttempts++; try { g = await generateCloudflareOne(n.title, articleText); } catch { /* entra na mesma */ } }
-        if (!g) { nvidiaAttempts++; try { g = await generateNvidiaOne(n.title, articleText); } catch { /* entra na mesma */ } }
-        if (!g) { geminiAttempts++; try { g = await generateOne(n.title, articleText); } catch { /* tenta a seguinte */ } }
-        if (!g) { openrouterAttempts++; try { g = await generateOpenRouterOne(n.title, articleText); } catch { /* entra na mesma */ } }
+        for (let step = 0; step < order.length && !g; step += 1) {
+          try { g = await order[(start + step) % order.length](); } catch { /* tenta a seguinte */ }
+        }
         const ai = g && validTitle(g.titulo, n.title);
         const titulo = (ai && isPublishableTitle(ai, n.title) ? ai : null) || backupTitle(n.title);
         if (!titulo) return null;

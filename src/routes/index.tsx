@@ -72,6 +72,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Bookmark,
+  Check,
   Cpu,
   EllipsisVertical,
   Globe,
@@ -79,6 +80,7 @@ import {
   Loader2,
   Palette,
   Phone,
+  Share2,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -762,6 +764,7 @@ function Index() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -829,6 +832,27 @@ function Index() {
     },
     [],
   );
+
+  const shareStory = useCallback(async (item: NewsItem) => {
+    const url = cleanUrl(item.url);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title, text: item.title, url });
+        return;
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(item.id);
+      window.setTimeout(() => {
+        setCopiedId((current) => (current === item.id ? null : current));
+      }, 1600);
+    } catch {
+      /* o browser bloqueou a cópia */
+    }
+  }, []);
 
   const query = useInfiniteQuery({
     queryKey: ["news", category, interests.join(","), club],
@@ -1184,6 +1208,19 @@ function Index() {
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">Ler notícia</p>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void shareStory(a);
+                          }}
+                          aria-label={copiedId === a.id ? "Link copiado" : "Partilhar"}
+                          className="flex size-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/25"
+                        >
+                          {copiedId === a.id ? <Check className="size-5" /> : <Share2 className="size-5" />}
+                        </button>
                         <button
                           type="button"
                           onPointerDown={(e) => e.stopPropagation()}

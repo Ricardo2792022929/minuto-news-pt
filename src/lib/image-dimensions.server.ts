@@ -69,9 +69,12 @@ export async function inspectImage(url: string): Promise<ImageDimensions | null>
 }
 
 export async function chooseOriginal(candidates: string[]): Promise<string | null> {
-  const urls = [...new Set(candidates)].filter((url) => /^https:\/\//i.test(url)).slice(0, 2);
+  const urls = [...new Set(candidates)].filter((url) => /^https:\/\//i.test(url)).slice(0, 4);
   const inspected = await Promise.all(urls.map(async (url) => ({ url, size: await inspectImage(url) })));
-  return inspected
+  const measured = inspected
     .filter((item) => item.size && adequateImage(item.size))
-    .sort((a, b) => (b.size?.width ?? 0) - (a.size?.width ?? 0))[0]?.url ?? null;
+    .sort((a, b) => (b.size?.width ?? 0) - (a.size?.width ?? 0));
+  if (measured[0]) return measured[0].url;
+  // Muitos sites bloqueiam a leitura do tamanho. A foto da notícia fica na mesma.
+  return inspected.find((item) => !item.size && /\.(?:jpe?g|png|webp)(?:$|\?)/i.test(item.url))?.url ?? null;
 }

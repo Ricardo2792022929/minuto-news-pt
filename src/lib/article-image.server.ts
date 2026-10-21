@@ -62,9 +62,9 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
     }
     const chosen = await chooseOriginal([...new Set(candidates)]);
     if (chosen && !isLogo(chosen)) return chosen;
-    const real = candidates.find((url) => [/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url) || /cdn-images\.rtp\.pt/i.test(url), !isLogo(url)].every(Boolean));
+    const real = candidates.find((url) => (/\.(?:jpe?g|png|webp)(?:$|\?)/i.test(url) || /cdn-images\.rtp\.pt/i.test(url)) && !isLogo(url));
     if (real) return real;
-    return candidates[0] ?? null;
+    return candidates.find((url) => !isLogo(url)) ?? null;
   } catch {
     return null;
   }

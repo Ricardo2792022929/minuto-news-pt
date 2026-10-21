@@ -352,22 +352,24 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
       const verifiedImages = expired()
-        ? titled.map((item) => item?.n.image ?? null)
+        ? titled.map((item) => (item?.n.image ? { url: item.n.image, status: "original" as const } : null))
         : await Promise.all(titled.map(async (item) => {
             if (!item) return null;
             const original = await chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : []));
-            if (original) return original;
+            if (original) return { url: original, status: "original" as const };
             const page = await fromArticlePage(item.n.url).catch(() => null);
-            if (page && !/logo|ojogo|o-jogo|favicon|brand/i.test(page)) return page;
-            const found = await findHdImage(item.n.title, used, item.resumo).catch(() => []);
-            return found[0] ?? null;
+            if (page && !/logo|ojogo|o-jogo|favicon|brand/i.test(page)) return { url: page, status: "original" as const };
+            const same = await imageFromSameStory(item.n.title).catch(() => null);
+            if (same) return { url: same, status: "original" as const };
+            return null;
           }));
       for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
         const item = titled[itemIndex];
         if (!item) continue;
         const { n, titulo, resumo } = item;
         const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
-        const rawImage = verifiedImages[itemIndex] ?? null;
+        const picked = verifiedImages[itemIndex];
+        const rawImage = picked?.url ?? null;
         const safeImage = storyImageUrl(rawImage);
         const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
         const row = {
@@ -408,19 +410,15 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).order("published_at", { ascending: false }).limit(20);
       await Promise.all((missing ?? []).map(async (m) => {
         const term = (m.original_title ?? m.titulo_inedito ?? "").trim();
-        const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();
         try {
           const articleImage = await fromArticlePage(m.url);
           const isRadio = /antena|radio/i.test(m.url) || /rtp.*antena/i.test(m.url);
           const isLogoImage = articleImage && /logo|ojogo|o-jogo|favicon|brand/i.test(articleImage);
           let found: string[] = [];
-          if (articleImage && !isRadio && !isLogoImage) {
-            found = [articleImage];
-          } else if (isRadio || isLogoImage) {
+          if (articleImage && !isRadio && !isLogoImage) found = [articleImage];
+          else {
             const sameStory = await imageFromSameStory(term);
-            found = sameStory ? [sameStory] : await findHdImage(term, used, description);
-          } else {
-            found = await findHdImage(term, used, description);
+            found = sameStory ? [sameStory] : [];
           }
           const safeFound = [...new Set(found.map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate)))];
           const img = safeFound[0];
@@ -429,7 +427,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
             await db.from("articles").update({ image_query: null }).eq("id", m.id);
             return;
           }
-          const saved = await db.from("articles").update({ image: img, image_status: articleImage ? "original" : "search", image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
+          const saved = await db.from("articles").update({ image: img, image_status: "original", image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
           if (saved.error && /image_status|image_candidates/i.test(saved.error.message)) {
             await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
           }

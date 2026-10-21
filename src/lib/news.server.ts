@@ -172,7 +172,7 @@ function extractImages(item: any): string[] {
   const add = (url: unknown, w: unknown, prio: number) => {
     if (typeof url !== "string" || !url) return;
     const width = Number(w) || 0;
-    if (width && width < 800) return;
+    if (width && width < 480) return;
     candidates.push({ url, w: width, prio });
   };
   const media = [
@@ -216,21 +216,25 @@ function extractImages(item: any): string[] {
   return [...new Set(result.length ? result : logos)];
 }
 
-// CDNs que redimensionam (RTP, imgix, WordPress Photon): pede a versão HD.
+// CDNs que redimensionam (RTP, imgix, WordPress Photon): pede a versão maior.
 function upgradeImageUrl(url: string): string {
+  const full = url.replace(/-\d{2,4}x\d{2,4}(?=\.(?:jpe?g|png|webp)(?:$|\?))/i, "");
   try {
-    const u = new URL(url);
+    const u = new URL(full);
     if (/cdn-images\.rtp\.pt|imgix\.net|i\d\.wp\.com/.test(u.hostname)) {
-      // Request the source's rendition, but actual pixels are checked before saving.
-      for (const k of ["w", "width"]) if (u.searchParams.has(k)) u.searchParams.set(k, "1200");
+      for (const k of ["w", "width"]) if (u.searchParams.has(k)) u.searchParams.set(k, "1600");
       if (u.searchParams.has("q")) u.searchParams.set("q", "80");
       u.searchParams.delete("h");
       return u.toString();
     }
+    for (const k of ["w", "width"]) {
+      const value = Number(u.searchParams.get(k));
+      if (value && value < 1000) u.searchParams.set(k, "1600");
+    }
+    return u.toString();
   } catch {
-    /* URL inválido */
+    return full;
   }
-  return url;
 }
 
 // ---------- Relevância ----------

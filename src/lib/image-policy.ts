@@ -18,6 +18,17 @@ export const CATEGORY_PHOTOS: Record<string, string> = {
 
 const CRIME_RE = /\b(gnr|psp|pol[ií]cia|detid|crime|assalt|tiroteio|homic|preso|roubo)/i;
 
+const STOCK_HOST = /(?:^|\.)(?:images\.unsplash\.com|plus\.unsplash\.com|images\.pexels\.com|pixabay\.com|cdn\.pixabay\.com|picsum\.photos)$/i;
+
+export function isStockImage(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    return STOCK_HOST.test(new URL(raw).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Imagem ilustrativa local por categoria; não apresenta uma fotografia aleatória como se fosse da notícia. */
 export function guaranteedImage(_id: string, category?: string): string {
   return CATEGORY_PHOTOS[category ?? "Mundo"] ?? photo4.url;
@@ -38,6 +49,7 @@ export function storyImageUrl(raw: string | null | undefined): string | null {
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== "https:") return null;
+    if (isStockImage(url.toString())) return null;
     if (url.hostname === "picsum.photos" || url.hostname.endsWith(".picsum.photos")) return null;
     if (/logo|placeholder|default|blank|pixel|1x1|spacer/i.test(url.pathname + url.search)) return null;
     if (url.hostname === "images.unsplash.com" || url.hostname === "images.pexels.com" || url.hostname.endsWith(".imgix.net")) {

@@ -340,11 +340,13 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
         ];
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-        for (let step = 0; step < order.length && !g; step += 1) {
-          try { g = await order[(start + step) % order.length](); } catch { /* tenta a seguinte */ }
+        let ai: string | null = null;
+        for (let step = 0; step < order.length && !ai; step += 1) {
+          try { g = await order[(start + step) % order.length](); } catch { g = null; }
+          const candidate = g && validTitle(g.titulo, n.title);
+          if (candidate && isPublishableTitle(candidate, n.title)) ai = candidate;
         }
-        const ai = g && validTitle(g.titulo, n.title);
-        const titulo = (ai && isPublishableTitle(ai, n.title) ? ai : null) || backupTitle(n.title);
+        const titulo = ai || backupTitle(n.title);
         if (!titulo) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));

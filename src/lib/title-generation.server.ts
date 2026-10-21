@@ -160,7 +160,7 @@ function isPrefixCut(candidate: string, original: string): boolean {
   if (c.length < 4 || o.length <= c.length) return false;
   let i = 0;
   while (i < c.length && c[i] === o[i]) i++;
-  return i >= 6 && i / c.length >= 0.75;
+  return i >= 8 && i / c.length >= 0.9;
 }
 
 /** O título publicado é só o original cortado, não um resumo novo. */
@@ -174,7 +174,7 @@ export function isPastedTitle(candidate: string, original: string): boolean {
   let prefix = 0;
   const limit = Math.min(c.length, o.length);
   while (prefix < limit && c[prefix] === o[prefix]) prefix++;
-  return prefix >= 6 && prefix / c.length >= 0.75;
+  return prefix >= 8 && prefix / c.length >= 0.9;
 }
 
 /** No máximo 10 palavras, com verbo e frase fechada. Sem corte que fique sem sentido. */
@@ -305,24 +305,7 @@ export function validTitle(raw: unknown, original?: string): string | null {
 /** Título curto quando a API de resumo está no limite. A notícia entra na mesma. */
 export function backupTitle(original: string): string {
   const nicer = rewriteFallback(original);
-  if (nicer) return nicer;
-  let t = original
-    .replace(/\s*[-|–—]\s*(CNN\s*Portugal|Público|Publico|Jornal\s*de\s*Negócios|Observador|RTP|Lusa|ECO|Record|A\s*Bola|O\s*Jogo|Expresso|SIC|TSF|SAPO|IOL).*$/i, "")
-    .replace(/[\"«»“”]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(PREFIX, "")
-    .trim();
-  if (t.includes(":") && t.split(":")[0].split(/\s+/).length <= 4) t = t.split(":").slice(1).join(":").trim();
-  const forced = forceMax10Words(t);
-  if (forced && forced.split(/\s+/).length >= 4 && forced.split(/\s+/).length <= 10) return forced;
-  const words = t.replace(/[“”"«»]/g, "").split(/\s+/).map((word) => word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")).filter(Boolean);
-  let capped = words.slice(0, 10);
-  while (capped.length > 4 && /^(de|da|do|das|dos|em|no|na|nos|nas|e|ou|que|para|com|por|a|o|as|os|um|uma)$/i.test(capped[capped.length - 1] ?? "")) capped.pop();
-  if (capped.length >= 4 && capped.length <= 10) {
-    const out = capped.join(" ");
-    return out.charAt(0).toUpperCase() + out.slice(1);
-  }
+  if (nicer && !isPastedTitle(nicer, original) && !isPrefixCut(nicer, original)) return nicer;
   return "";
 }
 

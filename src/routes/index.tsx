@@ -984,7 +984,7 @@ function Index() {
           });
           setDragX(0);
           setSettling(false);
-        }, 180);
+        }, 220);
         return;
       }
       setSettling(true);
@@ -1086,8 +1086,9 @@ function Index() {
               <div
                 className="absolute inset-0 z-20 overflow-hidden bg-black"
                 style={{
-                  transform: `translateX(${dragX > 0 ? dragX - (typeof window !== "undefined" ? window.innerWidth : 400) : dragX + (typeof window !== "undefined" ? window.innerWidth : 400)}px)`,
-                  transition: settling ? "transform 180ms cubic-bezier(.22,1,.36,1)" : undefined,
+                  transform: `translateX(${dragX > 0 ? dragX - (feedRef.current?.clientWidth || window.innerWidth) : dragX + (feedRef.current?.clientWidth || window.innerWidth)}px)`,
+                  transition: settling ? "transform 220ms cubic-bezier(.22,1,.36,1)" : "none",
+                  willChange: "transform",
                 }}
               >
                 {(() => {
@@ -1111,33 +1112,20 @@ function Index() {
               </div>
             )}
             {slide && prevArticles.length > 0 && (
-              <div
-                className={`absolute inset-0 z-10 overflow-hidden ${slide === "left" ? "animate-exit-left" : "animate-exit-right"}`}
-              >
-                <div className="relative h-full w-full overflow-hidden bg-black">
-                  {prevArticles[0] && (
-                    <>
-                      <FeedImage item={prevArticles[0]} alt="" className="absolute inset-0 h-full w-full" />
-                      <div className="absolute inset-0 feed-scrim" />
-                      <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8">
-                        <h2 className="font-display text-2xl font-bold text-white">{prevArticles[0].title}</h2>
-                      </div>
-                    </>
-                  )}
-                </div>
+              <div className="absolute inset-0 z-10 overflow-hidden" style={{ opacity: 0, pointerEvents: "none" }}>
+                <div className="relative h-full w-full overflow-hidden bg-black" />
               </div>
             )}
             <div
               ref={feedRef}
-              className={`absolute inset-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                slide === "left" ? "animate-slide-left" : slide === "right" ? "animate-slide-right" : ""
-              }`}
+              className={`absolute inset-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
               style={{
                 scrollSnapType: "y mandatory",
                 WebkitOverflowScrolling: "touch",
                 touchAction: "pan-y",
                 transform: dragX ? `translateX(${dragX}px)` : undefined,
-                transition: settling ? "transform 180ms cubic-bezier(.22,1,.36,1)" : undefined,
+                transition: settling ? "transform 220ms cubic-bezier(.22,1,.36,1)" : "none",
+                willChange: dragX ? "transform" : undefined,
               }}
             >
             {articles.map((a, i) => {

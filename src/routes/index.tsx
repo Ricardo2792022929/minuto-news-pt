@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import introUrl from "@/assets/intro.mp4";
+import { preloadIntroVideo } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
@@ -195,8 +195,8 @@ const INTEREST_OPTIONS: {
 function Intro({ onDone }: { onDone: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const done = useRef(false);
+  const [src, setSrc] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
-  const [progress, setProgress] = useState(0);
   const finish = useCallback(() => {
     if (done.current) return;
     done.current = true;
@@ -204,89 +204,89 @@ function Intro({ onDone }: { onDone: () => void }) {
   }, [onDone]);
 
   useEffect(() => {
+    let live = true;
+    void preloadIntroVideo().then((url) => {
+      if (live) setSrc(url);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const video = ref.current;
-    if (!video) return;
-    // Fecha sempre, mesmo que o vídeo pare ou o browser não dispare "ended".
-    const hard = window.setTimeout(finish, 5000);
+    if (!video || !src) return;
+    const hard = window.setTimeout(finish, 7000);
     const close = () => finish();
-    const onTime = () => {
-      if (video.currentTime > 0.08) setVisible(true);
-      const duration = video.duration;
-      if (Number.isFinite(duration) && duration > 0 && video.currentTime >= duration - 0.08) close();
+    const reveal = () => {
+      if (!video.paused && video.currentTime > 0.05) setVisible(true);
     };
     const kick = () => {
       video.muted = true;
+      video.defaultMuted = true;
       const attempt = video.play();
       if (!attempt) return;
-      attempt.catch(() => {
-        video.play().catch(close);
+      attempt.then(reveal).catch(() => {
+        video.play().then(reveal).catch(close);
       });
+    };
+    const onTime = () => {
+      reveal();
+      const duration = video.duration;
+      if (Number.isFinite(duration) && duration > 0 && video.currentTime >= duration - 0.08) close();
     };
     video.addEventListener("ended", close);
     video.addEventListener("error", close);
+    video.addEventListener("playing", reveal);
     video.addEventListener("timeupdate", onTime);
-    if (video.readyState >= 2) kick();
+    if (video.readyState >= 3) kick();
     else video.addEventListener("canplay", kick, { once: true });
     return () => {
       window.clearTimeout(hard);
       video.removeEventListener("ended", close);
       video.removeEventListener("error", close);
+      video.removeEventListener("playing", reveal);
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("canplay", kick);
     };
-  }, [finish]);
-
-  useEffect(() => {
-    const started = performance.now();
-    let frame = 0;
-    const tick = (now: number) => {
-      const value = Math.min(1, (now - started) / 4200);
-      setProgress(value);
-      if (value < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [finish, src]);
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-hidden bg-feed-bg text-feed-fg">
+    <div className="fixed inset-0 z-[80] overflow-hidden bg-black">
       <style>{`
         video.flash-intro::-webkit-media-controls,
         video.flash-intro::-webkit-media-controls-enclosure,
-        video.flash-intro::-webkit-media-controls-start-playback-button {
+        video.flash-intro::-webkit-media-controls-panel,
+        video.flash-intro::-webkit-media-controls-start-playback-button,
+        video.flash-intro::-webkit-media-controls-overlay-play-button {
           display: none !important;
           -webkit-appearance: none;
           opacity: 0;
+          width: 0;
+          height: 0;
         }
       `}</style>
-      <video
-        ref={ref}
-        src={introUrl}
-        playsInline
-        preload="auto"
-        muted
-        controls={false}
-        disablePictureInPicture
-        poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-        className={`flash-intro pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${visible ? "opacity-40" : "opacity-0"}`}
-        onPlaying={() => setVisible(true)}
-        onEnded={finish}
-        onError={finish}
-      />
-      <div className="absolute inset-0 feed-scrim" />
-      <div className="relative z-10 flex h-full flex-col items-center justify-end px-8 pb-[max(4.5rem,env(safe-area-inset-bottom))] text-center">
-        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-feed-fg/15 bg-feed-bg/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest">
-          <span className="size-1.5 animate-live-pulse rounded-full bg-live" />
-          Em direto
-        </span>
-        <p className="font-display text-6xl font-black tracking-tight">Flash</p>
-        <p className="mt-3 max-w-xs text-base leading-relaxed text-feed-fg/75">
-          Notícias de Portugal, resumidas para ler num instante.
-        </p>
-        <div className="mt-8 h-1 w-40 overflow-hidden rounded-full bg-feed-fg/15">
-          <div className="h-full rounded-full bg-live" style={{ width: `${Math.round(progress * 100)}%` }} />
-        </div>
-      </div>
+      {src ? (
+        <video
+          ref={ref}
+          src={src}
+          playsInline
+          preload="auto"
+          muted
+          autoPlay
+          controls={false}
+          disablePictureInPicture
+          poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+          className="flash-intro pointer-events-none h-full w-full bg-black object-contain"
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: "translateZ(0)",
+          }}
+          onPlaying={() => setVisible(true)}
+          onEnded={finish}
+          onError={finish}
+        />
+      ) : null}
     </div>
   );
 }
@@ -303,11 +303,7 @@ function Onboarding({
   const askLine = "Que tipo de notícias gostas de ver?";
   const clubLine = "Selecione o seu clube favorito";
   const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">("greet");
-  const [helloCount, setHelloCount] = useState(0);
-  const [setupCount, setSetupCount] = useState(0);
-  const [askCount, setAskCount] = useState(0);
   const [shownIcons, setShownIcons] = useState(0);
-  const [clubCount, setClubCount] = useState(0);
   const [shownClubs, setShownClubs] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pendingClub, setPendingClub] = useState<string | null>(null);
@@ -319,35 +315,26 @@ function Onboarding({
 
   useEffect(() => {
     if (phase !== "greet") return;
-    if (helloCount >= hello.length) {
-      const id = window.setTimeout(() => setPhase("erase"), 900);
-      return () => window.clearTimeout(id);
-    }
-    const id = window.setTimeout(() => setHelloCount((n) => n + 1), 18);
+    const id = window.setTimeout(() => setPhase("erase"), 1100);
     return () => window.clearTimeout(id);
-  }, [phase, helloCount, hello]);
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "erase") return;
-    const id = window.setTimeout(() => setPhase("ask"), 680);
+    const id = window.setTimeout(() => setPhase("ask"), 320);
     return () => window.clearTimeout(id);
   }, [phase]);
 
   useEffect(() => {
     if (phase !== "ask") return;
-    if (setupCount < setupLine.length) {
-      const id = window.setTimeout(() => setSetupCount((n) => n + 1), 16);
-      return () => window.clearTimeout(id);
-    }
-    if (askCount < askLine.length) {
-      const id = window.setTimeout(() => setAskCount((n) => n + 1), 16);
-      return () => window.clearTimeout(id);
-    }
-    if (shownIcons < INTEREST_OPTIONS.length) {
-      const id = window.setTimeout(() => setShownIcons((n) => n + 1), 90);
-      return () => window.clearTimeout(id);
-    }
-  }, [phase, setupCount, askCount, shownIcons, setupLine.length, askLine.length]);
+    let count = 0;
+    const id = window.setInterval(() => {
+      count += 1;
+      setShownIcons(count);
+      if (count >= INTEREST_OPTIONS.length) window.clearInterval(id);
+    }, 55);
+    return () => window.clearInterval(id);
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "club") return;
@@ -356,15 +343,14 @@ function Onboarding({
     } catch {
       /* ignora */
     }
-    if (clubCount < clubLine.length) {
-      const id = window.setTimeout(() => setClubCount((n) => n + 1), 16);
-      return () => window.clearTimeout(id);
-    }
-    if (shownClubs < LIGA_CLUBS.length) {
-      const id = window.setTimeout(() => setShownClubs((n) => n + 1), 40);
-      return () => window.clearTimeout(id);
-    }
-  }, [phase, clubCount, shownClubs, clubLine.length]);
+    let count = 0;
+    const id = window.setInterval(() => {
+      count += 1;
+      setShownClubs(count);
+      if (count >= LIGA_CLUBS.length) window.clearInterval(id);
+    }, 24);
+    return () => window.clearInterval(id);
+  }, [phase]);
 
   const toggle = (c: string) => {
     setPicked((prev) => {
@@ -381,7 +367,6 @@ function Onboarding({
     clubTimer.current = window.setTimeout(() => onDone([...picked], id), 1000);
   };
 
-  const caret = <span className="ml-0.5 inline-block h-[0.9em] w-[2px] translate-y-[2px] animate-pulse bg-live align-middle" />;
   const step = phase === "club" ? 2 : 1;
 
   return (
@@ -389,8 +374,8 @@ function Onboarding({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-live/15 blur-3xl" />
       {phase === "greet" || phase === "erase" ? (
         <div
-          className={`relative flex flex-1 flex-col items-center justify-center px-8 text-center transition-all duration-700 ease-out ${
-            phase === "erase" ? "translate-y-2 opacity-0" : "opacity-100"
+          className={`relative flex flex-1 flex-col items-center justify-center px-8 text-center transition-all duration-300 ease-out ${
+            phase === "erase" ? "translate-y-1 opacity-0" : "animate-rise opacity-100"
           }`}
         >
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-feed-fg/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-feed-fg/70">
@@ -398,8 +383,7 @@ function Onboarding({
             Flash Notícias
           </span>
           <h1 className="max-w-sm font-display text-4xl font-black leading-tight text-balance">
-            {hello.slice(0, helloCount)}
-            {phase === "greet" && helloCount < hello.length ? caret : null}
+            {hello}
           </h1>
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-feed-fg/60">
             Um feed curto, feito para o telemóvel. Escolhe o que queres ver.
@@ -421,13 +405,9 @@ function Onboarding({
           </div>
           {phase === "ask" ? (
             <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-8">
-              <p className="text-sm font-semibold text-live">
-                {setupLine.slice(0, setupCount)}
-                {setupCount < setupLine.length ? caret : null}
-              </p>
-              <h1 className="mt-3 min-h-[4.5rem] font-display text-3xl font-black leading-tight text-balance">
-                {askLine.slice(0, askCount)}
-                {setupCount >= setupLine.length && askCount < askLine.length ? caret : null}
+              <p className="text-sm font-semibold text-live">{setupLine}</p>
+              <h1 className="mt-3 font-display text-3xl font-black leading-tight text-balance">
+                {askLine}
               </h1>
               <p
                 className={`mt-2 text-sm text-feed-fg/60 transition-opacity duration-500 ${
@@ -493,9 +473,8 @@ function Onboarding({
           ) : (
             <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-8">
               <div className="flex shrink-0 items-start justify-between gap-3">
-                <h1 className="min-h-[4.5rem] flex-1 font-display text-3xl font-black leading-tight text-balance">
-                  {clubLine.slice(0, clubCount)}
-                  {clubCount < clubLine.length ? caret : null}
+                <h1 className="flex-1 font-display text-3xl font-black leading-tight text-balance">
+                  {clubLine}
                 </h1>
               </div>
               <p className="text-sm text-feed-fg/60">Só para dar prioridade ao desporto. Não é obrigatório.</p>
@@ -532,10 +511,6 @@ function Onboarding({
               <button
                 onClick={() => onDone([...picked], null)}
                 className="mt-2 min-h-11 shrink-0 rounded-full py-3 text-sm font-semibold text-feed-fg/70"
-                style={{
-                  opacity: clubCount >= clubLine.length ? 1 : 0,
-                  pointerEvents: clubCount >= clubLine.length ? "auto" : "none",
-                }}
               >
                 Continuar sem clube
               </button>

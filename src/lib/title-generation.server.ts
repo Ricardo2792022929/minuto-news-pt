@@ -296,9 +296,9 @@ export function validTitle(raw: unknown, original?: string): string | null {
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
-  if (words.length < 4 || words.length > 10 || isIncomplete(words) || isFillerStart(words) || endsAfterComma(words)) return null;
+  if (words.length < 4 || words.length > 10) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || inventsNumber(forced, original) || inventsMatch(forced, original))) return null;
+  if (original && swapsStoryActor(forced, original)) return null;
   return forced;
 }
 

@@ -835,6 +835,22 @@ function Index() {
 
   const shareStory = useCallback(async (item: NewsItem) => {
     const url = cleanUrl(item.url);
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) {
+      try {
+        const { Share } = await import("@capacitor/share");
+        await Share.share({
+          title: item.title,
+          text: item.title,
+          url,
+          dialogTitle: "Partilhar notícia",
+        });
+        return;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "";
+        if (/cancel/i.test(message)) return;
+      }
+    }
     try {
       if (navigator.share) {
         await navigator.share({ title: item.title, text: item.title, url });

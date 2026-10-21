@@ -72,7 +72,6 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Bookmark,
-  ChevronDown,
   Cpu,
   EllipsisVertical,
   Globe,
@@ -370,7 +369,7 @@ function Onboarding({
   const step = phase === "club" ? 2 : 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden bg-feed-bg text-feed-fg">
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-feed-bg text-feed-fg">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-live/15 blur-3xl" />
       {phase === "greet" || phase === "erase" ? (
         <div
@@ -612,6 +611,7 @@ function SavedList({
           <ArrowLeft className="size-5" />
           Voltar
         </button>
+        <p className="font-display text-lg font-black">Guardadas</p>
       </div>
       {!items.length ? (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
@@ -671,7 +671,7 @@ function SavedList({
 function LiveWhen() {
   const now = useClock();
   return (
-    <span className="text-xs font-semibold uppercase tracking-widest text-feed-fg/80">
+    <span className="text-[11px] font-semibold text-feed-fg/75">
       Em direto · {formatClock(now)}
     </span>
   );
@@ -961,6 +961,8 @@ function Index() {
 
     const down = (event: PointerEvent) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button")) return;
       tracking = true;
       horizontal = false;
       decided = false;
@@ -1058,7 +1060,7 @@ function Index() {
     () =>
       articles
         .slice(0, 5)
-        .map((a) => `${a.source.toUpperCase()} · ${a.title}`),
+        .map((a) => `${a.source} · ${a.title}`),
     [articles],
   );
 
@@ -1181,39 +1183,60 @@ function Index() {
                       }`}
                     />
                   )}
-                  <div className="absolute inset-0 feed-scrim" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-black via-black/80 to-transparent" />
 
-                  {fresh && (
-                    <span className="absolute left-4 top-[104px] z-10 rounded-md bg-live px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live-foreground">
-                      Novo
-                    </span>
-                  )}
-
-                  {/* Bottom story */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-5 pb-[max(1.1rem,calc(env(safe-area-inset-bottom)+0.7rem))] pr-16 pt-16">
-                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
-                      <span className="text-live">{a.source}</span>
-                      <span className="text-feed-fg/60">·</span>
-                      <span className="text-feed-fg/80">{a.category}</span>
+                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))]">
+                    <div className="flex items-center gap-2 text-[11px] font-semibold">
+                      <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
+                        {a.category}
+                      </span>
+                      {fresh && (
+                        <span className="rounded-full bg-live px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-live-foreground">
+                          Novo
+                        </span>
+                      )}
+                      <span className="min-w-0 truncate text-white/75">{a.source}</span>
+                      <span className="ml-auto shrink-0 tabular-nums text-white/70">{timeAgo(a.publishedAt)}</span>
                     </div>
                     <StoryTitle
                       title={a.title}
                       open={openTitle === a.id}
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
-                    <p className="mt-2.5 text-xs font-medium text-feed-fg/75">
-                      <span className="font-bold text-live">
-                        {timeAgo(a.publishedAt)}
-                      </span>{" "}
-                      · {formatClock(new Date(a.publishedAt))} · Toca para ler
-                    </p>
-                  </div>
-
-                  {i === 0 && (
-                    <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 -translate-x-1/2 animate-bounce text-feed-fg/70">
-                      <ChevronDown className="size-6" />
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <p className="pb-1 text-sm font-semibold text-white">Ler notícia</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleSave(a);
+                          }}
+                          aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
+                          className={`flex size-11 items-center justify-center rounded-full ring-1 ring-white/25 ${
+                            savedMap[a.id] ? "bg-live text-live-foreground ring-live" : "bg-black/45 text-white"
+                          }`}
+                        >
+                          <Bookmark className={`size-5 ${savedMap[a.id] ? "fill-current" : ""}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setTab("saved");
+                          }}
+                          aria-label="Guardadas"
+                          className="flex size-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/25"
+                        >
+                          <EllipsisVertical className="size-5" />
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </a>
               );
             })}
@@ -1253,75 +1276,36 @@ function Index() {
             </div>
           </div>
 
-          {articles[page] && (
-            <div className="pointer-events-auto absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-3">
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  toggleSave(articles[page]);
-                }}
-                aria-label={savedMap[articles[page].id] ? "Guardado" : "Guardar"}
-                className={`flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white ${
-                  savedMap[articles[page].id] ? "border-live bg-live/70 text-live-foreground" : ""
-                }`}
-              >
-                <Bookmark className={`size-6 ${savedMap[articles[page].id] ? "fill-current" : ""}`} />
-              </button>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setTab("saved");
-                }}
-                aria-label="Guardadas"
-                className="flex size-12 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white"
-              >
-                <EllipsisVertical className="size-6" />
-              </button>
-            </div>
-          )}
-
-          {/* Top overlay: masthead + ticker + categories */}
           <div ref={mastheadRef} className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl">
-            <div className="pointer-events-auto bg-feed-bg px-4 pt-4">
-              <div className="flex items-end justify-between">
-                <h1 className="font-display text-3xl font-black tracking-tight text-feed-fg">
-                  Flash<span className="text-live">Notícias</span>
-                </h1>
-                <div className="flex items-center gap-2 pb-1">
-                  <span className="relative flex size-2">
-                    <span className="absolute inset-0 animate-live-pulse rounded-full bg-live" />
-                    <span className="relative size-2 rounded-full bg-live" />
-                  </span>
-                  <span className="text-xs font-semibold uppercase tracking-widest text-feed-fg/80">
+            <div className="pointer-events-auto bg-feed-bg px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="font-display text-[1.7rem] font-black leading-none tracking-tight text-feed-fg">
+                    Flash<span className="text-live">Notícias</span>
+                  </h1>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span className="relative flex size-1.5">
+                      <span className="absolute inset-0 animate-live-pulse rounded-full bg-live" />
+                      <span className="relative size-1.5 rounded-full bg-live" />
+                    </span>
                     <LiveWhen />
-                  </span>
+                  </div>
+                  <LiveDateLine />
                 </div>
-              </div>
-              <div className="mt-1 flex items-center justify-between">
-                <LiveDateLine />
                 <Link
                   to="/contacto"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-black shadow-lg shadow-yellow-400/30"
+                  className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1.5 text-[11px] font-bold text-black"
                 >
                   <Phone className="size-3.5" />
-                  Contact
+                  Contacto
                 </Link>
               </div>
 
               {tickerItems.length > 0 && (
-                <div className="mt-2 overflow-hidden rounded-full bg-black/35 py-1.5">
+                <div className="mt-2.5 overflow-hidden border-y border-feed-fg/10 py-1.5">
                   <div className="flex w-max animate-ticker items-center whitespace-nowrap">
                     {[...tickerItems, ...tickerItems].map((item, idx) => (
-                      <span
-                        key={idx}
-                        className="px-4 text-[10px] font-semibold uppercase tracking-wide text-feed-fg/90"
-                      >
+                      <span key={idx} className="px-4 text-[11px] font-medium text-feed-fg/80">
                         {item}
                         <span className="pl-4 text-live">●</span>
                       </span>
@@ -1330,7 +1314,7 @@ function Index() {
                 </div>
               )}
 
-              <nav ref={navRef} className="relative mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <nav ref={navRef} className="relative mt-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
@@ -1364,7 +1348,6 @@ function Index() {
                   }}
                 />
               </nav>
-              <div className="mt-3 h-0.5 w-full bg-live" aria-hidden="true" />
             </div>
           </div>
         </>

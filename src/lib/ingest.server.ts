@@ -352,9 +352,15 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       }));
       const verifiedImages = expired()
         ? titled.map((item) => item?.n.image ?? null)
-        : await Promise.all(titled.map((item) =>
-            item ? chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : [])) : Promise.resolve(null)
-          ));
+        : await Promise.all(titled.map(async (item) => {
+            if (!item) return null;
+            const original = await chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : []));
+            if (original) return original;
+            const page = await fromArticlePage(item.n.url).catch(() => null);
+            if (page && !/logo|ojogo|o-jogo|favicon|brand/i.test(page)) return page;
+            const found = await findHdImage(item.n.title, used, item.resumo).catch(() => []);
+            return found[0] ?? null;
+          }));
       for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
         const item = titled[itemIndex];
         if (!item) continue;
@@ -398,7 +404,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     if (!expired()) {
       const { data: recentImages } = await db.from("articles").select("image").not("image", "is", null).order("published_at", { ascending: false }).limit(80);
       for (const row of recentImages ?? []) if (row.image) rememberImage(used, row.image);
-      const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).order("published_at", { ascending: false }).limit(6);
+      const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).order("published_at", { ascending: false }).limit(20);
       await Promise.all((missing ?? []).map(async (m) => {
         const term = (m.original_title ?? m.titulo_inedito ?? "").trim();
         const description = [m.titulo_inedito, m.resumo, m.image_query].filter(Boolean).join(" ").trim();

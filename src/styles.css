@@ -166,8 +166,14 @@
   animation: greet-glow 3.2s ease-in-out infinite;
 }
 
-@utility animate-greet-ring {
-  animation: greet-ring 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+@keyframes greet-sweep {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(240%); }
+}
+
+@keyframes greet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes heart-pop {

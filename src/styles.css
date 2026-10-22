@@ -117,6 +117,59 @@
   animation: rise-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
+@keyframes greet-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em) scale(0.92);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes greet-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.8;
+  }
+}
+
+@keyframes greet-ring {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}
+
+@keyframes greet-line {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility animate-greet-glow {
+  animation: greet-glow 3.2s ease-in-out infinite;
+}
+
+@utility animate-greet-ring {
+  animation: greet-ring 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @keyframes heart-pop {
   0% {
     transform: scale(1);
@@ -214,7 +267,7 @@
 @utility animate-exit-right { animation: exit-right 260ms cubic-bezier(.22,1,.36,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right { animation: none; }
+  .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right, .animate-greet-glow, .animate-greet-ring { animation: none; }
 }
 
 /* Selo injetado pelo alojamento, não faz parte da app. */

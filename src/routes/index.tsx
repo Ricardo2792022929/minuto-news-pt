@@ -298,11 +298,12 @@ function Onboarding({
   onDone: (interests: string[], club: string | null) => void;
   onLater: () => void;
 }) {
-  const hello = `${greeting()}, bem-vindo à Flash Notícias Portugal.`;
+  const helloWord = greeting();
   const setupLine = "Vamos personalizar a sua experiência";
   const askLine = "Que tipo de notícias gostas de ver?";
   const clubLine = "Selecione o seu clube favorito";
   const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">("greet");
+  const [greetBeat, setGreetBeat] = useState(0);
   const [shownIcons, setShownIcons] = useState(0);
   const [shownClubs, setShownClubs] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -315,13 +316,20 @@ function Onboarding({
 
   useEffect(() => {
     if (phase !== "greet") return;
-    const id = window.setTimeout(() => setPhase("erase"), 1100);
-    return () => window.clearTimeout(id);
-  }, [phase]);
+    const letters = helloWord.length * 90 + 1100;
+    const line = window.setTimeout(() => setGreetBeat(1), letters);
+    const note = window.setTimeout(() => setGreetBeat(2), letters + 1500);
+    const leave = window.setTimeout(() => setPhase("erase"), letters + 4200);
+    return () => {
+      window.clearTimeout(line);
+      window.clearTimeout(note);
+      window.clearTimeout(leave);
+    };
+  }, [phase, helloWord]);
 
   useEffect(() => {
     if (phase !== "erase") return;
-    const id = window.setTimeout(() => setPhase("ask"), 320);
+    const id = window.setTimeout(() => setPhase("ask"), 700);
     return () => window.clearTimeout(id);
   }, [phase]);
 
@@ -332,7 +340,7 @@ function Onboarding({
       count += 1;
       setShownIcons(count);
       if (count >= INTEREST_OPTIONS.length) window.clearInterval(id);
-    }, 55);
+    }, 140);
     return () => window.clearInterval(id);
   }, [phase]);
 
@@ -374,18 +382,60 @@ function Onboarding({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-live/15 blur-3xl" />
       {phase === "greet" || phase === "erase" ? (
         <div
-          className={`relative flex flex-1 flex-col items-center justify-center px-8 text-center transition-all duration-300 ease-out ${
-            phase === "erase" ? "translate-y-1 opacity-0" : "animate-rise opacity-100"
+          className={`relative flex flex-1 flex-col items-center justify-center px-8 text-center transition-all duration-700 ease-out ${
+            phase === "erase" ? "translate-y-3 scale-95 opacity-0" : "opacity-100"
           }`}
         >
-          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-feed-fg/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-feed-fg/70">
+          <span className="pointer-events-none absolute size-72 rounded-full bg-live/25 blur-3xl animate-greet-glow" />
+          <span className="pointer-events-none absolute size-56 rounded-full border border-live/30 animate-greet-ring" />
+          <span
+            className="pointer-events-none absolute size-40 rounded-full border border-feed-fg/15 animate-greet-ring"
+            style={{ animationDelay: "180ms" }}
+          />
+          <span className="relative mb-8 inline-flex items-center gap-2 rounded-full border border-feed-fg/15 bg-feed-bg/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-feed-fg/70 backdrop-blur-sm">
             <span className="size-1.5 animate-live-pulse rounded-full bg-live" />
             Flash Notícias
           </span>
-          <h1 className="max-w-sm font-display text-4xl font-black leading-tight text-balance">
-            {hello}
+          <h1 className="relative max-w-sm font-display text-5xl font-black leading-none tracking-tight">
+            {helloWord.split("").map((letter, index) => (
+              <span
+                key={`${letter}-${index}`}
+                className="inline-block"
+                style={{
+                  animation: "greet-letter 0.7s cubic-bezier(.22,1,.36,1) both",
+                  animationDelay: `${index * 90}ms`,
+                }}
+              >
+                {letter === " " ? "\u00A0" : letter}
+              </span>
+            ))}
           </h1>
-          <p className="mt-4 max-w-xs text-sm leading-relaxed text-feed-fg/60">
+          <span
+            className="relative mt-5 h-px w-16 origin-center bg-live"
+            style={{
+              animation: greetBeat >= 1 ? "greet-line 0.7s cubic-bezier(.22,1,.36,1) both" : undefined,
+              transform: greetBeat >= 1 ? undefined : "scaleX(0)",
+            }}
+          />
+          <p
+            className="relative mt-5 max-w-xs font-display text-xl font-bold leading-snug text-balance"
+            style={{
+              opacity: greetBeat >= 1 ? 1 : 0,
+              transform: greetBeat >= 1 ? "translateY(0)" : "translateY(16px)",
+              filter: greetBeat >= 1 ? "blur(0)" : "blur(6px)",
+              transition: "opacity 700ms ease, transform 700ms cubic-bezier(.22,1,.36,1), filter 700ms ease",
+            }}
+          >
+            Bem-vindo à Flash Notícias Portugal.
+          </p>
+          <p
+            className="relative mt-3 max-w-xs text-sm leading-relaxed text-feed-fg/60"
+            style={{
+              opacity: greetBeat >= 2 ? 1 : 0,
+              transform: greetBeat >= 2 ? "translateY(0)" : "translateY(12px)",
+              transition: "opacity 800ms ease 80ms, transform 800ms cubic-bezier(.22,1,.36,1) 80ms",
+            }}
+          >
             Um feed curto, feito para o telemóvel. Escolhe o que queres ver.
           </p>
         </div>
@@ -406,7 +456,7 @@ function Onboarding({
           {phase === "ask" ? (
             <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-8">
               <p className="text-sm font-semibold text-live">{setupLine}</p>
-              <h1 className="mt-3 font-display text-3xl font-black leading-tight text-balance">
+              <h1 className="mt-3 animate-rise font-display text-3xl font-black leading-tight text-balance">
                 {askLine}
               </h1>
               <p

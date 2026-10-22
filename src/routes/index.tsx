@@ -306,6 +306,7 @@ function Onboarding({
   const [shownClubs, setShownClubs] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pendingClub, setPendingClub] = useState<string | null>(null);
+  const [curtain, setCurtain] = useState<"off" | "in" | "out">("off");
   const clubTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -374,11 +375,22 @@ function Onboarding({
     clubTimer.current = window.setTimeout(() => onDone([...picked], id), 1400);
   };
 
+  const goClub = () => {
+    if (picked.size === 0 || curtain !== "off") return;
+    setCurtain("in");
+    window.setTimeout(() => {
+      setPhase("club");
+      setCurtain("out");
+    }, 460);
+    window.setTimeout(() => setCurtain("off"), 1080);
+  };
+
   const step = phase === "club" ? 2 : 1;
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-feed-bg text-feed-fg">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-live/15 blur-3xl" />
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-black text-feed-fg">
+      <div className="pointer-events-none absolute -left-16 top-0 size-80 rounded-full bg-live/20 blur-3xl" style={{ animation: "light-drift 9s ease-in-out infinite" }} />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       {phase === "greet" || phase === "erase" ? (
         <div
           className={`relative flex flex-1 flex-col items-center justify-center overflow-hidden bg-black px-8 text-center transition-opacity duration-[1200ms] ease-out ${
@@ -448,7 +460,7 @@ function Onboarding({
             {step === 1 ? "01" : "02"}
           </p>
           {phase === "ask" ? (
-            <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]">
+            <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Os teus temas</p>
               <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
                 {askLine}
@@ -470,7 +482,11 @@ function Onboarding({
                       aria-hidden={!visible}
                       tabIndex={visible ? 0 : -1}
                       style={{
-                        animation: visible ? "pick-in 0.7s cubic-bezier(.22,1,.36,1) both" : undefined,
+                        animation: !visible
+                          ? undefined
+                          : active
+                            ? "select-glow 0.45s cubic-bezier(.22,1,.36,1)"
+                            : "pick-in 0.7s cubic-bezier(.22,1,.36,1) both",
                         opacity: visible ? 1 : 0,
                       }}
                     >
@@ -494,7 +510,7 @@ function Onboarding({
                   Agora não
                 </button>
                 <button
-                  onClick={() => setPhase("club")}
+                  onClick={goClub}
                   disabled={picked.size === 0}
                   className={`min-h-12 rounded-full px-7 py-3 text-sm font-bold transition-transform active:scale-[0.98] ${
                     picked.size ? "bg-live text-live-foreground" : "cursor-not-allowed bg-white/10 text-feed-fg/35"
@@ -505,7 +521,7 @@ function Onboarding({
               </div>
             </div>
           ) : (
-            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]">
+            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">O teu clube</p>
               <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
                 {clubLine}
@@ -524,7 +540,11 @@ function Onboarding({
                           selected ? "bg-live text-live-foreground" : "bg-white/[0.06] text-feed-fg"
                         }`}
                         style={{
-                          animation: shown ? "pick-in 0.8s cubic-bezier(.22,1,.36,1) both" : undefined,
+                          animation: !shown
+                            ? undefined
+                            : selected
+                              ? "select-glow 0.45s cubic-bezier(.22,1,.36,1)"
+                              : "pick-in 0.8s cubic-bezier(.22,1,.36,1) both",
                           opacity: shown ? 1 : 0,
                         }}
                       >
@@ -563,7 +583,7 @@ function Onboarding({
                 Continuar sem clube
               </button>
               {pendingClub ? (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black px-8 text-center">
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black px-8 text-center" style={{ animation: "scene-in 0.55s cubic-bezier(.22,1,.36,1) both" }}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-feed-fg/60">O teu clube</p>
                   <h2 className="mt-4 font-display text-5xl font-black leading-none" style={{ animation: "greet-letter 0.8s cubic-bezier(.22,1,.36,1) both" }}>
                     {LIGA_CLUBS.find((club) => club.id === pendingClub)?.name}
@@ -574,6 +594,16 @@ function Onboarding({
           )}
         </div>
       )}
+      {curtain !== "off" ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-50 origin-center bg-black"
+          style={{
+            animation: curtain === "in"
+              ? "curtain-in 0.45s cubic-bezier(.7,0,.3,1) both"
+              : "curtain-out 0.55s cubic-bezier(.22,1,.36,1) both",
+          }}
+        />
+      ) : null}
     </div>
   );
 }

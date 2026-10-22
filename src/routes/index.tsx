@@ -77,7 +77,6 @@ import {
   EllipsisVertical,
   Globe,
   Landmark,
-  Loader2,
   Palette,
   Phone,
   Share2,
@@ -299,7 +298,6 @@ function Onboarding({
   onLater: () => void;
 }) {
   const helloWord = greeting();
-  const setupLine = "Vamos personalizar a sua experiência";
   const askLine = "Que tipo de notícias gostas de ver?";
   const clubLine = "Selecione o seu clube favorito";
   const [phase, setPhase] = useState<"greet" | "erase" | "ask" | "club">("greet");
@@ -357,7 +355,7 @@ function Onboarding({
       count += 1;
       setShownClubs(count);
       if (count >= LIGA_CLUBS.length) window.clearInterval(id);
-    }, 24);
+    }, 70);
     return () => window.clearInterval(id);
   }, [phase]);
 
@@ -373,7 +371,7 @@ function Onboarding({
   const chooseClub = (id: string) => {
     if (pendingClub) return;
     setPendingClub(id);
-    clubTimer.current = window.setTimeout(() => onDone([...picked], id), 1000);
+    clubTimer.current = window.setTimeout(() => onDone([...picked], id), 1400);
   };
 
   const step = phase === "club" ? 2 : 1;
@@ -445,33 +443,17 @@ function Onboarding({
           </p>
         </div>
       ) : (
-        <>
-          <div className="relative flex items-center justify-between px-6 pt-[max(1.25rem,env(safe-area-inset-top))]">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-live">Flash</p>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-feed-fg/50">
-              Passo {step} de 2
-            </p>
-          </div>
-          <div className="relative mx-6 mt-3 h-1 overflow-hidden rounded-full bg-feed-fg/10">
-            <div
-              className="h-full rounded-full bg-live transition-all duration-500"
-              style={{ width: step === 1 ? "50%" : "100%" }}
-            />
-          </div>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <p className="pointer-events-none absolute right-4 top-[max(0.5rem,env(safe-area-inset-top))] font-display text-7xl font-black leading-none text-feed-fg/[0.06]">
+            {step === 1 ? "01" : "02"}
+          </p>
           {phase === "ask" ? (
-            <div className="relative flex min-h-0 flex-1 animate-rise flex-col px-6 pb-6 pt-8">
-              <p className="text-sm font-semibold text-live">{setupLine}</p>
-              <h1 className="mt-3 animate-rise font-display text-3xl font-black leading-tight text-balance">
+            <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Os teus temas</p>
+              <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
                 {askLine}
               </h1>
-              <p
-                className={`mt-2 text-sm text-feed-fg/60 transition-opacity duration-500 ${
-                  shownIcons >= INTEREST_OPTIONS.length ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                Toca nos temas. Podes mudar isto mais tarde.
-              </p>
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mt-6 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {INTEREST_OPTIONS.map((opt, index) => {
                   const active = picked.has(opt.category);
                   const visible = index < shownIcons;
@@ -479,46 +461,43 @@ function Onboarding({
                     <button
                       key={opt.category}
                       onClick={() => visible && toggle(opt.category)}
-                      className={`flex min-h-24 items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
+                      className={`flex min-h-[4.25rem] items-center gap-4 rounded-2xl border px-4 text-left active:scale-[0.99] ${
                         active
-                          ? "border-live bg-live text-live-foreground shadow-lg shadow-live/20"
-                          : "border-feed-fg/10 bg-feed-fg/5 text-feed-fg"
+                          ? "border-live bg-live text-live-foreground"
+                          : "border-white/10 bg-white/[0.04] text-feed-fg"
                       }`}
                       aria-pressed={active}
                       aria-hidden={!visible}
                       tabIndex={visible ? 0 : -1}
                       style={{
+                        animation: visible ? "pick-in 0.7s cubic-bezier(.22,1,.36,1) both" : undefined,
                         opacity: visible ? 1 : 0,
-                        transform: visible ? "translateY(0)" : "translateY(8px)",
-                        transition: "opacity 420ms ease, transform 420ms cubic-bezier(.2,1.2,.32,1), background-color 180ms ease",
                       }}
                     >
-                      <span className={`flex size-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-live-foreground/15" : "bg-feed-fg/10"}`}>
+                      <span className={`w-6 font-display text-lg font-black ${active ? "text-live-foreground/70" : "text-feed-fg/35"}`}>
+                        0{index + 1}
+                      </span>
+                      <span className={`flex size-10 shrink-0 items-center justify-center rounded-full ${active ? "bg-black/15" : "bg-white/10"}`}>
                         {opt.icon}
                       </span>
-                      <span className="text-sm font-semibold">{opt.label}</span>
+                      <span className="text-base font-semibold">{opt.label}</span>
                     </button>
                   );
                 })}
               </div>
               <div
-                className={`mt-auto flex items-center justify-between gap-3 pt-6 transition-opacity duration-500 ${
-                  shownIcons >= INTEREST_OPTIONS.length ? "opacity-100" : "pointer-events-none opacity-0"
+                className={`mt-4 flex items-center justify-between gap-3 transition-all duration-700 ${
+                  shownIcons >= INTEREST_OPTIONS.length ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
                 }`}
               >
-                <button
-                  onClick={onLater}
-                  className="rounded-full px-3 py-3 text-sm font-semibold text-feed-fg/60"
-                >
+                <button onClick={onLater} className="rounded-full px-3 py-3 text-sm font-semibold text-feed-fg/55">
                   Agora não
                 </button>
                 <button
                   onClick={() => setPhase("club")}
                   disabled={picked.size === 0}
-                  className={`min-h-11 rounded-full px-6 py-3 text-sm font-bold transition-colors ${
-                    picked.size
-                      ? "bg-live text-live-foreground"
-                      : "cursor-not-allowed bg-feed-fg/10 text-feed-fg/40"
+                  className={`min-h-12 rounded-full px-7 py-3 text-sm font-bold transition-transform active:scale-[0.98] ${
+                    picked.size ? "bg-live text-live-foreground" : "cursor-not-allowed bg-white/10 text-feed-fg/35"
                   }`}
                 >
                   Continuar
@@ -526,38 +505,52 @@ function Onboarding({
               </div>
             </div>
           ) : (
-            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-8">
-              <div className="flex shrink-0 items-start justify-between gap-3">
-                <h1 className="flex-1 font-display text-3xl font-black leading-tight text-balance">
-                  {clubLine}
-                </h1>
-              </div>
-              <p className="text-sm text-feed-fg/60">Só para dar prioridade ao desporto. Não é obrigatório.</p>
+            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">O teu clube</p>
+              <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
+                {clubLine}
+              </h1>
               <div className="mt-5 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex flex-col gap-2">
-                  {LIGA_CLUBS.map((club, index) => {
+                <div className="grid grid-cols-3 gap-2">
+                  {LIGA_CLUBS.slice(0, 3).map((club, index) => {
                     const shown = index < shownClubs;
                     const selected = pendingClub === club.id;
-                    const mark = club.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
                     return (
                       <button
                         key={club.id}
                         onClick={() => shown && chooseClub(club.id)}
                         disabled={pendingClub !== null}
-                        className={`flex min-h-12 items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold active:scale-[0.99] ${
-                          selected ? "bg-live text-live-foreground" : "bg-feed-fg/10 text-feed-fg"
+                        className={`flex min-h-28 flex-col items-start justify-end rounded-2xl px-3 py-3 text-left ${
+                          selected ? "bg-live text-live-foreground" : "bg-white/[0.06] text-feed-fg"
                         }`}
                         style={{
+                          animation: shown ? "pick-in 0.8s cubic-bezier(.22,1,.36,1) both" : undefined,
                           opacity: shown ? 1 : 0,
-                          transform: shown ? "translateY(0)" : "translateY(6px)",
-                          transition: "opacity 360ms ease, transform 360ms cubic-bezier(.2,1.2,.32,1), background-color 180ms ease",
                         }}
                       >
-                        <span className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${selected ? "bg-live-foreground/15" : "bg-feed-fg/10"}`}>
-                          {mark}
-                        </span>
-                        <span className="flex-1">{club.name}</span>
-                        {selected ? <Loader2 className="size-4 shrink-0 animate-spin" /> : null}
+                        <span className="font-display text-lg font-black leading-none">{club.name.replace("FC ", "")}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
+                  {LIGA_CLUBS.slice(3).map((club, index) => {
+                    const shown = index + 3 < shownClubs;
+                    const selected = pendingClub === club.id;
+                    return (
+                      <button
+                        key={club.id}
+                        onClick={() => shown && chooseClub(club.id)}
+                        disabled={pendingClub !== null}
+                        className={`flex min-h-12 items-center rounded-2xl px-4 text-left text-sm font-semibold ${
+                          selected ? "bg-live text-live-foreground" : "bg-white/[0.04] text-feed-fg"
+                        }`}
+                        style={{
+                          animation: shown ? "pick-in 0.65s cubic-bezier(.22,1,.36,1) both" : undefined,
+                          opacity: shown ? 1 : 0,
+                        }}
+                      >
+                        {club.name}
                       </button>
                     );
                   })}
@@ -565,13 +558,21 @@ function Onboarding({
               </div>
               <button
                 onClick={() => onDone([...picked], null)}
-                className="mt-2 min-h-11 shrink-0 rounded-full py-3 text-sm font-semibold text-feed-fg/70"
+                className="mt-2 min-h-11 shrink-0 text-sm font-semibold tracking-wide text-feed-fg/55"
               >
                 Continuar sem clube
               </button>
+              {pendingClub ? (
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black px-8 text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-feed-fg/60">O teu clube</p>
+                  <h2 className="mt-4 font-display text-5xl font-black leading-none" style={{ animation: "greet-letter 0.8s cubic-bezier(.22,1,.36,1) both" }}>
+                    {LIGA_CLUBS.find((club) => club.id === pendingClub)?.name}
+                  </h2>
+                </div>
+              ) : null}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

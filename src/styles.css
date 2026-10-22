@@ -171,9 +171,17 @@
   to { transform: translateX(240%); }
 }
 
-@keyframes greet-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes pick-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 @keyframes heart-pop {

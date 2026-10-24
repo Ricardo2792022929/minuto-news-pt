@@ -219,7 +219,8 @@ function Intro({ onDone }: { onDone: () => void }) {
     const hard = window.setTimeout(finish, 7000);
     const close = () => finish();
     const reveal = () => {
-      if (!video.paused && video.currentTime > 0.05) setVisible(true);
+      if (video.paused || video.currentTime < 0.12) return;
+      setVisible(true);
     };
     const kick = () => {
       video.muted = true;
@@ -279,10 +280,12 @@ function Intro({ onDone }: { onDone: () => void }) {
           poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           className="flash-intro pointer-events-none h-full w-full bg-black object-contain"
           style={{
-            opacity: visible ? 1 : 0,
-            transform: "translateZ(0)",
+            position: "absolute",
+            top: 0,
+            left: visible ? 0 : "-140vw",
+            width: "100%",
+            height: "100%",
           }}
-          onPlaying={() => setVisible(true)}
           onEnded={finish}
           onError={finish}
         />

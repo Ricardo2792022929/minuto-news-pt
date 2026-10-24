@@ -13,6 +13,7 @@ export const CATEGORY_PHOTOS: Record<string, string> = {
   "Desporto": photo3.url,
   "Mundo": photo4.url,
   "Cultura": photo5.url,
+  "Entretenimento": photo5.url,
   "Tech": photo6.url,
 };
 

@@ -122,5 +122,6 @@ export function storyLabel(item: { title: string; excerpt?: string; category: st
   if (item.category === "Economia") return "Economia";
   if (item.category === "Tech") return "Tech";
   if (item.category === "Cultura") return "Cultura";
+  if (item.category === "Entretenimento") return "Entretenimento";
   return "Mundo";
 }

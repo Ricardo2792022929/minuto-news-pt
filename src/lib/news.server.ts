@@ -272,13 +272,14 @@ function normalize(s: string): string {
 
 export function classify(text: string, fallback: string): string {
   const t = normalize(text);
-  const cats = ["Desporto", "Economia", "Política", "Tech", "Cultura", "Mundo"] as const;
+  const cats = ["Desporto", "Economia", "Política", "Tech", "Cultura", "Entretenimento", "Mundo"] as const;
   const strong: Record<string, string[]> = {
     Desporto: ["futebol", "futebolista", "golo", "golos", "liga portugal", "primeira liga", "liga dos campeoes", "champions", "benfica", "sporting", "fc porto", "cristiano ronaldo", "ronaldo", "tenis", "formula 1", "formula1", "nba", "ciclismo", "atletismo", "voleibol", "basquetebol", "futsal", "andebol", "arbitro", "derby", "dragao", "desporto", "campeonato", "jornada", "taca de portugal", "mundial", "olimpiadas", "selecionador", "plantel", "baliza", "boavista", "gil vicente", "famalicao", "casa pia", "moreirense", "rio ave", "maritimo", "motogp", "ufc", "hoquei", "maratona", "canoagem", "canoista", "classico"],
     Economia: ["inflacao", "imposto", "irs", "irc", "desemprego", "bolsa", "salario", "salarios", "salario minimo", "ordenado", "pib", "banco central", "bce", "euribor", "divida publica", "orcamento", "juros", "combustivel", "gasolina", "gasoleo", "falencia", "lucros", "prejuizo", "dividendos", "acoes", "psi", "exportacoes", "importacoes", "deficit", "investimento", "despedimentos", "layoff", "spread", "hipoteca", "eletricidade", "brent", "petroleo", "rating", "moodys", "poder de compra", "contas publicas"],
     Política: ["habitacao", "arrendamento", "despejo", "manifestacao", "manifestantes", "manifestam", "parlamento", "governo", "ministro", "primeiro-ministro", "eleicoes", "deputado", "deputados", "assembleia", "autarquicas", "greve", "sindicato", "sns", "hospital", "escola", "professor", "professores", "tribunal", "policia", "saude", "pensoes"],
     Tech: ["inteligencia artificial", "ciberseguranca", "ciberataque", "smartphone", "telemovel", "nvidia", "openai", "chatgpt", "semicondutor", "startup", "software"],
-    Cultura: ["cinema", "filme", "filmes", "musica", "concerto", "concertos", "livro", "livros", "teatro", "festival", "festivais", "exposicao", "artista", "artistas", "espetaculo", "museu", "museus", "netflix", "oscar", "oscares", "grammy", "cancao", "album", "banda", "cantor", "cantora", "escritor", "escritora", "literatura", "patrimonio", "orquestra", "fado", "realizador", "realizadora", "estreia", "bilheteira", "pintura", "escultura", "poeta", "poesia", "documentario", "novela", "telenovela", "galeria", "opera", "ballet", "compositor", "eurovisao", "cannes"],
+    Cultura: ["cinema", "filme", "filmes", "musica", "concerto", "concertos", "livro", "livros", "teatro", "festival", "festivais", "exposicao", "artista", "artistas", "espetaculo", "museu", "museus", "oscar", "oscares", "grammy", "cancao", "album", "banda", "cantor", "cantora", "escritor", "escritora", "literatura", "patrimonio", "orquestra", "fado", "realizador", "realizadora", "pintura", "escultura", "poeta", "poesia", "documentario", "galeria", "opera", "ballet", "compositor", "eurovisao", "cannes", "danca", "bienal"],
+    Entretenimento: ["novela", "telenovela", "big brother", "reality show", "celebridade", "famoso", "famosa", "influencer", "casa dos segredos", "passadeira vermelha", "netflix"],
     Mundo: ["ucrania", "israel", "gaza", "trump", "putin", "zelensky", "russia", "china", "nato", "bruxelas", "cimeira", "hamas"],
   };
   const weak: Record<string, string[]> = {
@@ -286,7 +287,8 @@ export function classify(text: string, fallback: string): string {
     Economia: ["precos", "banco", "empresa", "turismo", "iva", "cabaz", "supermercado", "fatura"],
     Política: ["presidente", "partido", "lei"],
     Tech: ["google", "apple", "samsung", "facebook", "instagram", "tiktok"],
-    Cultura: ["gala", "premio", "ator", "atriz", "serie", "series", "danca", "bienal"],
+    Cultura: [],
+    Entretenimento: ["gala", "premio", "ator", "atriz", "serie", "series", "casamento", "divorcio"],
     Mundo: ["eua", "europa", "guerra", "alemanha", "franca", "espanha"],
   };
   const hit = (phrase: string) => {
@@ -316,15 +318,22 @@ export function classify(text: string, fallback: string): string {
     scores.Cultura = 0;
     scores.Desporto += 3;
   }
-  if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura") scores[fallback] += 1;
+  if (strongHits.Cultura === 0) scores.Cultura = 0;
+  if (strongHits.Economia > 0 && ["netflix", "bilheteira"].filter(hit).length === strongHits.Cultura && strongHits.Cultura > 0) {
+    scores.Cultura = 0;
+  }
+  if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura" && fallback !== "Entretenimento") scores[fallback] += 1;
   const best = [...cats].sort((a, b) => scores[b] - scores[a] || Number(b === "Política") - Number(a === "Política"))[0];
   if (scores[best] < 3) {
     if (fallback === "Economia" && (strongHits.Economia > 0 || weak.Economia.some(hit))) return "Economia";
-    if (fallback === "Cultura" && (strongHits.Cultura > 0 || weak.Cultura.some(hit))) return "Cultura";
-    if (fallback === "Cultura" || fallback === "Economia") return "Mundo";
+    if (fallback === "Cultura" && strongHits.Cultura > 0) return "Cultura";
+    if (fallback === "Entretenimento" && (strongHits.Entretenimento > 0 || weak.Entretenimento.some(hit))) return "Entretenimento";
+    if (fallback === "Cultura" || fallback === "Economia" || fallback === "Entretenimento") return "Mundo";
     return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
   }
   if (strongHits.Desporto > 0 && !civic) return "Desporto";
+  if (strongHits.Cultura > 0) return "Cultura";
+  if (strongHits.Entretenimento > 0 && scores.Entretenimento >= scores[best]) return "Entretenimento";
   return best;
 }
 

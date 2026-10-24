@@ -79,7 +79,7 @@ export const getNews = createServerFn({ method: "GET" })
     });
 
     const now = Date.now();
-    const windowHours = data.category === "Cultura" || data.category === "Economia" ? 72 : data.category ? 48 : 24;
+    const windowHours = data.category === "Cultura" || data.category === "Entretenimento" || data.category === "Economia" ? 72 : data.category ? 48 : 24;
     const since = new Date(now - windowHours * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
@@ -118,7 +118,7 @@ export const getNews = createServerFn({ method: "GET" })
       const protest = /habitacao|manifest|arrend|despejo|acampad|greve/.test(blob);
       const sport = /fifa|futebol|futebolista|benfica|sporting|fc porto|campeonato|campeao|golo|desporto|jornada|plantel|derby|champions|treinador|jogador|selecao/.test(blob);
       const economySource = r.source === "ECO" || r.source === "Jornal de Negócios" || r.source === "Jornal Económico";
-      if (economySource && !protest && !sport && category !== "Cultura" && category !== "Tech") category = "Economia";
+      if (economySource && !protest && !sport && category !== "Cultura" && category !== "Entretenimento" && category !== "Tech" && category !== "Desporto") category = "Economia";
       if (category !== r.category) fixes.push({ id: r.id, category });
       const image = storyImageUrl(r.image, r.image_status === "search");
       const imageCandidates = (Array.isArray(r.image_candidates) ? r.image_candidates : [])

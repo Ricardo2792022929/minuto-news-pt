@@ -81,6 +81,7 @@ import {
   Palette,
   Phone,
   Share2,
+  Sparkles,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -117,6 +118,7 @@ const CATEGORIES = [
   "Desporto",
   "Mundo",
   "Cultura",
+  "Entretenimento",
   "Tech",
 ] as const;
 
@@ -190,6 +192,7 @@ const INTEREST_OPTIONS: {
   { category: "Desporto", label: "Desporto", icon: <Trophy className="size-5" /> },
   { category: "Mundo", label: "Mundo", icon: <Globe className="size-5" /> },
   { category: "Cultura", label: "Cultura", icon: <Palette className="size-5" /> },
+  { category: "Entretenimento", label: "Entretenimento", icon: <Sparkles className="size-5" /> },
   { category: "Tech", label: "Tech", icon: <Cpu className="size-5" /> },
 ];
 

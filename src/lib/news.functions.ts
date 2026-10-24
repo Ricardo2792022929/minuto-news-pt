@@ -79,7 +79,8 @@ export const getNews = createServerFn({ method: "GET" })
     });
 
     const now = Date.now();
-    const since = new Date(now - 24 * 3600_000).toISOString();
+    const windowHours = data.category === "Cultura" || data.category === "Economia" ? 72 : data.category ? 48 : 24;
+    const since = new Date(now - windowHours * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
     const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
@@ -230,6 +231,20 @@ export const getNews = createServerFn({ method: "GET" })
     }
 
     if (data.category) ordered = ordered.filter((item) => item.category === data.category);
+    if (data.category && ordered.length < data.offset + data.limit + 8) {
+      const { data: wide } = await db
+        .from("articles")
+        .select(legacyCols)
+        .gte("published_at", since)
+        .order("published_at", { ascending: false })
+        .limit(400);
+      const seenIds = new Set(ordered.map((item) => item.id));
+      const extra = (wide ?? [])
+        .filter(canShow)
+        .map(toItem)
+        .filter((item) => item.category === data.category && !seenIds.has(item.id));
+      ordered = [...ordered, ...extra].sort(byDate);
+    }
 
     if (data.club) {
       const held: NewsItem[] = [];
@@ -249,7 +264,7 @@ export const getNews = createServerFn({ method: "GET" })
     const fresh = ordered.slice(data.offset, data.offset + data.limit);
 
     // Do dia, até 24 horas, mas só as fortes. O fio das mais recentes não pára.
-    const daySince = new Date(now - 24 * 3600_000).toISOString();
+    const daySince = since;
     const dayUntil = new Date(now - 90 * 60_000).toISOString();
     const loadDay = async (onlyInterests: boolean) => {
       let oq = db

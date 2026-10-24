@@ -275,7 +275,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
 
   let inserted = 0;
   try {
-    const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const cutoff = new Date(Date.now() - 72 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
     const news = (await getAllNews()).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     const existing = new Set<string>();

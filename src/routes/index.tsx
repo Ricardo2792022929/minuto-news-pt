@@ -1414,7 +1414,7 @@ function Index() {
             {query.isSuccess && !isError && !articles.length && (
               <div className="flex w-full items-center justify-center px-8 text-center" style={{ height: "var(--feed-h, 100svh)" }}>
                 <p className="font-display text-lg font-bold text-feed-fg/80">
-                  Sem notícias recentes nas últimas 24h
+                  {category === "Tudo" ? "Sem notícias recentes nas últimas 24h" : "Sem notícias nesta secção por agora"}
                 </p>
               </div>
             )}
@@ -1428,7 +1428,9 @@ function Index() {
             {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
               <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center" style={{ scrollSnapStop: "always" }}>
                 <p className="text-sm font-medium text-feed-fg/70">
-                  Não há mais notícias recentes por agora. Volta daqui a pouco.
+                  {category === "Tudo"
+                    ? "Não há mais notícias recentes por agora. Volta daqui a pouco."
+                    : "Não há mais notícias nesta secção por agora."}
                 </p>
               </div>
             )}

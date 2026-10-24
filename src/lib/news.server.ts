@@ -39,7 +39,7 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.jornaldenegocios.pt/rss", source: "Jornal de Negócios", fallbackCategory: "Economia" },
   { url: "https://www.record.pt/rss", source: "Record", fallbackCategory: "Desporto" },
   { url: "https://maisfutebol.iol.pt/rss", source: "Maisfutebol", fallbackCategory: "Desporto" },
-  { url: "https://www.nit.pt/rss", source: "NiT", fallbackCategory: "Cultura" },
+  { url: "https://www.nit.pt/rss", source: "NiT", fallbackCategory: "Mundo" },
   { url: "https://tek.sapo.pt/rss", source: "SAPO TEK", fallbackCategory: "Tech" },
   { url: "https://zap.aeiou.pt/rss", source: "ZAP.aeiou", fallbackCategory: "Tech" },
   // Fontes adicionadas posteriormente (testadas e ativas)
@@ -50,10 +50,10 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://fumaca.pt/feed/", source: "Fumaça", fallbackCategory: "Mundo" },
   { url: "https://24noticias.sapo.pt/feed", source: "24 Notícias", fallbackCategory: "Mundo" },
   { url: "https://executivedigest.sapo.pt/feed/", source: "Executive Digest", fallbackCategory: "Economia" },
-  { url: "https://www.sabado.pt/rss", source: "Sábado", fallbackCategory: "Cultura" },
-  { url: "https://visao.pt/feed/", source: "Visão", fallbackCategory: "Cultura" },
-  { url: "https://www.atelevisao.com/feed/", source: "A Televisão", fallbackCategory: "Cultura" },
-  { url: "https://www.hiper.fm/feed/", source: "Hiper FM", fallbackCategory: "Cultura" },
+  { url: "https://www.sabado.pt/rss", source: "Sábado", fallbackCategory: "Mundo" },
+  { url: "https://visao.pt/feed/", source: "Visão", fallbackCategory: "Mundo" },
+  { url: "https://www.atelevisao.com/feed/", source: "A Televisão", fallbackCategory: "Mundo" },
+  { url: "https://www.hiper.fm/feed/", source: "Hiper FM", fallbackCategory: "Mundo" },
   { url: "https://pplware.sapo.pt/feed/", source: "Pplware", fallbackCategory: "Tech" },
   { url: "https://www.pcguia.pt/feed/", source: "PC Guia", fallbackCategory: "Tech" },
   { url: "https://visao.pt/exameinformatica/feed/", source: "Exame Informática", fallbackCategory: "Tech" },
@@ -274,18 +274,18 @@ export function classify(text: string, fallback: string): string {
   const cats = ["Desporto", "Economia", "Política", "Tech", "Cultura", "Mundo"] as const;
   const strong: Record<string, string[]> = {
     Desporto: ["futebol", "futebolista", "golo", "golos", "liga portugal", "primeira liga", "liga dos campeoes", "champions", "benfica", "sporting", "fc porto", "cristiano ronaldo", "ronaldo", "tenis", "formula 1", "nba", "ciclismo", "atletismo", "voleibol", "basquetebol", "futsal", "andebol", "arbitro", "derby", "dragao", "desporto"],
-    Economia: ["inflacao", "imposto", "irs", "desemprego", "bolsa", "salario", "salarios", "pib", "banco central", "bce", "divida publica", "orcamento", "juros", "combustivel", "gasolina", "falencia", "lucros"],
+    Economia: ["inflacao", "imposto", "irs", "irc", "desemprego", "bolsa", "salario", "salarios", "salario minimo", "ordenado", "pib", "banco central", "bce", "euribor", "divida publica", "orcamento", "juros", "combustivel", "gasolina", "gasoleo", "falencia", "lucros", "prejuizo", "dividendos", "acoes", "psi", "exportacoes", "importacoes", "deficit", "investimento", "despedimentos", "layoff", "spread", "hipoteca", "eletricidade", "brent", "petroleo", "rating", "moodys", "poder de compra", "contas publicas"],
     Política: ["habitacao", "arrendamento", "despejo", "manifestacao", "manifestantes", "manifestam", "parlamento", "governo", "ministro", "primeiro-ministro", "eleicoes", "deputado", "deputados", "assembleia", "autarquicas", "greve", "sindicato", "sns", "hospital", "escola", "professor", "professores", "tribunal", "policia", "saude", "pensoes"],
     Tech: ["inteligencia artificial", "ciberseguranca", "ciberataque", "smartphone", "telemovel", "nvidia", "openai", "chatgpt", "semicondutor", "startup", "software"],
-    Cultura: ["cinema", "filme", "musica", "concerto", "livro", "teatro", "festival", "exposicao", "artista", "nobel", "espetaculo", "museu"],
+    Cultura: ["cinema", "filme", "filmes", "musica", "concerto", "concertos", "livro", "livros", "teatro", "festival", "festivais", "exposicao", "artista", "artistas", "espetaculo", "museu", "museus", "netflix", "oscar", "oscares", "grammy", "cancao", "album", "banda", "cantor", "cantora", "escritor", "escritora", "literatura", "patrimonio", "orquestra", "fado", "realizador", "realizadora", "estreia", "bilheteira", "pintura", "escultura", "poeta", "poesia", "documentario", "novela", "telenovela", "galeria", "opera", "ballet", "compositor", "eurovisao", "cannes"],
     Mundo: ["ucrania", "israel", "gaza", "trump", "putin", "zelensky", "russia", "china", "nato", "bruxelas", "cimeira", "hamas"],
   };
   const weak: Record<string, string[]> = {
     Desporto: ["treinador", "jogador", "estadio", "selecao"],
-    Economia: ["precos", "banco", "turismo", "empresa"],
+    Economia: ["precos", "banco", "empresa", "turismo", "iva", "cabaz", "supermercado", "fatura"],
     Política: ["presidente", "partido", "lei"],
     Tech: ["google", "apple", "samsung", "facebook", "instagram", "tiktok"],
-    Cultura: ["gala", "premio", "ator", "atriz"],
+    Cultura: ["gala", "premio", "ator", "atriz", "serie", "series", "danca", "bienal"],
     Mundo: ["eua", "europa", "guerra", "alemanha", "franca", "espanha"],
   };
   const hit = (phrase: string) => {
@@ -300,16 +300,24 @@ export function classify(text: string, fallback: string): string {
     const found = strong[cat].filter(hit).length;
     strongHits[cat] = found;
     let score = found * 4;
-    if (found > 0) score += weak[cat].filter(hit).length * 2;
+    score += weak[cat].filter(hit).length * 2;
     scores[cat] = score;
   }
+  if (hit("serie") && t.includes("serie de") && strongHits.Cultura <= 1) scores.Cultura = 0;
+  if (/(assalto|roubo|homicidio)/.test(t)) scores.Economia = Math.min(scores.Economia, strongHits.Economia * 4);
+  if (strongHits.Economia > 0 && strongHits.Política > 0) scores.Economia += 3;
   // «Porto» e «Braga» sozinhos são cidades. Só contam como desporto com mais um sinal.
   if (strongHits.Desporto > 0 && (hit("porto") || hit("braga") || hit("guimaraes"))) scores.Desporto += 2;
   const civic = ["habitacao", "arrendamento", "despejo", "manifestantes", "manifestacao", "manifestam"].some(hit);
   if (civic && strongHits.Desporto === 0) scores.Desporto = 0;
-  if (cats.includes(fallback as (typeof cats)[number])) scores[fallback] += 1;
+  if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura") scores[fallback] += 1;
   const best = [...cats].sort((a, b) => scores[b] - scores[a] || Number(b === "Política") - Number(a === "Política"))[0];
-  if (scores[best] < 3) return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
+  if (scores[best] < 3) {
+    if (fallback === "Economia" && (strongHits.Economia > 0 || weak.Economia.some(hit))) return "Economia";
+    if (fallback === "Cultura" && (strongHits.Cultura > 0 || weak.Cultura.some(hit))) return "Cultura";
+    if (fallback === "Cultura" || fallback === "Economia") return "Mundo";
+    return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
+  }
   return best;
 }
 

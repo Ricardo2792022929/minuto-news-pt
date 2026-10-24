@@ -838,6 +838,7 @@ function Index() {
   const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [club, setClub] = useState("");
+  const [arrival, setArrival] = useState<string | null>(null);
   const closeIntro = useCallback(() => {
     try {
       sessionStorage.setItem("flash:intro-seen", "1");
@@ -1216,6 +1217,9 @@ function Index() {
               if (chosen) {
                 setClub(chosen);
                 localStorage.setItem(CLUB_KEY, chosen);
+                const name = LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen;
+                setArrival(name);
+                window.setTimeout(() => setArrival(null), 1700);
               }
             } catch {
               /* ignora */
@@ -1225,11 +1229,32 @@ function Index() {
           onLater={() => setShowOnboarding(false)}
         />
       )}
+      {arrival ? (
+        <div className="pointer-events-none absolute inset-0 z-[90] overflow-hidden">
+          <div className="absolute inset-x-0 top-0 z-20 h-1/2 bg-black" style={{ animation: "shutter-top 0.95s cubic-bezier(.77,0,.18,1) 0.42s both" }} />
+          <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-black" style={{ animation: "shutter-bottom 0.95s cubic-bezier(.77,0,.18,1) 0.42s both" }} />
+          <div
+            className="absolute left-[8%] right-[8%] top-1/2 z-30 h-[2px] -translate-y-1/2 bg-live shadow-[0_0_28px_8px_var(--live)]"
+            style={{ animation: "arrival-flare 1.15s cubic-bezier(.22,1,.36,1) both", transformOrigin: "center" }}
+          />
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-8 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.45em] text-white/55" style={{ animation: "arrival-title 1.45s cubic-bezier(.22,1,.36,1) both" }}>
+              O teu feed
+            </p>
+            <h2 className="mt-3 font-display text-5xl font-black leading-none text-white" style={{ animation: "arrival-title 1.45s cubic-bezier(.22,1,.36,1) 0.08s both" }}>
+              {arrival}
+            </h2>
+          </div>
+        </div>
+      ) : null}
 
       {tab === "feed" ? (
         <>
           {/* Feed */}
-          <div className="absolute inset-0 z-0 overflow-hidden">
+          <div
+            className="absolute inset-0 z-0 overflow-hidden"
+            style={arrival ? { animation: "feed-arrive 1.35s cubic-bezier(.22,1,.36,1) both" } : undefined}
+          >
             {dragX !== 0 && (
               <div
                 className="absolute inset-0 z-20 overflow-hidden bg-black"

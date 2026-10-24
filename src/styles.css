@@ -206,6 +206,45 @@
   100% { transform: translate3d(-12%, 0, 0) scale(1); }
 }
 
+@keyframes feed-arrive {
+  0% {
+    transform: scale(1.16);
+    filter: blur(18px) brightness(0.35);
+  }
+  55% {
+    transform: scale(1.03);
+    filter: blur(0) brightness(1.12);
+  }
+  100% {
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+@keyframes shutter-top {
+  from { transform: translateY(0); }
+  to { transform: translateY(-105%); }
+}
+
+@keyframes shutter-bottom {
+  from { transform: translateY(0); }
+  to { transform: translateY(105%); }
+}
+
+@keyframes arrival-flare {
+  0% { transform: scaleX(0.04); opacity: 0; }
+  18% { opacity: 1; }
+  55% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1.4); opacity: 0; }
+}
+
+@keyframes arrival-title {
+  0% { opacity: 0; transform: translateY(18px) scale(0.94); filter: blur(8px); }
+  28% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  62% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-12px) scale(1.06); filter: blur(10px); }
+}
+
 @keyframes heart-pop {
   0% {
     transform: scale(1);

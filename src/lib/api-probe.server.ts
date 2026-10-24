@@ -56,6 +56,13 @@ export async function probeTitleApis() {
         model: groqModel, max_tokens: 20, temperature: 0, messages: [{ role: "user", content: QUESTION }],
       });
     }),
+    ask("groq2", () => {
+      const key = process.env["GROQ_API_KEY_2"] || process.env["GROQ_API_KEY2"];
+      if (!key) return Promise.resolve({ status: 0, text: "chave em falta" });
+      return post("https://api.groq.com/openai/v1/chat/completions", { authorization: `Bearer ${key}`, "content-type": "application/json" }, {
+        model: groqModel, max_tokens: 20, temperature: 0, messages: [{ role: "user", content: QUESTION }],
+      });
+    }),
     ask("gemini", () => {
       const key = process.env["GEMINI_API_KEY"];
       if (!key) return Promise.resolve({ status: 0, text: "chave em falta" });

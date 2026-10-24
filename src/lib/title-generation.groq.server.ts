@@ -2,7 +2,17 @@ import { GatewayError, validTitle, type GeneratedTitle } from "./title-generatio
 
 const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
 const TIMEOUT_MS = 6_000;
-let groqCooldownUntil = 0;
+const groqCooldownUntil = [0, 0];
+let groqTurn = 0;
+
+function groqAccounts(): { key: string; slot: number }[] {
+  const first = process.env["GROQ_API_KEY"];
+  const second = process.env["GROQ_API_KEY_2"] || process.env["GROQ_API_KEY2"];
+  return [
+    first ? { key: first, slot: 0 } : null,
+    second ? { key: second, slot: 1 } : null,
+  ].filter((account): account is { key: string; slot: number } => Boolean(account));
+}
 
 const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a imagem num feed vertical de telemóvel. Tem de ser lido em menos de 2 segundos e dizer exactamente o que aconteceu.
 
@@ -32,66 +42,66 @@ function validSummary(raw: unknown): string | null {
   return s;
 }
 
-/** Gera título e resumo através da API Groq, exclusivamente no servidor. */
+/** Gera título e resumo através da API Groq. Alterna as duas contas e só pausa a que falhou. */
 export async function generateGroqOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
-  const apiKey = process.env["GROQ_API_KEY"];
-  if (!apiKey) throw new GatewayError("GROQ_API_KEY em falta", 401);
-  if (Date.now() < groqCooldownUntil) return null;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.8,
-        max_tokens: 500,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}` },
-        ],
-      }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text().catch(() => "")).slice(0, 200);
-      if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
-        const retryAfter = Number(response.headers.get("retry-after") ?? 0);
-        groqCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+  const accounts = groqAccounts();
+  if (!accounts.length) throw new GatewayError("GROQ_API_KEY em falta", 401);
+  const prompt = `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Usa o texto da notícia para perceber o contexto.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : ""}`;
+  const start = groqTurn % accounts.length;
+  let blocked = 0;
+  for (let step = 0; step < accounts.length; step += 1) {
+    const account = accounts[(start + step) % accounts.length];
+    if (Date.now() < groqCooldownUntil[account.slot]) continue;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { authorization: `Bearer ${account.key}`, "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0.8,
+          max_tokens: 500,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM },
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => "")).slice(0, 200);
+        if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+          const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+          groqCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+        }
+        console.error("Groq HTTP", response.status, detail);
+        if (response.status === 401 || response.status === 403 || response.status === 402) blocked += 1;
+        continue;
       }
-      console.error("Groq HTTP", response.status, detail);
-      if (response.status === 401 || response.status === 403 || response.status === 402) {
-        throw new GatewayError(`Groq HTTP ${response.status}`, response.status);
+      const payload = (await response.json()) as {
+        choices?: { message?: { content?: string | null; reasoning?: string | null } }[];
+      };
+      const message = payload.choices?.[0]?.message;
+      const raw = message?.content || message?.reasoning || "";
+      const jsonStart = raw.indexOf("{");
+      const jsonEnd = raw.lastIndexOf("}");
+      if (jsonStart < 0 || jsonEnd <= jsonStart) continue;
+      const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { titulo?: unknown; resumo?: unknown };
+      const titulo = validTitle(parsed.titulo, title);
+      if (!titulo) {
+        console.warn("Groq devolveu título inválido");
+        continue;
       }
-      return null;
+      groqTurn = account.slot + 1;
+      return { titulo, resumo: validSummary(parsed.resumo) || titulo };
+    } catch (error) {
+      console.error("Groq falhou", error instanceof Error ? error.message : error);
+    } finally {
+      clearTimeout(timer);
     }
-    const payload = (await response.json()) as {
-      choices?: { message?: { content?: string | null; reasoning?: string | null } }[];
-    };
-    const message = payload.choices?.[0]?.message;
-    const raw = message?.content || message?.reasoning || "";
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    if (start < 0 || end <= start) return null;
-    const parsed = JSON.parse(raw.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
-    const titulo = validTitle(parsed.titulo, title);
-    if (!titulo) {
-      console.warn("Groq devolveu título inválido");
-      return null;
-    }
-    const resumo = validSummary(parsed.resumo) || titulo;
-    return { titulo, resumo };
-  } catch (error) {
-    if (error instanceof GatewayError) throw error;
-    console.error("Groq falhou", error instanceof Error ? error.message : error);
-    return null;
-  } finally {
-    clearTimeout(timer);
   }
+  if (blocked === accounts.length) throw new GatewayError("Groq HTTP 401", 401);
+  return null;
 }

@@ -1219,7 +1219,7 @@ function Index() {
                 localStorage.setItem(CLUB_KEY, chosen);
                 const name = LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen;
                 setArrival(name);
-                window.setTimeout(() => setArrival(null), 1700);
+                window.setTimeout(() => setArrival(null), 1300);
               }
             } catch {
               /* ignora */
@@ -1230,22 +1230,19 @@ function Index() {
         />
       )}
       {arrival ? (
-        <div className="pointer-events-none absolute inset-0 z-[90] overflow-hidden">
-          <div className="absolute inset-x-0 top-0 z-20 h-1/2 bg-black" style={{ animation: "shutter-top 0.95s cubic-bezier(.77,0,.18,1) 0.42s both" }} />
-          <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-black" style={{ animation: "shutter-bottom 0.95s cubic-bezier(.77,0,.18,1) 0.42s both" }} />
-          <div
-            className="absolute left-[8%] right-[8%] top-1/2 z-30 h-[2px] -translate-y-1/2 bg-live shadow-[0_0_28px_8px_var(--live)]"
-            style={{ animation: "arrival-flare 1.15s cubic-bezier(.22,1,.36,1) both", transformOrigin: "center" }}
-          />
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-8 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.45em] text-white/55" style={{ animation: "arrival-title 1.45s cubic-bezier(.22,1,.36,1) both" }}>
-              O teu feed
-            </p>
-            <h2 className="mt-3 font-display text-5xl font-black leading-none text-white" style={{ animation: "arrival-title 1.45s cubic-bezier(.22,1,.36,1) 0.08s both" }}>
-              {arrival}
-            </h2>
-          </div>
-        </div>
+        <div
+          className="pointer-events-none absolute inset-0 z-[90]"
+          style={{
+            background: [
+              "repeating-linear-gradient(90deg, rgba(80,48,24,0.18) 0 2px, transparent 2px 14px)",
+              "repeating-linear-gradient(0deg, rgba(255,236,210,0.05) 0 1px, transparent 1px 7px)",
+              "radial-gradient(ellipse at 28% 18%, #e4c49a, #b88858 42%, #8b6240 78%, #6e4b30)",
+            ].join(","),
+            animation: "punch-hole 1.15s cubic-bezier(.7,0,.2,1) forwards",
+            WebkitMaskImage: "radial-gradient(circle at 50% 58%, transparent var(--hole), #000 calc(var(--hole) + 22px))",
+            maskImage: "radial-gradient(circle at 50% 58%, transparent var(--hole), #000 calc(var(--hole) + 22px))",
+          }}
+        />
       ) : null}
 
       {tab === "feed" ? (
@@ -1253,7 +1250,7 @@ function Index() {
           {/* Feed */}
           <div
             className="absolute inset-0 z-0 overflow-hidden"
-            style={arrival ? { animation: "feed-arrive 1.35s cubic-bezier(.22,1,.36,1) both" } : undefined}
+            style={arrival ? { animation: "feed-through 1.15s cubic-bezier(.2,.8,.2,1) both", transformOrigin: "50% 58%" } : undefined}
           >
             {dragX !== 0 && (
               <div

@@ -342,11 +342,13 @@ function Onboarding({
     const lead = 700;
     const letters = lead + helloWord.length * 150 + 1600;
     const line = window.setTimeout(() => setGreetBeat(1), letters);
-    const note = window.setTimeout(() => setGreetBeat(2), letters + 1900);
-    const leave = window.setTimeout(() => setPhase("erase"), letters + 6200);
+    const note = window.setTimeout(() => setGreetBeat(2), letters + 1600);
+    const fresh = window.setTimeout(() => setGreetBeat(3), letters + 3200);
+    const leave = window.setTimeout(() => setPhase("erase"), letters + 7600);
     return () => {
       window.clearTimeout(line);
       window.clearTimeout(note);
+      window.clearTimeout(fresh);
       window.clearTimeout(leave);
     };
   }, [phase, helloWord]);
@@ -472,6 +474,16 @@ function Onboarding({
             style={{
               opacity: greetBeat >= 2 ? 1 : 0,
               transform: greetBeat >= 2 ? "translateY(0)" : "translateY(14px)",
+              transition: "opacity 1200ms ease, transform 1200ms cubic-bezier(.22,1,.36,1)",
+            }}
+          >
+            As notícias são sempre as mais recentes.
+          </p>
+          <p
+            className="relative mt-4 max-w-xs text-sm leading-relaxed tracking-wide text-feed-fg/55"
+            style={{
+              opacity: greetBeat >= 3 ? 1 : 0,
+              transform: greetBeat >= 3 ? "translateY(0)" : "translateY(14px)",
               transition: "opacity 1200ms ease, transform 1200ms cubic-bezier(.22,1,.36,1)",
             }}
           >

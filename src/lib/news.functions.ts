@@ -110,7 +110,15 @@ export const getNews = createServerFn({ method: "GET" })
       published_at: string;
     }): NewsItem => {
       const excerpt = (r.resumo ?? "").trim();
-      const category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
+      let category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
+      const blob = `${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      const protest = /habitacao|manifest|arrend|despejo|acampad|greve/.test(blob);
+      const sport = /fifa|futebol|campeao|liga dos campeoes|\bgolo\b|\bliga\b|desporto/.test(blob);
+      const economySource = r.source === "ECO" || r.source === "Jornal de Negócios" || r.source === "Jornal Económico";
+      if (economySource && !protest && !sport && category !== "Cultura" && category !== "Tech") category = "Economia";
       if (category !== r.category) fixes.push({ id: r.id, category });
       const image = storyImageUrl(r.image, r.image_status === "search");
       const imageCandidates = (Array.isArray(r.image_candidates) ? r.image_candidates : [])

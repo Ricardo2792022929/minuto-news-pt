@@ -1425,7 +1425,7 @@ function Index() {
               </div>
             )}
 
-            {query.isSuccess && articles.length > 0 && !query.hasNextPage && (
+            {query.isSuccess && articles.length >= 8 && !query.hasNextPage && (
               <div className="flex w-full snap-start items-center justify-center px-8 py-16 text-center" style={{ scrollSnapStop: "always" }}>
                 <p className="text-sm font-medium text-feed-fg/70">
                   {category === "Tudo"

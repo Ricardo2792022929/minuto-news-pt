@@ -4,7 +4,17 @@ import { LIGA_CLUBS } from "./clubs";
 import { isPastedTitle } from "./title-shape";
 const MODEL = "gemini-flash-lite-latest";
 const TIMEOUT_MS = 6_000;
-let geminiCooldownUntil = 0;
+const geminiCooldownUntil = [0, 0];
+let geminiTurn = 0;
+
+function geminiAccounts(): { key: string; slot: number }[] {
+  const first = process.env["GEMINI_API_KEY"];
+  const second = process.env["GEMINI_API_KEY_2"] || process.env["GEMINI_API_KEY2"];
+  return [
+    first ? { key: first, slot: 0 } : null,
+    second ? { key: second, slot: 1 } : null,
+  ].filter((account): account is { key: string; slot: number } => Boolean(account));
+}
 
 const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a imagem num feed vertical de telemóvel. Tem de ser lido em menos de 2 segundos e dizer exactamente o que aconteceu.
 
@@ -320,37 +330,42 @@ async function callGemini(model: string, apiKey: string, prompt: string) {
   }
 }
 
-/** Uma notícia por pedido. Devolve null em qualquer falha (sem fallback). */
+/** Uma notícia por pedido. Alterna as duas contas do Gemini e só pausa a que falhou. */
 export async function generateOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
-  const apiKey = process.env["GEMINI_API_KEY"];
-  if (!apiKey) throw new GatewayError("GEMINI_API_KEY em falta", 401);
-  if (Date.now() < geminiCooldownUntil) return null;
+  const accounts = geminiAccounts();
+  if (!accounts.length) throw new GatewayError("GEMINI_API_KEY em falta", 401);
   const started = Date.now();
-  try {
-    const context = articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : "";
-    const prompt = `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente. Usa o texto da notícia para perceber o contexto, mas o título tem de ser fiel ao facto principal.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${context}`;
-    const res = await callGemini(MODEL, apiKey, prompt);
-    if (!res.ok) {
-      const retryAfter = Number(res.headers.get("retry-after") ?? 0);
-      if (res.status === 429 || res.status === 401 || res.status === 403) {
-        geminiCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+  const context = articleText ? `\nTexto da notícia: ${articleText.slice(0, 800)}` : "";
+  const prompt = `O título original é só a indicação. Conta esse facto como se o dissesses a alguém, numa frase nova, em português de Portugal, de 6 a 10 palavras. Ordem normal, sem inverter a frase e sem fazer uma pergunta. Não copies nem cortes o original. Não acrescentes números nem detalhes que o original não tem. Não uses abala, chocante ou incrível. Biza = 2 golos, hat-trick = 3, póquer = 4. Nunca inventes um número diferente. Usa o texto da notícia para perceber o contexto, mas o título tem de ser fiel ao facto principal.\nIncorreto: Crise política em Espanha: Pedro Sánchez dissolve parlamento e anuncia eleições antecipadas\nCorreto: Sánchez dissolve o parlamento e marca eleições\nTítulo original: ${title}${context}`;
+  const start = geminiTurn % accounts.length;
+  for (let step = 0; step < accounts.length; step += 1) {
+    const account = accounts[(start + step) % accounts.length];
+    if (Date.now() < geminiCooldownUntil[account.slot]) continue;
+    try {
+      const res = await callGemini(MODEL, account.key, prompt);
+      if (!res.ok) {
+        const retryAfter = Number(res.headers.get("retry-after") ?? 0);
+        if (res.status === 429 || res.status === 401 || res.status === 403) {
+          geminiCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+        }
+        console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
+        continue;
       }
-      console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
-      return null;
+      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
+      const titulo = validTitle(parsed.titulo, title);
+      if (!titulo) {
+        console.error("Gemini resposta inválida", raw.slice(0, 200));
+        continue;
+      }
+      geminiTurn = account.slot + 1;
+      const resumo = validSummary(parsed.resumo) || titulo;
+      console.log(`Gemini OK [${MODEL}] conta ${account.slot + 1} em ${Date.now() - started}ms`);
+      return { titulo, resumo };
+    } catch (e) {
+      console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
     }
-    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-    const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
-    const titulo = validTitle(parsed.titulo, title);
-    if (!titulo) {
-      console.error("Gemini resposta inválida", raw.slice(0, 200));
-      return null;
-    }
-    const resumo = validSummary(parsed.resumo) || titulo;
-    console.log(`Gemini OK [${MODEL}] em ${Date.now() - started}ms`);
-    return { titulo, resumo };
-  } catch (e) {
-    console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
-    return null;
   }
+  return null;
 }

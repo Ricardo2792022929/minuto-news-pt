@@ -290,6 +290,22 @@ function Intro({ onDone }: { onDone: () => void }) {
   );
 }
 
+function ClubMark({ id }: { id: string }) {
+  const mark =
+    id === "porto" ? { letters: "P", bg: "#0038A8" }
+    : id === "benfica" ? { letters: "B", bg: "#E30613" }
+    : { letters: "S", bg: "#008057" };
+  return (
+    <span
+      className="mb-auto flex size-11 items-center justify-center rounded-2xl text-lg font-black text-white"
+      style={{ background: mark.bg }}
+      aria-hidden
+    >
+      {mark.letters}
+    </span>
+  );
+}
+
 function Onboarding({
   onDone,
   onLater,
@@ -536,7 +552,7 @@ function Onboarding({
                         key={club.id}
                         onClick={() => shown && chooseClub(club.id)}
                         disabled={pendingClub !== null}
-                        className={`flex min-h-28 flex-col items-start justify-end rounded-2xl px-3 py-3 text-left ${
+                        className={`flex min-h-28 flex-col items-start justify-between rounded-2xl px-3 py-3 text-left ${
                           selected ? "bg-live text-live-foreground" : "bg-white/[0.06] text-feed-fg"
                         }`}
                         style={{
@@ -548,6 +564,7 @@ function Onboarding({
                           opacity: shown ? 1 : 0,
                         }}
                       >
+                        <ClubMark id={club.id} />
                         <span className="font-display text-lg font-black leading-none">{club.name.replace("FC ", "")}</span>
                       </button>
                     );

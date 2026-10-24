@@ -51,11 +51,11 @@ function ContactPage() {
             +351 913 943 621
           </a>
           <a
-            href="mailto:ricardonevespro5@gmail.com"
+            href="mailto:apoio.flashnoticias@gmail.com"
             className="mt-4 flex items-center gap-3 text-lg font-semibold text-white"
           >
             <Mail className="size-5 text-yellow-400" />
-            ricardonevespro5@gmail.com
+            apoio.flashnoticias@gmail.com
           </a>
           <a
             href="https://minuto-news-pt.lovable.app"

@@ -206,25 +206,24 @@
   100% { transform: translate3d(-12%, 0, 0) scale(1); }
 }
 
-@keyframes ball-unfold {
+@keyframes ball-tumble {
   0% {
-    transform: translate(-50%, -50%) scale(0.82) rotate(-14deg);
-    border-radius: 48% 52% 45% 55% / 54% 44% 56% 46%;
+    transform: translate(-50%, -50%) rotateX(14deg) rotateY(-18deg) scale(0.78);
     opacity: 1;
   }
-  22% {
-    transform: translate(-50%, -50%) scale(1.08) rotate(8deg);
-    border-radius: 46% 54% 50% 50% / 48% 52% 47% 53%;
+  34% {
+    transform: translate(-50%, -50%) rotateX(-8deg) rotateY(16deg) scale(1.06);
+    opacity: 1;
   }
   100% {
-    transform: translate(-50%, -50%) scale(8) rotate(0deg);
-    border-radius: 0;
+    transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg) scale(6.6);
     opacity: 0;
   }
 }
 
 @keyframes feed-unfold {
-  0% { transform: scale(0.16); }
+  0% { transform: scale(0.18); }
+  38% { transform: scale(0.34); }
   100% { transform: scale(1); }
 }
 

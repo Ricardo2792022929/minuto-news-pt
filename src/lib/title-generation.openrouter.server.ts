@@ -81,7 +81,7 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
     const end = raw.lastIndexOf("}");
     if (start < 0 || end <= start) return null;
     const parsed = JSON.parse(raw.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
-    const titulo = validTitle(parsed.titulo, title);
+    const titulo = validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("OpenRouter devolveu título inválido");
       return null;

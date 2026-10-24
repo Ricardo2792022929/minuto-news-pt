@@ -83,7 +83,7 @@ export async function generateCloudflareOne(title: string, articleText?: string 
     const payload = JSON.parse(body) as { result?: { response?: string }; response?: string };
     const raw = payload.result?.response || payload.response || "";
     const parsed = parseJson(raw);
-    const titulo = parsed && validTitle(parsed.titulo, title);
+    const titulo = parsed && validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("Cloudflare devolveu título inválido");
       return null;

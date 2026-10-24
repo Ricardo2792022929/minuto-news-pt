@@ -196,9 +196,9 @@ export function forceMax10Words(raw: string): string {
 }
 
 /** O título só pode aparecer se for um resumo novo, nunca o original nem um corte. */
-export function isPublishableTitle(candidate: string | null | undefined, original?: string | null): boolean {
+export function isPublishableTitle(candidate: string | null | undefined, original?: string | null, context?: string | null): boolean {
   if (!candidate?.trim()) return false;
-  return validTitle(candidate, original || undefined) !== null;
+  return validTitle(candidate, original || undefined, context) !== null;
 }
 
 function foldTitle(value: string): string {
@@ -262,7 +262,11 @@ export function swapsStoryActor(candidate: string, original: string): boolean {
   return false;
 }
 
-/** Recusa um título que inventa um confronto entre clubes que o original não tem. */
+/** Recusa um clube que não aparece no título original nem no texto da notícia. */
+function mentionsUnknownClub(candidate: string, source: string): boolean {
+  const allowed = new Set(clubsInTitle(source));
+  return clubsInTitle(candidate).some((club) => !allowed.has(club));
+}
 const MATCH_VERBS = /\b(abala|abalam|vence|venceu|vencem|goleia|goleou|goleiam|derrota|derrotou|humilha|humilhou|esmaga|esmagou|atropela|atropelou)\b/;
 function inventsMatch(candidate: string, original: string): boolean {
   const candidateClubs = clubsInTitle(candidate);
@@ -288,14 +292,15 @@ function inventsNumber(candidate: string, original: string): boolean {
   return false;
 }
 
-export function validTitle(raw: unknown, original?: string): string | null {
+export function validTitle(raw: unknown, original?: string, context?: string | null): string | null {
   if (typeof raw !== "string") return null;
   const forced = forceMax10Words(raw);
   if (!forced || MARKDOWN.test(forced) || PREFIX.test(forced) || /erro|error/i.test(forced.slice(0, 12))) return null;
   const words = forced.split(/\s+/).filter(Boolean);
   if (words.length < 4 || words.length > 10) return null;
   if (!isEuropeanPortuguese(forced)) return null;
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original))) return null;
+  const source = [original, context].filter(Boolean).join("\n");
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || mentionsUnknownClub(forced, source))) return null;
   return forced;
 }
 
@@ -354,7 +359,7 @@ export async function generateOne(title: string, articleText?: string | null): P
       const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
       const parsed = JSON.parse(raw) as { titulo?: unknown; resumo?: unknown };
-      const titulo = validTitle(parsed.titulo, title);
+      const titulo = validTitle(parsed.titulo, title, articleText);
       if (!titulo) {
         console.error("Gemini resposta inválida", raw.slice(0, 200));
         continue;

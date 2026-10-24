@@ -87,7 +87,7 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
     const message = payload.choices?.[0]?.message;
     const raw = message?.content || message?.reasoning_content || message?.reasoning || "";
     const parsed = parseJson(raw);
-    const titulo = parsed && validTitle(parsed.titulo, title);
+    const titulo = parsed && validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("NVIDIA devolveu título inválido");
       return null;

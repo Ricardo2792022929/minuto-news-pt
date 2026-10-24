@@ -343,11 +343,11 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         let ai: string | null = null;
         for (let step = 0; step < order.length && !ai; step += 1) {
           try { g = await order[(start + step) % order.length](); } catch { g = null; }
-          const candidate = g && validTitle(g.titulo, n.title);
-          if (candidate && isPublishableTitle(candidate, n.title)) ai = candidate;
+          const candidate = g && validTitle(g.titulo, n.title, articleText);
+          if (candidate && isPublishableTitle(candidate, n.title, articleText)) ai = candidate;
         }
         const titulo = ai;
-        if (!titulo || !isPublishableTitle(titulo, n.title)) return null;
+        if (!titulo || !isPublishableTitle(titulo, n.title, articleText)) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
       const verifiedImages = titled.map((item) => {
@@ -459,34 +459,34 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         let next: string | null = null;
         let resumo: string | null = null;
         try {
-          const groq = await generateGroqOne(row.original_title, row.resumo);
+          const groq = await generateGroqOne(row.original_title, null);
           next = groq?.titulo ?? null;
           resumo = groq?.resumo ?? null;
         } catch { /* tenta a seguinte */ }
         if (!next) {
           try {
-            const cloudflare = await generateCloudflareOne(row.original_title, row.resumo);
+            const cloudflare = await generateCloudflareOne(row.original_title, null);
             next = cloudflare?.titulo ?? null;
             resumo = cloudflare?.resumo ?? resumo;
           } catch { /* ignora */ }
         }
         if (!next) {
           try {
-            const nvidia = await generateNvidiaOne(row.original_title, row.resumo);
+            const nvidia = await generateNvidiaOne(row.original_title, null);
             next = nvidia?.titulo ?? null;
             resumo = nvidia?.resumo ?? resumo;
           } catch { /* ignora */ }
         }
         if (!next) {
           try {
-            const gemini = await generateOne(row.original_title, row.resumo);
+            const gemini = await generateOne(row.original_title, null);
             next = gemini?.titulo ?? null;
             resumo = gemini?.resumo ?? resumo;
           } catch { /* tenta a seguinte */ }
         }
         if (!next) {
           try {
-            const openrouter = await generateOpenRouterOne(row.original_title, row.resumo);
+            const openrouter = await generateOpenRouterOne(row.original_title, null);
             next = openrouter?.titulo ?? null;
             resumo = openrouter?.resumo ?? resumo;
           } catch { /* ignora */ }

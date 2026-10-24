@@ -89,7 +89,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
       const jsonEnd = raw.lastIndexOf("}");
       if (jsonStart < 0 || jsonEnd <= jsonStart) continue;
       const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { titulo?: unknown; resumo?: unknown };
-      const titulo = validTitle(parsed.titulo, title);
+      const titulo = validTitle(parsed.titulo, title, articleText);
       if (!titulo) {
         console.warn("Groq devolveu título inválido");
         continue;

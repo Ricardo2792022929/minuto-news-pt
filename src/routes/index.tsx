@@ -85,6 +85,7 @@ import {
 } from "lucide-react";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
 import type { NewsItem } from "@/lib/news.types";
+import { storyLabel } from "@/lib/story-label";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -736,7 +737,7 @@ function SavedList({
           <div className="flex gap-4">
             <div className="min-w-0 flex-1">
               <div className="text-[10px] font-bold uppercase tracking-widest text-live">
-                {item.source} · {item.category}
+                {item.source} · {storyLabel(item)}
               </div>
               <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
                 {item.title}
@@ -1309,7 +1310,7 @@ function Index() {
                   <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
-                        {a.category}
+                        {storyLabel(a)}
                       </span>
                       {fresh && (
                         <span className="rounded-full bg-live px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-live-foreground">

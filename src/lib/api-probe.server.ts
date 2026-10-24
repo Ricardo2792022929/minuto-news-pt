@@ -63,6 +63,13 @@ export async function probeTitleApis() {
         contents: [{ role: "user", parts: [{ text: QUESTION }] }],
       });
     }),
+    ask("gemini2", () => {
+      const key = process.env["GEMINI_API_KEY_2"] || process.env["GEMINI_API_KEY2"];
+      if (!key) return Promise.resolve({ status: 0, text: "chave em falta" });
+      return post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent`, { "content-type": "application/json", "x-goog-api-key": key }, {
+        contents: [{ role: "user", parts: [{ text: QUESTION }] }],
+      });
+    }),
     ask("openrouter", () => {
       const key = process.env["OPENROUTER_API_KEY"];
       if (!key) return Promise.resolve({ status: 0, text: "chave em falta" });

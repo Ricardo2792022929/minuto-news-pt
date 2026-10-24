@@ -11,12 +11,11 @@ import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
 import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
 import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
-import { chooseOriginal } from "./image-dimensions.server";
 import { adequateImage } from "./image-quality";
 
 const BATCH = 10;
-const MAX_BATCHES = 4;
-const BUDGET_MS = 40_000;
+const MAX_BATCHES = 8;
+const BUDGET_MS = 55_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
 function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
@@ -326,7 +325,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
     let rewritten = 0;
-    const queue = pending.slice(0, 40);
+    const queue = pending.slice(0, 80);
     for (let offset = 0; offset < queue.length; offset += 5) {
       if (expired()) break;
       const wave = queue.slice(offset, offset + 5);
@@ -351,20 +350,11 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         if (!titulo || !isPublishableTitle(titulo, n.title)) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
       }));
-      const verifiedImages = expired()
-        ? titled.map((item) => (item?.n.image ? { url: item.n.image, status: "original" as const } : null))
-        : await Promise.all(titled.map(async (item) => {
-            if (!item) return null;
-            const original = await chooseOriginal(item.n.imageCandidates ?? (item.n.image ? [item.n.image] : []));
-            if (original) return { url: original, status: "original" as const };
-            const page = await fromArticlePage(item.n.url).catch(() => null);
-            if (page && !/logo|ojogo|o-jogo|favicon|brand/i.test(page)) return { url: page, status: "original" as const };
-            const same = await imageFromSameStory(item.n.title).catch(() => null);
-            if (same) return { url: same, status: "original" as const };
-            const found = await findHdImage(item.n.title, used, item.resumo).catch(() => []);
-            if (found[0]) return { url: found[0], status: "search" as const };
-            return null;
-          }));
+      const verifiedImages = titled.map((item) => {
+        if (!item) return null;
+        const url = item.n.image || item.n.imageCandidates?.[0] || null;
+        return url ? { url, status: "original" as const } : null;
+      });
       for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
         const item = titled[itemIndex];
         if (!item) continue;

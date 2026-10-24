@@ -504,7 +504,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         .from("articles")
         .select("id, original_title, titulo_inedito, resumo, category")
         .order("published_at", { ascending: false })
-        .limit(40);
+        .limit(800);
       for (const row of tagged ?? []) {
         const text = [row.original_title, row.titulo_inedito, row.resumo].filter(Boolean).join(" ");
         const next = classify(text, row.category || "Mundo");

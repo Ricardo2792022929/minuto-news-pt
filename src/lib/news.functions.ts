@@ -116,7 +116,7 @@ export const getNews = createServerFn({ method: "GET" })
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase();
       const protest = /habitacao|manifest|arrend|despejo|acampad|greve/.test(blob);
-      const sport = /fifa|futebol|campeao|liga dos campeoes|\bgolo\b|\bliga\b|desporto/.test(blob);
+      const sport = /fifa|futebol|futebolista|benfica|sporting|fc porto|campeonato|campeao|golo|desporto|jornada|plantel|derby|champions|treinador|jogador|selecao/.test(blob);
       const economySource = r.source === "ECO" || r.source === "Jornal de Negócios" || r.source === "Jornal Económico";
       if (economySource && !protest && !sport && category !== "Cultura" && category !== "Tech") category = "Economia";
       if (category !== r.category) fixes.push({ id: r.id, category });
@@ -356,7 +356,7 @@ export const getNews = createServerFn({ method: "GET" })
     }
 
     const nextOffset = data.offset + data.limit;
-    const pendingFixes = [...new Map(fixes.map((fix) => [fix.id, fix])).values()].slice(0, 25);
+    const pendingFixes = [...new Map(fixes.map((fix) => [fix.id, fix])).values()];
     if (pendingFixes.length) {
       await Promise.all(
         pendingFixes.map((fix) => db.from("articles").update({ category: fix.category }).eq("id", fix.id)),

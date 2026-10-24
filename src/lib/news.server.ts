@@ -274,7 +274,7 @@ export function classify(text: string, fallback: string): string {
   const t = normalize(text);
   const cats = ["Desporto", "Economia", "Política", "Tech", "Cultura", "Mundo"] as const;
   const strong: Record<string, string[]> = {
-    Desporto: ["futebol", "futebolista", "golo", "golos", "liga portugal", "primeira liga", "liga dos campeoes", "champions", "benfica", "sporting", "fc porto", "cristiano ronaldo", "ronaldo", "tenis", "formula 1", "nba", "ciclismo", "atletismo", "voleibol", "basquetebol", "futsal", "andebol", "arbitro", "derby", "dragao", "desporto"],
+    Desporto: ["futebol", "futebolista", "golo", "golos", "liga portugal", "primeira liga", "liga dos campeoes", "champions", "benfica", "sporting", "fc porto", "cristiano ronaldo", "ronaldo", "tenis", "formula 1", "formula1", "nba", "ciclismo", "atletismo", "voleibol", "basquetebol", "futsal", "andebol", "arbitro", "derby", "dragao", "desporto", "campeonato", "jornada", "taca de portugal", "mundial", "olimpiadas", "selecionador", "plantel", "baliza", "boavista", "gil vicente", "famalicao", "casa pia", "moreirense", "rio ave", "maritimo", "motogp", "ufc", "hoquei", "maratona", "canoagem", "canoista", "classico"],
     Economia: ["inflacao", "imposto", "irs", "irc", "desemprego", "bolsa", "salario", "salarios", "salario minimo", "ordenado", "pib", "banco central", "bce", "euribor", "divida publica", "orcamento", "juros", "combustivel", "gasolina", "gasoleo", "falencia", "lucros", "prejuizo", "dividendos", "acoes", "psi", "exportacoes", "importacoes", "deficit", "investimento", "despedimentos", "layoff", "spread", "hipoteca", "eletricidade", "brent", "petroleo", "rating", "moodys", "poder de compra", "contas publicas"],
     Política: ["habitacao", "arrendamento", "despejo", "manifestacao", "manifestantes", "manifestam", "parlamento", "governo", "ministro", "primeiro-ministro", "eleicoes", "deputado", "deputados", "assembleia", "autarquicas", "greve", "sindicato", "sns", "hospital", "escola", "professor", "professores", "tribunal", "policia", "saude", "pensoes"],
     Tech: ["inteligencia artificial", "ciberseguranca", "ciberataque", "smartphone", "telemovel", "nvidia", "openai", "chatgpt", "semicondutor", "startup", "software"],
@@ -282,7 +282,7 @@ export function classify(text: string, fallback: string): string {
     Mundo: ["ucrania", "israel", "gaza", "trump", "putin", "zelensky", "russia", "china", "nato", "bruxelas", "cimeira", "hamas"],
   };
   const weak: Record<string, string[]> = {
-    Desporto: ["treinador", "jogador", "estadio", "selecao"],
+    Desporto: ["treinador", "jogador", "estadio", "selecao", "venceu", "derrota", "empate", "goleador", "guarda-redes", "avancado"],
     Economia: ["precos", "banco", "empresa", "turismo", "iva", "cabaz", "supermercado", "fatura"],
     Política: ["presidente", "partido", "lei"],
     Tech: ["google", "apple", "samsung", "facebook", "instagram", "tiktok"],
@@ -311,6 +311,11 @@ export function classify(text: string, fallback: string): string {
   if (strongHits.Desporto > 0 && (hit("porto") || hit("braga") || hit("guimaraes"))) scores.Desporto += 2;
   const civic = ["habitacao", "arrendamento", "despejo", "manifestantes", "manifestacao", "manifestam"].some(hit);
   if (civic && strongHits.Desporto === 0) scores.Desporto = 0;
+  if (strongHits.Desporto > 0 && !civic) scores.Cultura = 0;
+  if (weak.Desporto.filter(hit).length > 0 && strongHits.Cultura === 0 && !civic) {
+    scores.Cultura = 0;
+    scores.Desporto += 3;
+  }
   if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura") scores[fallback] += 1;
   const best = [...cats].sort((a, b) => scores[b] - scores[a] || Number(b === "Política") - Number(a === "Política"))[0];
   if (scores[best] < 3) {
@@ -319,6 +324,7 @@ export function classify(text: string, fallback: string): string {
     if (fallback === "Cultura" || fallback === "Economia") return "Mundo";
     return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
   }
+  if (strongHits.Desporto > 0 && !civic) return "Desporto";
   return best;
 }
 

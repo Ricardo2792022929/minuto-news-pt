@@ -206,20 +206,26 @@
   100% { transform: translate3d(-12%, 0, 0) scale(1); }
 }
 
-@property --hole {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
+@keyframes ball-unfold {
+  0% {
+    transform: translate(-50%, -50%) scale(0.82) rotate(-14deg);
+    border-radius: 48% 52% 45% 55% / 54% 44% 56% 46%;
+    opacity: 1;
+  }
+  22% {
+    transform: translate(-50%, -50%) scale(1.08) rotate(8deg);
+    border-radius: 46% 54% 50% 50% / 48% 52% 47% 53%;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(8) rotate(0deg);
+    border-radius: 0;
+    opacity: 0;
+  }
 }
 
-@keyframes punch-hole {
-  0% { --hole: 10px; }
-  100% { --hole: 160vmax; }
-}
-
-@keyframes feed-through {
-  0% { transform: scale(0.62); filter: brightness(0.72) saturate(0.85); }
-  100% { transform: scale(1); filter: none; }
+@keyframes feed-unfold {
+  0% { transform: scale(0.16); }
+  100% { transform: scale(1); }
 }
 
 @keyframes heart-pop {

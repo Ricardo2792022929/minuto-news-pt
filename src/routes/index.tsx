@@ -1219,7 +1219,7 @@ function Index() {
                 localStorage.setItem(CLUB_KEY, chosen);
                 const name = LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen;
                 setArrival(name);
-                window.setTimeout(() => setArrival(null), 1300);
+                window.setTimeout(() => setArrival(null), 1450);
               }
             } catch {
               /* ignora */
@@ -1230,19 +1230,23 @@ function Index() {
         />
       )}
       {arrival ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-[90]"
-          style={{
-            background: [
-              "repeating-linear-gradient(90deg, rgba(80,48,24,0.18) 0 2px, transparent 2px 14px)",
-              "repeating-linear-gradient(0deg, rgba(255,236,210,0.05) 0 1px, transparent 1px 7px)",
-              "radial-gradient(ellipse at 28% 18%, #e4c49a, #b88858 42%, #8b6240 78%, #6e4b30)",
-            ].join(","),
-            animation: "punch-hole 1.15s cubic-bezier(.7,0,.2,1) forwards",
-            WebkitMaskImage: "radial-gradient(circle at 50% 58%, transparent var(--hole), #000 calc(var(--hole) + 22px))",
-            maskImage: "radial-gradient(circle at 50% 58%, transparent var(--hole), #000 calc(var(--hole) + 22px))",
-          }}
-        />
+        <div className="pointer-events-none absolute inset-0 z-[90]">
+          <div
+            className="absolute left-1/2 top-[56%] size-48 overflow-hidden shadow-[0_18px_40px_rgba(0,0,0,0.45),inset_-18px_-24px_30px_rgba(70,60,40,0.35),inset_14px_16px_18px_rgba(255,255,255,0.45)]"
+            style={{
+              background: [
+                "repeating-linear-gradient(180deg, transparent 0 5px, rgba(30,30,30,0.55) 5px 6px)",
+                "repeating-linear-gradient(90deg, transparent 0 34px, rgba(0,0,0,0.12) 34px 35px)",
+                "linear-gradient(145deg, #f7f1e4, #e7dcc8 40%, #cfc3ad 70%, #f3ecdf)",
+              ].join(","),
+              animation: "ball-unfold 1.25s cubic-bezier(.6,.05,.2,1) forwards",
+            }}
+          >
+            <span className="absolute left-[18%] top-[22%] h-[58%] w-[2px] rotate-[28deg] bg-black/25" />
+            <span className="absolute right-[24%] top-[12%] h-[70%] w-[3px] -rotate-[18deg] bg-black/20" />
+            <span className="absolute bottom-[20%] left-[10%] h-[3px] w-[70%] rotate-[12deg] bg-black/15" />
+          </div>
+        </div>
       ) : null}
 
       {tab === "feed" ? (
@@ -1250,7 +1254,7 @@ function Index() {
           {/* Feed */}
           <div
             className="absolute inset-0 z-0 overflow-hidden"
-            style={arrival ? { animation: "feed-through 1.15s cubic-bezier(.2,.8,.2,1) both", transformOrigin: "50% 58%" } : undefined}
+            style={arrival ? { animation: "feed-unfold 1.25s cubic-bezier(.55,.05,.25,1) both", transformOrigin: "50% 56%" } : undefined}
           >
             {dragX !== 0 && (
               <div

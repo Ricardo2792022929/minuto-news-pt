@@ -58,8 +58,8 @@ export const getNews = createServerFn({ method: "GET" })
         .parse(data ?? {}),
   )
   .handler(async ({ data }): Promise<GetNewsResult> => {
-    const url = process.env["SUPABASE_URL"]!;
-    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+    const url = process.env["FLASH_DB_URL"] || process.env["SUPABASE_URL"]!;
+    const key = process.env["FLASH_DB_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"]!;
     try {
       const { rewriteOpenedTitles } = await import("./rewrite-open.server");
       await rewriteOpenedTitles();
@@ -340,7 +340,7 @@ export const getNews = createServerFn({ method: "GET" })
       );
     }
     const bare = mixed.filter((item) => !item.image).slice(0, 4);
-    if (bare.length && process.env["SUPABASE_SERVICE_ROLE_KEY"]) {
+    if (bare.length && (process.env["FLASH_DB_SERVICE_KEY"] || process.env["SUPABASE_SERVICE_ROLE_KEY"])) {
       try {
         const { imageFromArticlePage } = await import("./article-image.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

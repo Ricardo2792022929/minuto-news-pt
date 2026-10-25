@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Mail, Globe, Phone } from "lucide-react";
+import { ArrowLeft, Mail, Globe } from "lucide-react";
 
 export const Route = createFileRoute("/contacto")({
   head: () => ({
@@ -41,15 +41,6 @@ function ContactPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-yellow-300">
             Contact
           </h2>
-          <a
-            href="tel:+351913943621"
-            className="mt-4 flex items-center gap-3 text-2xl font-black text-white"
-          >
-            <span className="flex size-11 items-center justify-center rounded-full bg-yellow-400 text-black">
-              <Phone className="size-5" />
-            </span>
-            +351 913 943 621
-          </a>
           <a
             href="mailto:apoio.flashnoticias@gmail.com"
             className="mt-4 flex items-center gap-3 text-lg font-semibold text-white"

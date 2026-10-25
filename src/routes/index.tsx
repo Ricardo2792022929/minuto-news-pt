@@ -124,6 +124,10 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number];
 
+function sectionName(category: Category): string {
+  return category === "Tudo" ? "Preferências" : category;
+}
+
 const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
 const CLUB_KEY = "aominuto:club";
@@ -1289,7 +1293,10 @@ function Index() {
                   ) : (
                     <div className="flex h-full items-center justify-center text-white/60">
                       <span className="text-sm font-semibold uppercase tracking-widest">
-                        {CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)] ?? ""}
+                        {(() => {
+                          const neighbor = CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)];
+                          return neighbor ? sectionName(neighbor) : "";
+                        })()}
                       </span>
                     </div>
                   );
@@ -1495,7 +1502,7 @@ function Index() {
                         : "bg-feed-bg/55 text-feed-fg"
                     }`}
                   >
-                    {c}
+                    {sectionName(c)}
                   </button>
                 ))}
                 <span

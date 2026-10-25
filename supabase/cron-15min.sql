@@ -1,5 +1,5 @@
--- Relógio de 15 minutos, no lugar do Lovable Cloud.
--- Corre isto uma vez no SQL Editor do Supabase.
+-- Relógio de 15 minutos. Corre isto no SQL Editor do Supabase.
+-- A ronda demora cerca de 1 minuto. 10 segundos cancelava o pedido a meio.
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
@@ -19,7 +19,7 @@ select cron.schedule(
   $$
   select net.http_get(
     url := 'https://minuto-news-pt.lovable.app/api/public/hooks/refresh',
-    timeout_milliseconds := 10000
+    timeout_milliseconds := 120000
   );
   $$
 );

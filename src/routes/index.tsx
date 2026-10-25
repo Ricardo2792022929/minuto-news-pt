@@ -841,8 +841,32 @@ function Index() {
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
     const url = cleanUrl(raw);
-    setReading(url);
-    if (!history.state?.flashArticle) history.pushState({ flashArticle: 1 }, "");
+    void (async () => {
+      let embed = false;
+      try {
+        const res = await fetch(`/api/public/article-frame?url=${encodeURIComponent(url)}`);
+        const data = (await res.json()) as { embed?: boolean };
+        embed = data.embed === true;
+      } catch {
+        embed = false;
+      }
+      if (embed) {
+        setReading(url);
+        if (!history.state?.flashArticle) history.pushState({ flashArticle: 1 }, "");
+        return;
+      }
+      const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+      if (cap?.isNativePlatform?.()) {
+        try {
+          const { Browser } = await import("@capacitor/browser");
+          await Browser.open({ url });
+          return;
+        } catch {
+          /* abre no separador */
+        }
+      }
+      window.open(url, "_blank", "noopener");
+    })();
   };
   useEffect(() => {
     const onPop = () => setReading(null);
@@ -1210,8 +1234,7 @@ function Index() {
         <div className="fixed inset-0 z-[200] bg-white">
           <iframe
             title="Notícia"
-            src={`/api/public/article-frame?url=${encodeURIComponent(reading)}`}
-            sandbox=""
+            src={reading}
             className="h-full w-full border-0 bg-white"
           />
           <button

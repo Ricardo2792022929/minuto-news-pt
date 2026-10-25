@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const MAX_CHARS = 1_200_000;
-
 function allowed(url: URL): boolean {
   if (url.protocol !== "https:") return false;
   const host = url.hostname.toLowerCase();
@@ -18,11 +16,14 @@ function allowed(url: URL): boolean {
   return true;
 }
 
-function frameHtml(raw: string, page: string): string {
-  const withBase = /<head[^>]*>/i.test(raw)
-    ? raw.replace(/<head[^>]*>/i, (head) => `${head}<base href="${page}">`)
-    : `<!doctype html><html><head><base href="${page}"></head><body>${raw}</body></html>`;
-  return withBase.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+=(?:"[^"]*"|'[^']*')/gi, "");
+function canEmbed(headers: Headers): boolean {
+  const frame = (headers.get("x-frame-options") ?? "").toLowerCase();
+  if (frame.includes("deny") || frame.includes("sameorigin")) return false;
+  const csp = (headers.get("content-security-policy") ?? "").toLowerCase();
+  const ancestors = csp.match(/frame-ancestors\s+([^;]+)/)?.[1] ?? "";
+  if (!ancestors) return true;
+  if (ancestors.includes("'none'") || ancestors.includes("'self'")) return false;
+  return ancestors.includes("*");
 }
 
 export const Route = createFileRoute("/api/public/article-frame")({
@@ -34,34 +35,21 @@ export const Route = createFileRoute("/api/public/article-frame")({
         try {
           page = new URL(target);
         } catch {
-          return new Response("Endereço inválido", { status: 400 });
+          return Response.json({ embed: false });
         }
-        if (!allowed(page)) return new Response("Endereço bloqueado", { status: 400 });
+        if (!allowed(page)) return Response.json({ embed: false });
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const timer = setTimeout(() => ctrl.abort(), 5000);
         try {
-          const res = await fetch(page, {
-            signal: ctrl.signal,
-            redirect: "follow",
-            headers: {
-              "user-agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
-              accept: "text/html",
-              "accept-language": "pt-PT,pt;q=0.9",
-            },
-          });
-          if (!res.ok) return new Response("Não foi possível abrir a notícia", { status: 502 });
+          let res = await fetch(page, { method: "HEAD", redirect: "follow", signal: ctrl.signal });
+          if (res.status === 405 || res.status === 501) {
+            res = await fetch(page, { method: "GET", redirect: "follow", signal: ctrl.signal });
+          }
+          await res.body?.cancel();
           const finalUrl = new URL(res.url);
-          if (!allowed(finalUrl)) return new Response("Endereço bloqueado", { status: 400 });
-          const html = (await res.text()).slice(0, MAX_CHARS);
-          return new Response(frameHtml(html, finalUrl.toString()), {
-            headers: {
-              "content-type": "text/html; charset=utf-8",
-              "content-security-policy": "default-src 'none'; style-src 'unsafe-inline' https: data:; img-src https: data: blob:; font-src https: data:; media-src https:;",
-              "cache-control": "private, max-age=120",
-            },
-          });
+          return Response.json({ embed: allowed(finalUrl) && canEmbed(res.headers) });
         } catch {
-          return new Response("Não foi possível abrir a notícia", { status: 502 });
+          return Response.json({ embed: false });
         } finally {
           clearTimeout(timer);
         }

@@ -690,30 +690,7 @@ function warmOrigin(rawUrl: string) {
 
 if (typeof window !== "undefined") {
   const early = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  if (early?.isNativePlatform?.()) void import("@capacitor/browser");
-}
-
-async function openArticle(rawUrl: string): Promise<void> {
-  const url = cleanUrl(rawUrl);
-  warmOrigin(url);
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
-    .Capacitor;
-  if (cap?.isNativePlatform?.()) {
-    try {
-      const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url });
-      return;
-    } catch {
-      /* continua para a web */
-    }
-  }
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  if (early?.isNativePlatform?.()) void import("@capacitor/share");
 }
 
 /* ---------- Saved list ---------- */
@@ -860,6 +837,18 @@ function Index() {
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
   const [premiere, setPremiere] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const openReaderRef = useRef<(url: string) => void>(() => {});
+  openReaderRef.current = (raw) => {
+    const url = cleanUrl(raw);
+    setReading(url);
+    if (!history.state?.flashArticle) history.pushState({ flashArticle: 1 }, "");
+  };
+  useEffect(() => {
+    const onPop = () => setReading(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const closeIntro = useCallback(() => {
     try {
       sessionStorage.setItem("flash:intro-seen", "1");
@@ -1170,11 +1159,7 @@ function Index() {
       window.setTimeout(() => setSettling(false), 180);
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
         const item = articlesRef.current[indexFromScroll()];
-        if (item) {
-          const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-          if (cap?.isNativePlatform?.()) void openArticle(item.url);
-          else window.open(cleanUrl(item.url), "_blank", "noopener");
-        }
+        if (item) openReaderRef.current(item.url);
       }
     };
     const onScroll = () => {
@@ -1221,6 +1206,27 @@ function Index() {
 
   return (
     <div className="relative mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl overflow-hidden bg-feed-bg">
+      {reading ? (
+        <div className="fixed inset-0 z-[200] bg-white">
+          <iframe
+            title="Notícia"
+            src={`/api/public/article-frame?url=${encodeURIComponent(reading)}`}
+            sandbox=""
+            className="h-full w-full border-0 bg-white"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (history.state?.flashArticle) history.back();
+              else setReading(null);
+            }}
+            className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex items-center gap-1 rounded-full bg-black/80 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg ring-1 ring-white/40"
+          >
+            <ArrowLeft className="size-4" />
+            Voltar
+          </button>
+        </div>
+      ) : null}
       {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && !showIntro && (
         <Onboarding
@@ -1524,7 +1530,7 @@ function Index() {
         <SavedList
           items={[...Object.values(savedMap)].reverse()}
           onBack={() => setTab("feed")}
-          onOpen={(item) => void openArticle(item.url)}
+          onOpen={(item) => openReaderRef.current(item.url)}
           onRemove={(id) => {
             setSavedMap((prev) => {
               const next = { ...prev };

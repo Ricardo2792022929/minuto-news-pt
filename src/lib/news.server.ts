@@ -72,6 +72,13 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.dnoticias.pt/rss", source: "Diário de Notícias da Madeira", fallbackCategory: "Mundo" },
   { url: "https://www.diariocoimbra.pt/feed/", source: "Diário de Coimbra", fallbackCategory: "Mundo" },
   { url: "https://www.avozdetrasosmontes.pt/feed/", source: "A Voz de Trás-os-Montes", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss/headlines/section/topic/NATION?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss/headlines/section/topic/WORLD?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Economia" },
+  { url: "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Tech" },
+  { url: "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Desporto" },
+  { url: "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=pt-PT&gl=PT&ceid=PT:pt", source: "Google Notícias", fallbackCategory: "Entretenimento" },
 ];
 
 const parser = new XMLParser({
@@ -337,6 +344,22 @@ export function classify(text: string, fallback: string): string {
   return best;
 }
 
+function googlePublisher(item: any, title: string): string {
+  const src = item?.source;
+  const fromTag = typeof src === "string" ? src : src?.["#text"];
+  if (fromTag && String(fromTag).trim()) return String(fromTag).trim();
+  const match = title.match(/^(.*)\s[-–—]\s([^–—-]{2,60})$/);
+  return match?.[2]?.trim() || "Google Notícias";
+}
+
+function withoutPublisher(title: string, publisher: string): string {
+  for (const dash of [" - ", " – ", " — "]) {
+    const suffix = `${dash}${publisher}`;
+    if (title.endsWith(suffix)) return title.slice(0, -suffix.length).trim();
+  }
+  return title;
+}
+
 function hashId(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -372,14 +395,20 @@ function parseFeed(xml: string, feed: FeedConfig): NewsItem[] {
 
     const rawExcerpt = String(item?.["description"] ?? item?.["summary"] ?? "");
     const excerpt = stripHtml(rawExcerpt).slice(0, 320);
-    const url = decodeEntities(link.trim());
+    let url = decodeEntities(link.trim());
+    let source = feed.source;
+    let cleanTitle = title;
+    if (url.includes("news.google.com")) {
+      source = googlePublisher(item, title).slice(0, 120);
+      cleanTitle = withoutPublisher(title, source) || title;
+    }
     const canonicalUrl = canonicalArticleUrl(url);
 
     const entry: NewsItem = {
       id: hashId(canonicalUrl),
-      source: feed.source,
-      category: classify(title + " " + excerpt, feed.fallbackCategory),
-      title,
+      source,
+      category: classify(cleanTitle + " " + excerpt, feed.fallbackCategory),
+      title: cleanTitle,
       excerpt,
       url,
       publishedAt: publishedAt.toISOString(),
@@ -425,7 +454,10 @@ export async function getAllNews(): Promise<NewsItem[]> {
   // Cada feed isolado: falha/timeout regista e segue para os outros.
   const results = await Promise.allSettled([...FEEDS.map(fetchFeed), scrapeLusa()]);
   const seen = new Set<string>();
+  const seenTitles = new Set<string>();
   const perSource = new Map<string, NewsItem[]>();
+  const titleKey = (title: string) =>
+    title.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim().slice(0, 90);
   results.forEach((r, i) => {
     if (r.status !== "fulfilled") {
       console.error("feed falhou:", i < FEEDS.length ? FEEDS[i]?.source : "Lusa scraper", String(r.reason));
@@ -433,8 +465,11 @@ export async function getAllNews(): Promise<NewsItem[]> {
     }
     for (const item of r.value) {
       const canonicalUrl = canonicalArticleUrl(item.url);
+      const key = titleKey(item.title);
       if (seen.has(canonicalUrl)) continue;
+      if (item.url.includes("news.google.com") && seenTitles.has(key)) continue;
       seen.add(canonicalUrl);
+      if (key) seenTitles.add(key);
       const list = perSource.get(item.source) ?? [];
       list.push(item);
       perSource.set(item.source, list);

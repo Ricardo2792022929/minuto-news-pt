@@ -859,6 +859,7 @@ function Index() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
+  const [premiere, setPremiere] = useState(false);
   const closeIntro = useCallback(() => {
     try {
       sessionStorage.setItem("flash:intro-seen", "1");
@@ -999,11 +1000,11 @@ function Index() {
   }, []);
 
   const query = useInfiniteQuery({
-    queryKey: ["news", category, interests.join(","), club],
+    queryKey: ["news", category, interests.join(","), club, premiere],
     enabled: mounted,
     refetchInterval: 60_000,
     queryFn: ({ pageParam }) =>
-      fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests, club: club || undefined } }),
+      fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests, club: club || undefined, premiere: premiere && pageParam === 0 && category === "Tudo" } }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
@@ -1245,6 +1246,7 @@ function Index() {
               /* ignora */
             }
             setShowOnboarding(false);
+            setPremiere(true);
           }}
           onLater={() => setShowOnboarding(false)}
         />

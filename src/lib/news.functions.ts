@@ -33,7 +33,25 @@ function hit(text: string, word: string): boolean {
   return new RegExp(`(?:^|\\s)${word}(?:\\s|$)`).test(text);
 }
 
-/** Só entra no meio do feed se for relevante e um pouco chocante. */
+function firstImpressionScore(item: NewsItem, club?: string, interests?: string[]): number {
+  if (!item.image) return 0;
+  let score = item.imageStatus === "original" ? 14 : item.imageStatus === "search" ? 3 : 1;
+  const shock = shockScore(item.title);
+  score += shock * 3;
+  if (shock >= 3) score += 4;
+  const t = plain(`${item.title} ${item.excerpt}`);
+  for (const word of ["governo", "eleicoes", "presidente", "guerra", "ucrania", "orcamento", "parlamento", "mortos", "campeao", "champions"]) {
+    if (hit(t, word)) score += 3;
+  }
+  const ageH = (Date.now() - new Date(item.publishedAt).getTime()) / 3_600_000;
+  if (ageH <= 8) score += 4;
+  else if (ageH <= 24) score += 2;
+  else score -= 3;
+  if (["RTP Notícias", "CNN Portugal", "Observador", "Lusa", "Notícias ao Minuto", "SAPO Notícias", "Correio da Manhã", "Renascença", "Expresso", "ECO", "Público", "Jornal de Notícias"].includes(item.source)) score += 3;
+  if (interests?.includes(item.category)) score += 2;
+  if (club && articleMatchesClub(item.title, item.category, club)) score += 6;
+  return score;
+}
 function shockScore(title: string): number {
   const t = plain(title);
   let score = 0;
@@ -54,6 +72,7 @@ export const getNews = createServerFn({ method: "GET" })
           category: z.string().optional(),
           interests: z.array(z.string()).optional(),
           club: z.string().optional(),
+          premiere: z.boolean().optional(),
         })
         .parse(data ?? {}),
   )
@@ -353,6 +372,29 @@ export const getNews = createServerFn({ method: "GET" })
         const at = Math.min(5, mixed.length);
         mixed.splice(at, 0, clubPick);
       }
+    }
+
+    if (data.premiere && data.offset === 0 && !data.category) {
+      const pool = new Map<string, NewsItem>();
+      for (const item of [...ordered, ...day, ...clubNews, ...mixed]) pool.set(item.id, item);
+      const ranked = [...pool.values()]
+        .map((item) => ({ item, score: firstImpressionScore(item, data.club, data.interests) }))
+        .filter((row) => row.score > 0)
+        .sort((a, b) => b.score - a.score || +new Date(b.item.publishedAt) - +new Date(a.item.publishedAt));
+      const picked: NewsItem[] = [];
+      const perCategory = new Map<string, number>();
+      const usedTitles = new Set<string>();
+      for (const row of ranked) {
+        const key = titleKey(row.item.title);
+        if (usedTitles.has(key)) continue;
+        const count = perCategory.get(row.item.category) ?? 0;
+        if (count >= 3) continue;
+        perCategory.set(row.item.category, count + 1);
+        usedTitles.add(key);
+        picked.push(row.item);
+        if (picked.length === 10) break;
+      }
+      if (picked.length >= 4) mixed.splice(0, mixed.length, ...picked);
     }
 
     const nextOffset = data.offset + data.limit;

@@ -837,26 +837,29 @@ function Index() {
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
   const [premiere, setPremiere] = useState(false);
-  const [reading, setReading] = useState<string | null>(null);
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
     const url = cleanUrl(raw);
     void (async () => {
-      let embed = false;
-      try {
-        const res = await fetch(`/api/public/article-frame?url=${encodeURIComponent(url)}`);
-        const data = (await res.json()) as { embed?: boolean };
-        embed = data.embed === true;
-      } catch {
-        embed = false;
-      }
-      if (embed) {
-        setReading(url);
-        if (!history.state?.flashArticle) history.pushState({ flashArticle: 1 }, "");
-        return;
-      }
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       if (cap?.isNativePlatform?.()) {
+        try {
+          const { InAppBrowser, DefaultWebViewOptions } = await import("@capacitor/inappbrowser");
+          await InAppBrowser.openInWebView({
+            url,
+            options: {
+              ...DefaultWebViewOptions,
+              showURL: false,
+              showToolbar: true,
+              closeButtonText: "Voltar",
+              showNavigationButtons: true,
+              android: { ...DefaultWebViewOptions.android, hardwareBack: true, allowZoom: false },
+            },
+          });
+          return;
+        } catch {
+          /* a versão antiga da app ainda não tem o browser interno */
+        }
         try {
           const { Browser } = await import("@capacitor/browser");
           await Browser.open({ url });
@@ -868,11 +871,6 @@ function Index() {
       window.open(url, "_blank", "noopener");
     })();
   };
-  useEffect(() => {
-    const onPop = () => setReading(null);
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
   const closeIntro = useCallback(() => {
     try {
       sessionStorage.setItem("flash:intro-seen", "1");
@@ -1230,26 +1228,6 @@ function Index() {
 
   return (
     <div className="relative mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl overflow-hidden bg-feed-bg">
-      {reading ? (
-        <div className="fixed inset-0 z-[200] bg-white">
-          <iframe
-            title="Notícia"
-            src={reading}
-            className="h-full w-full border-0 bg-white"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (history.state?.flashArticle) history.back();
-              else setReading(null);
-            }}
-            className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex items-center gap-1 rounded-full bg-black/80 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg ring-1 ring-white/40"
-          >
-            <ArrowLeft className="size-4" />
-            Voltar
-          </button>
-        </div>
-      ) : null}
       {showIntro && <Intro onDone={closeIntro} />}
       {showOnboarding && !showIntro && (
         <Onboarding

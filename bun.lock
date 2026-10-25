@@ -8,6 +8,7 @@
         "@ai-sdk/openai": "^4.0.83",
         "@capacitor/browser": "^8.0.4",
         "@capacitor/core": "^8.5.2",
+        "@capacitor/inappbrowser": "^4.1.0",
         "@capacitor/share": "8",
         "@hookform/resolvers": "^5.2.2",
         "@mozilla/readability": "^0.6.0",
@@ -146,6 +147,8 @@
     "@capacitor/browser": ["@capacitor/browser@8.0.4", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/browser/-/browser-8.0.4.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-ORZ4u/y+7aMuu6yVuk6SP529fUZyqcbnuHB1q5McpA3o2SYfVoi28iB8rsQjI2ad1qlKJd29ZUuGtspXLBDlWg=="],
 
     "@capacitor/core": ["@capacitor/core@8.5.2", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/core/-/core-8.5.2.tgz", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-agnQbGdhGw/KZFuLf7H9SY2o+oE7upkr/WPQsYaokXP6f9chaE8iVmbKkfN6SVl4w3pmz7oZ3Ur1hbkmy1hx+w=="],
+
+    "@capacitor/inappbrowser": ["@capacitor/inappbrowser@4.1.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-+tRl4uc4ZvRsX9A5pDGOU52LCW6T0fRXqysqIxl9oYcr2DLkg4lOEmoD+pp3l2JH5Vm/LJp8CofCFgeSI4uTUQ=="],
 
     "@capacitor/share": ["@capacitor/share@8.0.3", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-gnvZBV1NPu2B8vd1UKncR56G15ueHd0aZLqgDov++t3SmTBG9Q0VrAZ1VnHn5stxlmglVaTb4RwopMgbpLzroA=="],
 

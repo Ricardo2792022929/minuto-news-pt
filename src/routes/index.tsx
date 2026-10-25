@@ -1349,16 +1349,13 @@ function Index() {
 
                   <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
+                      <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
+                        {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
+                      </span>
                       <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
                         {storyLabel(a)}
                       </span>
-                      {fresh && (
-                        <span className="rounded-full bg-live px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-live-foreground">
-                          Novo
-                        </span>
-                      )}
                       <span className="min-w-0 truncate text-white/75">{a.source}</span>
-                      <span className="ml-auto shrink-0 tabular-nums text-white/70">{timeAgo(a.publishedAt)}</span>
                     </div>
                     <StoryTitle
                       title={a.title}

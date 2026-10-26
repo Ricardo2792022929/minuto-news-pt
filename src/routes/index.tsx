@@ -226,18 +226,23 @@ function Intro({ onDone }: { onDone: () => void }) {
     if (!video || !src) return;
     const hard = window.setTimeout(finish, 7000);
     const close = () => finish();
-    const reveal = () => {
-      if (video.paused || video.currentTime < 0.12) return;
-      setVisible(true);
-    };
+    const reveal = () => setVisible(true);
     const kick = () => {
       video.muted = true;
       video.defaultMuted = true;
-      const attempt = video.play();
-      if (!attempt) return;
-      attempt.then(reveal).catch(() => {
-        video.play().then(reveal).catch(close);
-      });
+      const playFromStart = () => {
+        const attempt = video.play();
+        if (!attempt) return;
+        attempt.then(reveal).catch(() => {
+          video.play().then(reveal).catch(close);
+        });
+      };
+      if (video.currentTime > 0.01) {
+        video.addEventListener("seeked", playFromStart, { once: true });
+        video.currentTime = 0;
+      } else {
+        playFromStart();
+      }
     };
     const onTime = () => {
       reveal();
@@ -282,17 +287,17 @@ function Intro({ onDone }: { onDone: () => void }) {
           playsInline
           preload="auto"
           muted
-          autoPlay
           controls={false}
           disablePictureInPicture
           poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           className="flash-intro pointer-events-none h-full w-full bg-black object-cover"
           style={{
             position: "absolute",
-            top: 0,
-            left: visible ? 0 : "-140vw",
+            inset: 0,
             width: "100%",
             height: "100%",
+            opacity: visible ? 1 : 0,
+            transition: "opacity 180ms ease",
           }}
           onEnded={finish}
           onError={finish}

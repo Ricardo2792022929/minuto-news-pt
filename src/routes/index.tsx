@@ -286,7 +286,7 @@ function Intro({ onDone }: { onDone: () => void }) {
           controls={false}
           disablePictureInPicture
           poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-          className="flash-intro pointer-events-none h-full w-full bg-black object-contain"
+          className="flash-intro pointer-events-none h-full w-full bg-black object-cover"
           style={{
             position: "absolute",
             top: 0,

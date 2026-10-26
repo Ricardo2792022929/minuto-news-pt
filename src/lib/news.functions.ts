@@ -6,6 +6,7 @@ import { storyImageUrl } from "./image-policy";
 import { articleMatchesClub } from "./clubs";
 import { classify } from "./news.server";
 import { isPastedTitle } from "./title-shape";
+import { asLinks, mergeLinks, sameStory } from "./story-match";
 
 const SHOCK = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "vitima", "tragedia",
@@ -102,7 +103,8 @@ export const getNews = createServerFn({ method: "GET" })
     const since = new Date(now - windowHours * 3600_000).toISOString();
     const interests = (data.interests ?? []).filter(Boolean);
     const useInterests = !data.category && interests.length > 0;
-    const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
+    const cols = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at,related";
+    const colsWithoutRelated = "id,source,category,url,image,image_query,image_status,image_candidates,titulo_inedito,resumo,original_title,published_at";
     const legacyCols = "id,source,category,url,image,image_query,titulo_inedito,resumo,original_title,published_at";
     let imageColumnsReady = true;
     const canShow = (r: { titulo_inedito: string | null; original_title: string | null }) => {
@@ -127,6 +129,7 @@ export const getNews = createServerFn({ method: "GET" })
       resumo: string | null;
       original_title: string | null;
       published_at: string;
+      related?: unknown;
     }): NewsItem => {
       const excerpt = (r.resumo ?? "").trim();
       let category = classify(`${r.original_title ?? ""} ${r.titulo_inedito} ${excerpt}`, r.category);
@@ -155,6 +158,11 @@ export const getNews = createServerFn({ method: "GET" })
         ...(image ? { image } : {}),
         imageStatus: image ? (r.image_status === "search" ? "search" : "original") : "provisional",
         imageCandidates: [...new Set(imageCandidates)],
+        ...(r.original_title ? { originalTitle: r.original_title } : {}),
+        sources: mergeLinks(
+          [{ source: r.source, title: r.titulo_inedito, url: r.url, publishedAt: r.published_at }],
+          asLinks(r.related),
+        ),
       };
     };
     const byDate = (a: NewsItem, b: NewsItem) => +new Date(b.publishedAt) - +new Date(a.publishedAt);
@@ -200,6 +208,14 @@ export const getNews = createServerFn({ method: "GET" })
           .order("published_at", { ascending: false })
           .range(0, Math.min(need, 120) - 1),
       ]);
+      if ((insideRes.error || broadRes.error) && /related/i.test((insideRes.error ?? broadRes.error)?.message ?? "")) {
+        const retried = await Promise.all([
+          db.from("articles").select(colsWithoutRelated, { count: "exact" }).gte("published_at", since).in("category", interests).order("published_at", { ascending: false }).range(0, need - 1),
+          db.from("articles").select(legacyCols).gte("published_at", since).order("published_at", { ascending: false }).range(0, Math.min(need, 120) - 1),
+        ]);
+        insideRes = retried[0] as typeof insideRes;
+        broadRes = retried[1] as typeof broadRes;
+      }
       if ((insideRes.error || broadRes.error) && imageColumnsReady && /image_status|image_candidates/i.test((insideRes.error ?? broadRes.error)?.message ?? "")) {
         imageColumnsReady = false;
         const retried = await Promise.all([
@@ -240,6 +256,14 @@ export const getNews = createServerFn({ method: "GET" })
       let rows = first.data;
       let error = first.error;
       let count = first.count;
+      if (error && /related/i.test(error.message)) {
+        let again = db.from("articles").select(colsWithoutRelated, { count: "exact" }).gte("published_at", since).order("published_at", { ascending: false }).order("id", { ascending: true }).range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
+        if (data.category) again = again.eq("category", data.category);
+        const retry = await again;
+        rows = retry.data as typeof rows;
+        error = retry.error;
+        count = retry.count;
+      }
       if (error && imageColumnsReady && /image_status|image_candidates/i.test(error.message)) {
         imageColumnsReady = false;
         let again = db.from("articles").select(legacyCols, { count: "exact" }).gte("published_at", since).order("published_at", { ascending: false }).order("id", { ascending: true }).range(0, Math.min(data.offset + data.limit + 60, 1000) - 1);
@@ -419,8 +443,36 @@ export const getNews = createServerFn({ method: "GET" })
       } catch { /* o feed abre mesmo que a fotografia da fonte falhe */ }
     }
 
-    return { items: mixed, total, hasMore: data.offset + data.limit < Math.max(total, ordered.length), nextOffset };
+    return { items: groupStories(mixed), total, hasMore: data.offset + data.limit < Math.max(total, ordered.length), nextOffset };
   });
+
+function groupStories(items: NewsItem[]): NewsItem[] {
+  const out: NewsItem[] = [];
+  for (const item of items) {
+    const host = out.find((card) => sameStory(card, item));
+    if (!host) {
+      out.push({
+        ...item,
+        sources: item.sources?.length
+          ? item.sources
+          : [{ source: item.source, title: item.title, url: item.url, publishedAt: item.publishedAt }],
+      });
+      continue;
+    }
+    host.sources = mergeLinks(host.sources ?? [], item.sources ?? [{
+      source: item.source,
+      title: item.title,
+      url: item.url,
+      publishedAt: item.publishedAt,
+    }]);
+    if (!host.image && item.image) {
+      host.image = item.image;
+      host.imageStatus = item.imageStatus;
+      host.imageCandidates = item.imageCandidates;
+    }
+  }
+  return out;
+}
 
 export type GetNewsResult = {
   items: NewsItem[];

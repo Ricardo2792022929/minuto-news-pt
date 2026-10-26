@@ -904,6 +904,7 @@ function Index() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [openTitle, setOpenTitle] = useState<string | null>(null);
+  const [sourceStory, setSourceStory] = useState<NewsItem | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
   const feedRef = useRef<HTMLDivElement>(null);
@@ -1372,6 +1373,20 @@ function Index() {
                         {storyLabel(a)}
                       </span>
                       <span className="min-w-0 truncate text-white/75">{a.source}</span>
+                      {(a.sources?.length ?? 0) > 1 ? (
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSourceStory(a);
+                          }}
+                          className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-white"
+                        >
+                          {a.sources!.length} fontes
+                        </button>
+                      ) : null}
                     </div>
                     <StoryTitle
                       title={a.title}
@@ -1465,6 +1480,34 @@ function Index() {
 
             </div>
           </div>
+
+          {sourceStory && (sourceStory.sources?.length ?? 0) > 1 ? (
+            <div className="absolute inset-0 z-40 bg-black/55" onClick={() => setSourceStory(null)}>
+              <div
+                className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-neutral-950 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 ring-1 ring-white/10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/25" />
+                <p className="mb-3 text-sm font-semibold text-white/70">A mesma notícia</p>
+                <div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
+                  {sourceStory.sources!.map((link) => (
+                    <button
+                      key={link.url}
+                      type="button"
+                      onClick={() => {
+                        setSourceStory(null);
+                        openReaderRef.current(link.url);
+                      }}
+                      className="rounded-2xl bg-white/10 px-3 py-3 text-left"
+                    >
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-white/60">{link.source}</span>
+                      <span className="mt-1 block text-sm font-semibold text-white">{link.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-feed-bg via-feed-bg/80 to-transparent pb-6">
             <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">

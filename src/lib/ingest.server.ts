@@ -12,6 +12,8 @@ import { imageSearchTerms, storyEntities } from "./image-search.server";
 import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
 import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
 import { adequateImage } from "./image-quality";
+import { asLinks, mergeLinks, titlesMatch, type StoryLink } from "./story-match";
+import type { Json } from "@/integrations/supabase/types";
 
 const BATCH = 10;
 const MAX_BATCHES = 8;
@@ -285,8 +287,26 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     ]);
     for (const r of byId.data ?? []) existing.add(r.id);
     for (const r of byUrl.data ?? []) existing.add(normalizeArticleUrl(r.url));
-    const { data: savedTitles } = await db.from("articles").select("original_title,titulo_inedito").gte("published_at", cutoff).limit(500);
-    const knownTitles = (savedTitles ?? []).flatMap((r) => [r.original_title, r.titulo_inedito]).filter((title): title is string => typeof title === "string" && title.trim().length > 0);
+    const { data: savedTitles } = await db.from("articles").select("id, source, original_title, titulo_inedito").gte("published_at", cutoff).limit(500);
+    const savedRows = savedTitles ?? [];
+    const knownTitles = savedRows.flatMap((r) => [r.original_title, r.titulo_inedito]).filter((title): title is string => typeof title === "string" && title.trim().length > 0);
+    const extras = new Map<string, StoryLink[]>();
+    const addExtra = (id: string, extra: StoryLink) => {
+      const list = extras.get(id) ?? [];
+      extras.set(id, mergeLinks(list, [extra]));
+    };
+    const attach = (n: { id: string; source: string; title: string; url: string; publishedAt: string }) => {
+      const extra: StoryLink = { source: n.source, title: n.title, url: n.url, publishedAt: n.publishedAt };
+      const pendingHit = pending.find((item) => item.source !== n.source && titlesMatch(n.title, item.title));
+      if (pendingHit) {
+        addExtra(pendingHit.id, extra);
+        return true;
+      }
+      const savedHit = savedRows.find((row) => row.source !== n.source && [row.original_title, row.titulo_inedito].some((title) => title && titlesMatch(n.title, title)));
+      if (!savedHit) return false;
+      addExtra(savedHit.id, extra);
+      return true;
+    };
     const desired = BATCH * MAX_BATCHES;
     const fallbackWindows = [60, 180, 360, 720, 1440];
     const fresh = news.filter((n) => !existing.has(n.id) && !existing.has(normalizeArticleUrl(n.url)));
@@ -304,7 +324,11 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     const addWindow = (olderThanMinutes: number, newerThanMinutes: number) => {
       for (const n of candidates) {
         const ageMinutes = (Date.now() - new Date(n.publishedAt).getTime()) / 60_000;
-        if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id) || hasSimilarTitle(n.title, knownTitles)) continue;
+        if (ageMinutes < olderThanMinutes || ageMinutes >= newerThanMinutes || selected.has(n.id)) continue;
+        if (hasSimilarTitle(n.title, knownTitles)) {
+          attach(n);
+          continue;
+        }
         selected.add(n.id);
         pending.push(n);
         knownTitles.push(n.title);
@@ -319,6 +343,10 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       lowerBound = upperBound;
     }
     if (pending.length < desired) addWindow(lowerBound, 72 * 60);
+    for (const n of fresh) {
+      if (selected.has(n.id)) continue;
+      if (hasSimilarTitle(n.title, knownTitles)) attach(n);
+    }
     pending.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
     const used = new Set<string>();
@@ -378,8 +406,14 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           resumo: resumo.slice(0, 300),
           relevance: relevance100(n),
           published_at: n.publishedAt,
+          related: (extras.get(n.id) ?? []) as Json,
         };
         let { error } = await db.from("articles").insert(row);
+        if (error && error.code !== "23505" && /related/i.test(error.message)) {
+          const { related: _related, ...withoutRelated } = row;
+          const again = await db.from("articles").insert(withoutRelated);
+          error = again.error;
+        }
         if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
           const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
           const again = await db.from("articles").insert(legacy);
@@ -392,6 +426,16 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         }
         inserted++;
       }
+    }
+
+    const touched = new Set(queue.map((item) => item.id));
+    for (const [id, list] of extras) {
+      if (!list.length || touched.has(id)) continue;
+      const { data: current, error: readError } = await db.from("articles").select("related").eq("id", id).maybeSingle();
+      if (readError) break;
+      const merged = mergeLinks(asLinks(current?.related), list);
+      const { error: writeError } = await db.from("articles").update({ related: merged as Json }).eq("id", id);
+      if (writeError) break;
     }
 
     // Enriquecer as que ainda não têm imagem

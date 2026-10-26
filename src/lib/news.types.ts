@@ -1,3 +1,10 @@
+export interface StorySource {
+  source: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+}
+
 export interface NewsItem {
   id: string;
   source: string;
@@ -9,4 +16,6 @@ export interface NewsItem {
   image?: string;
   imageStatus?: "original" | "search" | "provisional";
   imageCandidates?: string[];
+  originalTitle?: string;
+  sources?: StorySource[];
 }

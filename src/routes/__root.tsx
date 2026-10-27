@@ -81,7 +81,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Flash Notícias — Notícias de Portugal em direto" },
+      { name: "theme-color", content: "#000000" },
       {
         name: "description",
         content: "As últimas notícias de Portugal e do mundo, atualizadas ao minuto.",
@@ -115,11 +115,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt" style={{ backgroundColor: "#000" }}>
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body style={{ backgroundColor: "#000", margin: 0 }}>
         {children}
         <Scripts />
       </body>

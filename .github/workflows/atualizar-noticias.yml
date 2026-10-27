@@ -11,4 +11,4 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Puxar noticias novas
-        run: curl -fsS --retry 2 --max-time 90 "https://flash-news-pt.lovable.app/api/public/hooks/refresh"
+        run: curl -fsS --retry 2 --max-time 90 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh"

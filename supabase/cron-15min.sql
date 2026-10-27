@@ -18,7 +18,7 @@ select cron.schedule(
   '*/15 * * * *',
   $$
   select net.http_get(
-    url := 'https://flash-news-pt.lovable.app/api/public/hooks/refresh',
+    url := 'https://minuto-news-pt.lovable.app/api/public/hooks/refresh',
     timeout_milliseconds := 120000
   );
   $$

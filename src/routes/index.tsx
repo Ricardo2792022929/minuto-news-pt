@@ -943,7 +943,9 @@ function Index() {
       setShowOnboarding(true);
     }
     try {
-      setShowIntro(sessionStorage.getItem("flash:intro-seen") !== "1");
+      const nativeIntro = new URLSearchParams(window.location.search).has("nativeIntro");
+      if (nativeIntro) sessionStorage.setItem("flash:intro-seen", "1");
+      setShowIntro(!nativeIntro && sessionStorage.getItem("flash:intro-seen") !== "1");
     } catch {
       setShowIntro(true);
     }

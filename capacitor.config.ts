@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: "public",
   backgroundColor: "#000000",
   server: {
-    url: "https://minuto-news-pt.lovable.app",
+    url: "https://minuto-news-pt.lovable.app/?nativeIntro=1",
     androidScheme: "https",
     cleartext: false,
   },

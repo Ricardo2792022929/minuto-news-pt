@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "Flash Notícias",
   webDir: "public",
   server: {
-    url: "https://minuto-news-pt.lovable.app",
+    url: "https://flash-news-pt.lovable.app",
     androidScheme: "https",
     cleartext: false,
   },

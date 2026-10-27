@@ -15,4 +15,3 @@ export function preloadIntroVideo(): Promise<string> {
   return ready;
 }
 
-if (typeof window !== "undefined") void preloadIntroVideo();

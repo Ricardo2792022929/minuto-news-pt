@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { preloadIntroVideo } from "@/lib/intro-preload";
+import { INTRO_SRC } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import paperBall from "@/assets/paper-ball.jpg";
 import { imageKitUrl } from "@/lib/imagekit";
@@ -203,23 +203,13 @@ const INTEREST_OPTIONS: {
 function Intro({ onDone }: { onDone: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const done = useRef(false);
-  const [src, setSrc] = useState<string | null>(null);
+  const [src] = useState(INTRO_SRC);
   const [visible, setVisible] = useState(false);
   const finish = useCallback(() => {
     if (done.current) return;
     done.current = true;
     onDone();
   }, [onDone]);
-
-  useEffect(() => {
-    let live = true;
-    void preloadIntroVideo().then((url) => {
-      if (live) setSrc(url);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
 
   useEffect(() => {
     const video = ref.current;

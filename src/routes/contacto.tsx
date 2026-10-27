@@ -49,11 +49,11 @@ function ContactPage() {
             apoio.flashnoticias@gmail.com
           </a>
           <a
-            href="https://minuto-news-pt.lovable.app"
+            href="https://flash-news-pt.lovable.app"
             className="mt-3 flex items-center gap-3 text-base text-white/80"
           >
             <Globe className="size-5 text-yellow-400" />
-            minuto-news-pt.lovable.app
+            flash-news-pt.lovable.app
           </a>
         </section>
 

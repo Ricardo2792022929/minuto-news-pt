@@ -300,7 +300,7 @@ export function validTitle(raw: unknown, original?: string, context?: string | n
   if (words.length < 4 || words.length > 10) return null;
   if (!isEuropeanPortuguese(forced)) return null;
   const source = [original, context].filter(Boolean).join("\n");
-  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || mentionsUnknownClub(forced, source))) return null;
+  if (original && (isPastedTitle(forced, original) || isPrefixCut(forced, original) || swapsStoryActor(forced, original) || mentionsUnknownClub(forced, source) || inventsMatch(forced, source) || inventsNumber(forced, source))) return null;
   return forced;
 }
 

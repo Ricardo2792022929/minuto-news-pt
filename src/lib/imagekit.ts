@@ -3,9 +3,9 @@ export const IMAGEKIT_ENDPOINT = "https://ik.imagekit.io/1aur3rser";
 
 type ImageProfile = "feed" | "article";
 
-/** Só a largura. O fundo usa a mesma foto, sem um segundo download. */
+/** 3:2 com a cara (ou as caras) no centro, sem apertar até cortar a cabeça. */
 const TRANSFORMS: Record<ImageProfile, string> = {
-  feed: "tr:w-1080,q-auto,f-auto,e-sharpen-15",
+  feed: "tr:w-1200,ar-3-2,fo-face,z-0.65,q-auto,f-auto,e-sharpen-15",
   article: "tr:w-1080,q-auto,f-auto,e-sharpen-15",
 };
 

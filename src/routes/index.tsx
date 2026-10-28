@@ -648,9 +648,9 @@ function Onboarding({
 
 /**
  * Abre o artigo no site de origem.
- * - Web: novo separador (evita bloqueios X-Frame-Options de iframes).
- * - Nativo (Capacitor): Chrome Custom Tabs / Safari View Controller,
- *   que já incluem a barra nativa com o botão "X" para voltar à app.
+ * No telemóvel usa o Chrome da app (Custom Tabs): o site abre como no
+ * browser, a visita conta, e o X volta à app. O WebView interno deixava
+ * alguns sites em branco.
  */
 // Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
 // inválidos no fim e garante que começa sempre por https://.
@@ -839,21 +839,22 @@ function Index() {
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       if (cap?.isNativePlatform?.()) {
         try {
-          const { InAppBrowser, DefaultWebViewOptions } = await import("@capacitor/inappbrowser");
-          await InAppBrowser.openInWebView({
+          const { InAppBrowser, DefaultSystemBrowserOptions, AndroidViewStyle } = await import("@capacitor/inappbrowser");
+          await InAppBrowser.openInSystemBrowser({
             url,
             options: {
-              ...DefaultWebViewOptions,
-              showURL: false,
-              showToolbar: true,
-              closeButtonText: "Voltar",
-              showNavigationButtons: true,
-              android: { ...DefaultWebViewOptions.android, hardwareBack: true, allowZoom: false },
+              ...DefaultSystemBrowserOptions,
+              android: {
+                ...DefaultSystemBrowserOptions.android,
+                showTitle: true,
+                hideToolbarOnScroll: false,
+                viewStyle: AndroidViewStyle.FULL_SCREEN,
+              },
             },
           });
           return;
         } catch {
-          /* a versão antiga da app ainda não tem o browser interno */
+          /* a versão antiga da app ainda não tem este browser */
         }
         try {
           const { Browser } = await import("@capacitor/browser");

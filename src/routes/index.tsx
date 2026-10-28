@@ -39,7 +39,7 @@ function StoryTitle({
       <h2
         ref={ref}
         className={`mt-1.5 w-full text-left font-display font-bold leading-[1.2] tracking-tight text-pretty break-words text-feed-fg drop-shadow-md ${size} ${
-          open ? "max-h-[40vh] overflow-y-auto" : "line-clamp-4"
+          open ? "max-h-[48vh] overflow-y-auto" : "line-clamp-6"
         }`}
       >
         {title}
@@ -1349,7 +1349,7 @@ function Index() {
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="relative min-h-0 w-full flex-1"
+                      className="relative min-h-0 w-full flex-[1.05]"
                       screen
                     />
                   ) : (
@@ -1362,7 +1362,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+                  <div className="relative z-10 flex min-h-0 flex-[0.95] flex-col px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
@@ -1386,12 +1386,14 @@ function Index() {
                         </button>
                       ) : null}
                     </div>
+                    <div className="min-h-0 flex-1">
                     <StoryTitle
                       title={a.title}
                       open={openTitle === a.id}
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
-                    <div className="mt-3 flex items-center justify-between gap-3">
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">Ler notícia</p>
                       <div className="flex items-center gap-2">
                         <button

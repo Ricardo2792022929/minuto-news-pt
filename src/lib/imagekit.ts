@@ -3,9 +3,9 @@ export const IMAGEKIT_ENDPOINT = "https://ik.imagekit.io/1aur3rser";
 
 type ImageProfile = "feed" | "article";
 
-/** 3:2 com a cara (ou as caras) no centro, sem apertar até cortar a cabeça. */
+/** Vertical do ecrã, centrado na cara, afastado o suficiente para a cabeça não ser cortada. */
 const TRANSFORMS: Record<ImageProfile, string> = {
-  feed: "tr:w-1200,ar-3-2,fo-face,z-0.65,q-auto,f-auto,e-sharpen-15",
+  feed: "tr:w-1080,ar-9-16,fo-face,z-0.75,q-auto,f-auto,e-sharpen-15",
   article: "tr:w-1080,q-auto,f-auto,e-sharpen-15",
 };
 

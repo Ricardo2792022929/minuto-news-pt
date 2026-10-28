@@ -104,16 +104,6 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           ) : null}
         </div>
       )}
-      {ready && fill && (
-        <img
-          src={ready}
-          alt=""
-          aria-hidden
-          decoding="async"
-          referrerPolicy="no-referrer"
-          style={{ position: "absolute", inset: "-8%", width: "116%", height: "116%", objectFit: "cover", objectPosition: "center center", filter: "blur(22px)", transform: "scale(1.08)" }}
-        />
-      )}
       {ready && (
         <img
           src={ready}
@@ -121,9 +111,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          style={fill
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", objectPosition: "center center" }
-            : { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
         />
       )}
     </div>

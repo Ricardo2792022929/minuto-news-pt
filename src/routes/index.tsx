@@ -1349,7 +1349,7 @@ function Index() {
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="relative min-h-0 w-full flex-1"
+                      className="relative w-full shrink-0"
                       screen
                     />
                   ) : (
@@ -1362,7 +1362,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+                  <div className="relative z-10 mt-3 shrink-0 bg-gradient-to-b from-transparent via-black/25 to-black/40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}

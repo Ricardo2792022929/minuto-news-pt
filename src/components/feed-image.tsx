@@ -115,7 +115,7 @@ export function FeedImage({ item, className, alt = "", eager = false, screen = f
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
           className={screen
-            ? "absolute inset-0 z-[1] h-full w-full origin-center scale-y-[1.08] object-contain drop-shadow-[0_18px_36px_rgba(0,0,0,0.55)]"
+            ? "relative z-[1] block h-auto max-h-[46vh] w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.4)]"
             : "absolute inset-0 h-full w-full object-cover"}
         />
       )}

@@ -103,7 +103,7 @@ export function FeedImage({ item, className, alt = "", eager = false, screen = f
           aria-hidden
           decoding="async"
           referrerPolicy="no-referrer"
-          className="pointer-events-none absolute left-0 w-full scale-110 object-cover opacity-80 blur-md"
+          className="pointer-events-none absolute left-0 w-full scale-110 object-cover opacity-90 blur-sm"
           style={{ top: "calc(-1 * (max(0.75rem, env(safe-area-inset-top)) + 6.35rem))", height: "var(--feed-h, 100svh)" }}
         />
       )}

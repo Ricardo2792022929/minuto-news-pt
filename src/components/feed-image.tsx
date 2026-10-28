@@ -102,7 +102,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          className="absolute inset-0 h-full w-full object-fill"
+          className="absolute inset-0 h-full w-full origin-center scale-y-[0.86] object-fill"
         />
       )}
     </div>

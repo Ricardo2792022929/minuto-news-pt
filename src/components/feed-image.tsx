@@ -22,12 +22,11 @@ export function preloadImage(src: string): Promise<string> {
   return pending;
 }
 
-export function FeedImage({ item, className, alt = "", eager = false, screen = false }: {
+export function FeedImage({ item, className, alt = "", eager = false }: {
   item: { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
   className: string;
   alt?: string;
   eager?: boolean;
-  screen?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const failedSrc = useRef(new Set<string>());
@@ -90,22 +89,11 @@ export function FeedImage({ item, className, alt = "", eager = false, screen = f
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
 
   return (
-    <div ref={container} className={`relative ${className} ${screen ? "overflow-visible" : "overflow-hidden"} bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
+    <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
         <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
           {fallbackSrc ? <img src={fallbackSrc} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
         </div>
-      )}
-      {ready && screen && (
-        <img
-          src={ready}
-          alt=""
-          aria-hidden
-          decoding="async"
-          referrerPolicy="no-referrer"
-          className="pointer-events-none absolute left-0 w-full scale-110 object-cover opacity-90 blur-sm"
-          style={{ top: "calc(-1 * (max(0.75rem, env(safe-area-inset-top)) + 6.35rem))", height: "var(--feed-h, 100svh)" }}
-        />
       )}
       {ready && (
         <img
@@ -114,9 +102,7 @@ export function FeedImage({ item, className, alt = "", eager = false, screen = f
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          className={screen
-            ? "relative z-[1] block h-auto max-h-[46vh] w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.4)]"
-            : "absolute inset-0 h-full w-full object-cover"}
+          className="absolute inset-0 h-full w-full object-cover object-center"
         />
       )}
     </div>

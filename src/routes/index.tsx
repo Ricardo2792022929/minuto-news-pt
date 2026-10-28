@@ -1343,14 +1343,13 @@ function Index() {
                   className="relative flex h-full w-full snap-start snap-always flex-col overflow-hidden bg-black"
                   style={{ height: "100%", minHeight: "100%", scrollSnapStop: "always" }}
                 >
-                  <div className="shrink-0" style={{ height: "calc(max(0.75rem, env(safe-area-inset-top)) + 6.35rem)" }} />
+                  <div className="shrink-0" style={{ height: "calc(max(0.75rem, env(safe-area-inset-top)) + 7.1rem)" }} />
                   {true ? (
                     <FeedImage
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="relative w-full shrink-0"
-                      screen
+                      className="relative min-h-0 w-full flex-1"
                     />
                   ) : (
                     <div
@@ -1362,7 +1361,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 mt-3 shrink-0 bg-gradient-to-b from-transparent via-black/25 to-black/40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className="relative z-10 shrink-0 bg-black px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}

@@ -22,11 +22,12 @@ export function preloadImage(src: string): Promise<string> {
   return pending;
 }
 
-export function FeedImage({ item, className, alt = "", eager = false }: {
+export function FeedImage({ item, className, alt = "", eager = false, fill = false }: {
   item: { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
   className: string;
   alt?: string;
   eager?: boolean;
+  fill?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const failedSrc = useRef(new Set<string>());
@@ -89,10 +90,18 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
 
   return (
-    <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
+    <div
+      ref={container}
+      className={`${fill ? "" : "relative"} ${className} overflow-hidden ${fill ? "bg-black" : "bg-feed-bg"}`}
+      style={fill ? { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%" } : undefined}
+      aria-busy={active && !ready && !failed}
+      data-feed-image
+    >
       {!ready && (
         <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
-          {fallbackSrc ? <img src={fallbackSrc} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+          {fallbackSrc ? (
+            <img src={fallbackSrc} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }} />
+          ) : null}
         </div>
       )}
       {ready && (
@@ -102,7 +111,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          className="absolute inset-0 h-full w-full object-cover object-center"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
         />
       )}
     </div>

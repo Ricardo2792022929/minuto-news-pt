@@ -1291,7 +1291,7 @@ function Index() {
                   const preview = dragX < 0 ? sidePreview.right : sidePreview.left;
                   return preview ? (
                     <>
-                      <FeedImage item={preview} alt="" className="absolute inset-0 h-full w-full" />
+                      <FeedImage item={preview} alt="" fill className="h-full w-full" />
                       <div className="absolute inset-0 feed-scrim" />
                       <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8">
                         <h2 className="font-display text-2xl font-bold text-white">{preview.title}</h2>
@@ -1341,13 +1341,15 @@ function Index() {
                     if (swiped.current) return;
                   }}
                   className="feed-card relative flex w-full snap-start snap-always flex-col overflow-hidden bg-black"
+                  style={{ height: "var(--feed-h, 100svh)", minHeight: "var(--feed-h, 100svh)" }}
                 >
                   {true ? (
                     <FeedImage
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="absolute inset-0 h-full w-full"
+                      fill
+                      className="h-full w-full"
                     />
                   ) : (
                     <div
@@ -1359,7 +1361,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 mt-auto bg-gradient-to-t from-black via-black/75 to-transparent px-4 pt-28 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className="relative z-10 mt-auto bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}

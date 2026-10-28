@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { imageKitUrl } from "@/lib/imagekit";
+import { imageKitBackdropUrl, imageKitUrl } from "@/lib/imagekit";
 import { categoryImage } from "@/lib/image-policy";
 
 const downloads = new Map<string, Promise<string>>();
@@ -87,6 +87,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
 
   const failed = !ready && active && finished;
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
+  const backdrop = imageKitBackdropUrl(ready);
 
   return (
     <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
@@ -96,14 +97,25 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
         </div>
       )}
       {ready && (
-        <img
-          src={ready}
-          alt={alt}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          className="absolute inset-0 h-full w-full origin-center scale-y-[0.86] object-fill"
-        />
+        <>
+          <img
+            src={backdrop ?? ready}
+            alt=""
+            aria-hidden
+            decoding="async"
+            referrerPolicy="no-referrer"
+            className={`absolute inset-0 h-full w-full scale-110 object-cover ${backdrop ? "" : "blur-2xl"}`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/20 to-black/55" />
+          <img
+            src={ready}
+            alt={alt}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
+            className="absolute inset-0 h-full w-full origin-center scale-y-[0.86] object-fill drop-shadow-[0_18px_36px_rgba(0,0,0,0.55)]"
+          />
+        </>
       )}
     </div>
   );

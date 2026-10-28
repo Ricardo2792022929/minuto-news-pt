@@ -103,7 +103,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
             aria-hidden
             decoding="async"
             referrerPolicy="no-referrer"
-            className="absolute inset-0 h-full w-full scale-125 object-cover saturate-150 brightness-110 blur-sm"
+            className="absolute inset-0 h-full w-full scale-110 object-cover"
           />
           <img
             src={ready}

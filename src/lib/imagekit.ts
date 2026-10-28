@@ -3,7 +3,7 @@ export const IMAGEKIT_ENDPOINT = "https://ik.imagekit.io/1aur3rser";
 
 type ImageProfile = "feed" | "article";
 
-/** Só a largura. O ecrã mostra a foto inteira; o fundo desfocado é que enche o resto. */
+/** Só a largura. O ecrã mostra a foto inteira por cima de uma cópia que enche o fundo. */
 const TRANSFORMS: Record<ImageProfile, string> = {
   feed: "tr:w-1080,q-auto,f-auto,e-sharpen-15",
   article: "tr:w-1080,q-auto,f-auto,e-sharpen-15",

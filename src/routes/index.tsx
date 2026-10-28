@@ -1340,28 +1340,28 @@ function Index() {
                     e.preventDefault();
                     if (swiped.current) return;
                   }}
-                  className="relative block w-full snap-start snap-always overflow-hidden bg-black"
+                  className="relative flex h-full w-full snap-start snap-always flex-col overflow-hidden bg-black"
                   style={{ height: "100%", minHeight: "100%", scrollSnapStop: "always" }}
                 >
+                  <div className="shrink-0" style={{ height: "calc(max(0.75rem, env(safe-area-inset-top)) + 6.35rem)" }} />
                   {true ? (
                     <FeedImage
                       item={a}
                       alt={a.title}
                       eager={i < 2}
-                      className="absolute inset-0 h-full w-full"
+                      className="relative min-h-0 w-full flex-1"
                     />
                   ) : (
                     <div
-                      className={`absolute inset-0 ${
+                      className={`relative min-h-0 w-full flex-1 ${
                         a.id.charCodeAt(1) % 2 === 0
                           ? "feed-grad-a"
                           : "feed-grad-b"
                       }`}
                     />
                   )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/75 to-transparent" />
 
-                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className="relative z-10 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}

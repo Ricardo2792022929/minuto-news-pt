@@ -96,14 +96,24 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
         </div>
       )}
       {ready && (
-        <img
-          src={ready}
-          alt={alt}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <>
+          <img
+            src={ready}
+            alt=""
+            aria-hidden
+            decoding="async"
+            referrerPolicy="no-referrer"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
+          />
+          <img
+            src={ready}
+            alt={alt}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        </>
       )}
     </div>
   );

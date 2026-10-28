@@ -103,7 +103,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
             aria-hidden
             decoding="async"
             referrerPolicy="no-referrer"
-            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
+            className="absolute inset-0 h-full w-full scale-125 object-cover saturate-150 brightness-110 blur-sm"
           />
           <img
             src={ready}
@@ -111,7 +111,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
             decoding="async"
             referrerPolicy="no-referrer"
             onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
           />
         </>
       )}

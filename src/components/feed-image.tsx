@@ -111,7 +111,7 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
             decoding="async"
             referrerPolicy="no-referrer"
             onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-            className="absolute inset-0 h-full w-full origin-center scale-y-[1.22] object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
+            className="absolute inset-0 h-full w-full origin-center scale-y-[1.45] object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
           />
         </>
       )}

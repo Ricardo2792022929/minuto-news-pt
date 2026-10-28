@@ -1340,8 +1340,7 @@ function Index() {
                     e.preventDefault();
                     if (swiped.current) return;
                   }}
-                  className="relative flex h-full w-full snap-start snap-always flex-col overflow-hidden bg-black"
-                  style={{ height: "100%", minHeight: "100%", scrollSnapStop: "always" }}
+                  className="feed-card relative flex w-full snap-start snap-always flex-col overflow-hidden bg-black"
                 >
                   {true ? (
                     <FeedImage

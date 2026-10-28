@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { imageKitBackdropUrl, imageKitUrl } from "@/lib/imagekit";
+import { imageKitUrl } from "@/lib/imagekit";
 import { categoryImage } from "@/lib/image-policy";
 
 const downloads = new Map<string, Promise<string>>();
@@ -22,11 +22,12 @@ export function preloadImage(src: string): Promise<string> {
   return pending;
 }
 
-export function FeedImage({ item, className, alt = "", eager = false }: {
+export function FeedImage({ item, className, alt = "", eager = false, screen = false }: {
   item: { id?: string; image?: string; imageCandidates?: string[]; imageStatus?: "original" | "search" | "provisional"; category?: string; title?: string };
   className: string;
   alt?: string;
   eager?: boolean;
+  screen?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const failedSrc = useRef(new Set<string>());
@@ -87,35 +88,36 @@ export function FeedImage({ item, className, alt = "", eager = false }: {
 
   const failed = !ready && active && finished;
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
-  const backdrop = imageKitBackdropUrl(ready);
 
   return (
-    <div ref={container} className={`relative ${className} overflow-hidden bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
+    <div ref={container} className={`relative ${className} ${screen ? "overflow-visible" : "overflow-hidden"} bg-feed-bg`} aria-busy={active && !ready && !failed} data-feed-image>
       {!ready && (
         <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
           {fallbackSrc ? <img src={fallbackSrc} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
         </div>
       )}
+      {ready && screen && (
+        <img
+          src={ready}
+          alt=""
+          aria-hidden
+          decoding="async"
+          referrerPolicy="no-referrer"
+          className="pointer-events-none absolute left-0 w-full scale-110 object-cover opacity-60 blur-2xl"
+          style={{ top: "calc(-1 * (max(0.75rem, env(safe-area-inset-top)) + 6.35rem))", height: "var(--feed-h, 100svh)" }}
+        />
+      )}
       {ready && (
-        <>
-          <img
-            src={backdrop ?? ready}
-            alt=""
-            aria-hidden
-            decoding="async"
-            referrerPolicy="no-referrer"
-            className={`absolute inset-0 h-full w-full scale-110 object-cover ${backdrop ? "" : "blur-2xl"}`}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/20 to-black/55" />
-          <img
-            src={ready}
-            alt={alt}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-            className="absolute inset-0 h-full w-full origin-center scale-y-[0.86] object-fill drop-shadow-[0_18px_36px_rgba(0,0,0,0.55)]"
-          />
-        </>
+        <img
+          src={ready}
+          alt={alt}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
+          className={screen
+            ? "absolute inset-0 z-[1] h-full w-full origin-center scale-y-[0.86] object-fill drop-shadow-[0_18px_36px_rgba(0,0,0,0.55)]"
+            : "absolute inset-0 h-full w-full object-cover"}
+        />
       )}
     </div>
   );

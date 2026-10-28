@@ -1350,6 +1350,7 @@ function Index() {
                       alt={a.title}
                       eager={i < 2}
                       className="relative min-h-0 w-full flex-1"
+                      screen
                     />
                   ) : (
                     <div
@@ -1506,7 +1507,7 @@ function Index() {
             </div>
           ) : null}
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-feed-bg via-feed-bg/80 to-transparent pb-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-black/45 via-black/15 to-transparent pb-6">
             <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div className="flex items-center justify-between gap-3">
                 <h1 className="font-display text-2xl font-black leading-none tracking-tight text-feed-fg">

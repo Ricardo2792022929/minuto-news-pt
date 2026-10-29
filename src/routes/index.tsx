@@ -655,11 +655,16 @@ const ARTICLE_WEBVIEW_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
 // Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
 // inválidos no fim e garante que começa sempre por https://.
+function isIolHost(hostname: string) {
+  const host = hostname.toLowerCase();
+  return host === "iol.pt" || host.endsWith(".iol.pt");
+}
+
 function articleWebUrl(raw: string): string {
   const url = cleanUrl(raw);
   try {
     const page = new URL(url);
-    if (!page.hostname.endsWith("iol.pt")) return url;
+    if (!isIolHost(page.hostname)) return url;
     const reader = new URL("/api/public/reader", window.location.origin);
     reader.searchParams.set("u", page.href);
     return reader.href;

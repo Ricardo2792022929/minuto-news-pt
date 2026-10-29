@@ -1,0 +1,12 @@
+{
+  "name": "article-browser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser integrado que abre o site original da notícia, com anúncios.",
+  "main": "src/index.js",
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  }
+}

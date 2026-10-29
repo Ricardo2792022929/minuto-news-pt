@@ -20,6 +20,7 @@
     "@capacitor/core": "^8.5.2",
     "@capacitor/inappbrowser": "^4.1.0",
     "@capacitor/share": "8",
+    "article-browser": "file:plugins/article-browser",
     "@hookform/resolvers": "^5.2.2",
     "@mozilla/readability": "^0.6.0",
     "@radix-ui/react-accordion": "^1.2.12",

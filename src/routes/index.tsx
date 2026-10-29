@@ -647,32 +647,14 @@ function Onboarding({
 /* ---------- Abertura de artigos ---------- */
 
 /**
- * Abre o artigo no browser integrado da app.
- * O WebView não se identifica como browser interno e não apaga os cookies,
- * senão vários sites de notícias abrem uma página branca.
+ * Abre o artigo no browser integrado, no endereço original do site.
+ * Assim a visita conta e os anúncios do site carregam.
+ * O WebView antigo substituía a notícia pelo frame do anúncio e ficava branco.
  */
 const ARTICLE_WEBVIEW_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
 // Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
 // inválidos no fim e garante que começa sempre por https://.
-function isIolHost(hostname: string) {
-  const host = hostname.toLowerCase();
-  return host === "iol.pt" || host.endsWith(".iol.pt");
-}
-
-function articleWebUrl(raw: string): string {
-  const url = cleanUrl(raw);
-  try {
-    const page = new URL(url);
-    if (!isIolHost(page.hostname)) return url;
-    const reader = new URL("/api/public/reader", window.location.origin);
-    reader.searchParams.set("u", page.href);
-    return reader.href;
-  } catch {
-    return url;
-  }
-}
-
 function cleanUrl(raw: string): string {
   let u = raw.trim().replace(/[\s"'<>]+$/g, "");
   if (u.startsWith("http://")) u = "https://" + u.slice(7);
@@ -853,10 +835,20 @@ function Index() {
   const [premiere, setPremiere] = useState(false);
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
-    const url = articleWebUrl(raw);
+    const url = cleanUrl(raw);
     void (async () => {
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       if (cap?.isNativePlatform?.()) {
+        try {
+          const { Capacitor, registerPlugin } = await import("@capacitor/core");
+          if (Capacitor.isPluginAvailable("ArticleBrowser")) {
+            const ArticleBrowser = registerPlugin<{ open(options: { url: string }): Promise<void> }>("ArticleBrowser");
+            await ArticleBrowser.open({ url });
+            return;
+          }
+        } catch {
+          /* AAB antigo ainda não tem este browser */
+        }
         try {
           const { InAppBrowser, DefaultWebViewOptions } = await import("@capacitor/inappbrowser");
           await InAppBrowser.openInWebView({

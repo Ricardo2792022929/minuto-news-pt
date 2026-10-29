@@ -647,11 +647,12 @@ function Onboarding({
 /* ---------- Abertura de artigos ---------- */
 
 /**
- * Abre o artigo no site de origem.
- * No telemóvel usa o Chrome da app (Custom Tabs): o site abre como no
- * browser, a visita conta, e o X volta à app. O WebView interno deixava
- * alguns sites em branco.
+ * Abre o artigo no browser integrado da app.
+ * O WebView não se identifica como browser interno e não apaga os cookies,
+ * senão vários sites de notícias abrem uma página branca.
  */
+const ARTICLE_WEBVIEW_AGENT =
+  "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
 // Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
 // inválidos no fim e garante que começa sempre por https://.
 function cleanUrl(raw: string): string {
@@ -839,22 +840,29 @@ function Index() {
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       if (cap?.isNativePlatform?.()) {
         try {
-          const { InAppBrowser, DefaultSystemBrowserOptions, AndroidViewStyle } = await import("@capacitor/inappbrowser");
-          await InAppBrowser.openInSystemBrowser({
+          const { InAppBrowser, DefaultWebViewOptions } = await import("@capacitor/inappbrowser");
+          await InAppBrowser.openInWebView({
             url,
             options: {
-              ...DefaultSystemBrowserOptions,
+              ...DefaultWebViewOptions,
+              showURL: false,
+              showToolbar: true,
+              closeButtonText: "Voltar",
+              showNavigationButtons: true,
+              clearCache: false,
+              clearSessionCache: false,
+              customWebViewUserAgent: ARTICLE_WEBVIEW_AGENT,
               android: {
-                ...DefaultSystemBrowserOptions.android,
-                showTitle: true,
-                hideToolbarOnScroll: false,
-                viewStyle: AndroidViewStyle.FULL_SCREEN,
+                ...DefaultWebViewOptions.android,
+                hardwareBack: true,
+                allowZoom: false,
+                isIsolated: false,
               },
             },
           });
           return;
         } catch {
-          /* a versão antiga da app ainda não tem este browser */
+          /* a versão antiga da app ainda não tem o browser interno */
         }
         try {
           const { Browser } = await import("@capacitor/browser");

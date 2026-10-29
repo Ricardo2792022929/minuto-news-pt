@@ -495,7 +495,7 @@ function Onboarding({
             {step === 1 ? "01" : "02"}
           </p>
           {phase === "ask" ? (
-            <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
+            <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Os teus temas</p>
               <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
                 {askLine}
@@ -556,7 +556,7 @@ function Onboarding({
               </div>
             </div>
           ) : (
-            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
+            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[max(4.5rem,env(safe-area-inset-top))]" style={{ animation: "scene-in 0.9s cubic-bezier(.22,1,.36,1) both" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">O teu clube</p>
               <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
                 {clubLine}

@@ -655,6 +655,19 @@ const ARTICLE_WEBVIEW_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
 // Limpa e valida o URL vindo do feed RSS: remove espaços e carateres
 // inválidos no fim e garante que começa sempre por https://.
+function articleWebUrl(raw: string): string {
+  const url = cleanUrl(raw);
+  try {
+    const page = new URL(url);
+    if (!page.hostname.endsWith("iol.pt")) return url;
+    const reader = new URL("/api/public/reader", window.location.origin);
+    reader.searchParams.set("u", page.href);
+    return reader.href;
+  } catch {
+    return url;
+  }
+}
+
 function cleanUrl(raw: string): string {
   let u = raw.trim().replace(/[\s"'<>]+$/g, "");
   if (u.startsWith("http://")) u = "https://" + u.slice(7);
@@ -835,7 +848,7 @@ function Index() {
   const [premiere, setPremiere] = useState(false);
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
-    const url = cleanUrl(raw);
+    const url = articleWebUrl(raw);
     void (async () => {
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       if (cap?.isNativePlatform?.()) {

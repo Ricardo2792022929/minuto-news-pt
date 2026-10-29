@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicReaderRouteImport } from './routes/api/public/reader'
 import { Route as ApiPublicHooksIngestRouteImport } from './routes/api/public/hooks/ingest'
 import { Route as ApiPublicHooksRefreshRouteImport } from './routes/api/public/hooks/refresh'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicReaderRoute = ApiPublicReaderRouteImport.update({
+  id: '/api/public/reader',
+  path: '/api/public/reader',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicHooksIngestRoute = ApiPublicHooksIngestRouteImport.update({
@@ -31,30 +37,34 @@ const ApiPublicHooksRefreshRoute = ApiPublicHooksRefreshRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/reader': typeof ApiPublicReaderRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/reader': typeof ApiPublicReaderRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/reader': typeof ApiPublicReaderRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  fullPaths: '/' | '/api/public/reader' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
-  id: '__root__' | '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  to: '/' | '/api/public/reader' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  id: '__root__' | '/' | '/api/public/reader' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicReaderRoute: typeof ApiPublicReaderRoute
   ApiPublicHooksIngestRoute: typeof ApiPublicHooksIngestRoute
   ApiPublicHooksRefreshRoute: typeof ApiPublicHooksRefreshRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/reader': {
+      id: '/api/public/reader'
+      path: '/api/public/reader'
+      fullPath: '/api/public/reader'
+      preLoaderRoute: typeof ApiPublicReaderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/ingest': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicReaderRoute: ApiPublicReaderRoute,
   ApiPublicHooksIngestRoute: ApiPublicHooksIngestRoute,
   ApiPublicHooksRefreshRoute: ApiPublicHooksRefreshRoute,
 }

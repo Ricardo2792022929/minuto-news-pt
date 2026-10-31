@@ -10,7 +10,7 @@ function canonicalArticleUrl(raw: string): string {
     const url = new URL(raw);
     url.hash = "";
     for (const key of [...url.searchParams.keys()]) {
-      if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) url.searchParams.delete(key);
+      if (/^(utm_.+|gaa_.+|fbclid|gclid|mc_cid|mc_eid|sfnsn|ref|source)$/i.test(key)) url.searchParams.delete(key);
     }
     url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
     url.pathname = url.pathname.replace(/\/+$/, "") || "/";
@@ -61,7 +61,7 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://www.publico.pt/rss", source: "Público", fallbackCategory: "Mundo" },
   { url: "https://www.dn.pt/rss", source: "Diário de Notícias", fallbackCategory: "Mundo" },
   { url: "https://www.jn.pt/rss", source: "Jornal de Notícias", fallbackCategory: "Mundo" },
-  { url: "https://expresso.pt/rss", source: "Expresso", fallbackCategory: "Mundo" },
+  { url: "https://news.google.com/rss/search?q=site:expresso.pt+when:3d&hl=pt-PT&gl=PT&ceid=PT:pt", source: "Expresso", fallbackCategory: "Mundo" },
   { url: "https://www.tsf.pt/rss", source: "TSF", fallbackCategory: "Mundo" },
   { url: "https://sicnoticias.pt/rss/", source: "SIC Notícias", fallbackCategory: "Mundo" },
   { url: "https://www.abola.pt/rss", source: "A Bola", fallbackCategory: "Desporto" },
@@ -442,10 +442,94 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItem[]> {
     redirect: "follow",
   });
   if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`);
-  return parseFeed(
+  const items = parseFeed(
     decodeBody(await res.arrayBuffer(), res.headers.get("content-type")),
     feed,
   );
+  // O expresso.pt/rss responde 403. O Google traz as manchetes; aqui
+  // trocamos o link pelo artigo original para a visita contar no Expresso.
+  if (feed.source !== "Expresso") return items;
+  return openExpressoArticles(items.slice(0, 8));
+}
+
+async function openExpressoArticles(items: NewsItem[]): Promise<NewsItem[]> {
+  const links = items.map((item) => item.url).filter((url) => url.includes("news.google.com/"));
+  const resolved = await resolveExpressoUrls(links);
+  return items.flatMap((item) => {
+    const url = resolved.get(item.url);
+    if (!url) return [];
+    return [{ ...item, source: "Expresso", url, id: hashId(canonicalArticleUrl(url)) }];
+  });
+}
+
+async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>> {
+  const resolved = new Map<string, string>();
+  if (!links.length) return resolved;
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (compatible; FlashNoticiasFeed/1.0; +https://lovable.app)",
+    "Accept-Language": "pt-PT,pt;q=0.9",
+  };
+  const signatures: { link: string; id: string; ts: string; sg: string }[] = [];
+  await Promise.all(links.map(async (link) => {
+    let id = "";
+    try {
+      id = new URL(link).pathname.split("/").filter(Boolean).pop() ?? "";
+    } catch {
+      return;
+    }
+    if (!id) return;
+    try {
+      const page = await fetch(
+        `https://news.google.com/rss/articles/${encodeURIComponent(id)}?hl=pt-PT&gl=PT&ceid=PT:pt-150`,
+        { headers, redirect: "follow", signal: AbortSignal.timeout(8000) },
+      );
+      if (!page.ok) return;
+      const html = await page.text();
+      const tag = html.match(/data-n-a-id="([^"]+)"\s+data-n-a-ts="([^"]+)"\s+data-n-a-sg="([^"]+)"/);
+      if (!tag) return;
+      signatures.push({ link, id: tag[1], ts: tag[2], sg: tag[3] });
+    } catch {
+      /* esta manchete fica de fora */
+    }
+  }));
+  if (!signatures.length) return resolved;
+  const envelopes = signatures.map((item, index) => {
+    const inner = [
+      "garturlreq",
+      [["X", "X", ["X", "X"], null, null, 1, 1, "PT:pt-150", null, 1, null, null, null, null, null, 0, 1], "X", "X", 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0],
+      item.id,
+      Number(item.ts),
+      item.sg,
+    ];
+    return ["Fbv4je", JSON.stringify(inner), null, String(index)];
+  });
+  try {
+    const post = await fetch(
+      "https://news.google.com/_/DotsSplashUi/data/batchexecute?hl=pt-PT&gl=PT&ceid=PT:pt-150",
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: "f.req=" + encodeURIComponent(JSON.stringify([envelopes])),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!post.ok) return resolved;
+    const raw = await post.text();
+    const jsonText = raw.includes("\n\n") ? raw.split("\n\n", 2)[1] : raw.replace(/^\)\]\}'\s*/, "");
+    const rows = JSON.parse(jsonText) as unknown[];
+    if (!Array.isArray(rows)) return resolved;
+    for (const row of rows) {
+      if (!Array.isArray(row) || row[1] !== "Fbv4je" || typeof row[2] !== "string") continue;
+      const payload = JSON.parse(row[2]) as unknown;
+      if (!Array.isArray(payload) || payload[0] !== "garturlres" || typeof payload[1] !== "string") continue;
+      const item = signatures[Number(row[6])];
+      if (!item || !payload[1].includes("expresso.pt")) continue;
+      resolved.set(item.link, canonicalArticleUrl(payload[1]));
+    }
+  } catch {
+    return resolved;
+  }
+  return resolved;
 }
 
 export async function getAllNews(): Promise<NewsItem[]> {

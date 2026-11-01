@@ -878,6 +878,8 @@ function Index() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
+  const pendingArrival = useRef<string | null>(null);
+  const arrivalPlayed = useRef(false);
   const [premiere, setPremiere] = useState(false);
   const [askPush, setAskPush] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -942,12 +944,26 @@ function Index() {
     setShowIntro(false);
   }, []);
 
+  const playArrival = useCallback(() => {
+    if (arrivalPlayed.current) return;
+    const name = pendingArrival.current;
+    if (!name) return;
+    arrivalPlayed.current = true;
+    pendingArrival.current = null;
+    setArrival(name);
+    window.setTimeout(() => setArrival(null), 1500);
+  }, []);
+
   useEffect(() => {
     if (!mounted || showIntro || showOnboarding) return;
     let cancelled = false;
     void (async () => {
       const ready = await pushPluginReady();
-      if (cancelled || !ready) return;
+      if (cancelled) return;
+      if (!ready) {
+        playArrival();
+        return;
+      }
       listenPushOpen((url) => openReaderRef.current(url));
       let asked = false;
       let on = false;
@@ -959,14 +975,16 @@ function Index() {
       }
       if (on) {
         void registerPush().catch(() => {});
+        playArrival();
         return;
       }
       if (!asked) setAskPush(true);
+      else playArrival();
     })();
     return () => {
       cancelled = true;
     };
-  }, [mounted, showIntro, showOnboarding]);
+  }, [mounted, showIntro, showOnboarding, playArrival]);
 
   const acceptPush = useCallback(async () => {
     setPushBusy(true);
@@ -984,7 +1002,8 @@ function Index() {
     }
     setPushBusy(false);
     setAskPush(false);
-  }, []);
+    playArrival();
+  }, [playArrival]);
 
   const declinePush = useCallback(() => {
     try {
@@ -994,7 +1013,8 @@ function Index() {
       /* ignora */
     }
     setAskPush(false);
-  }, []);
+    playArrival();
+  }, [playArrival]);
 
   const [interests, setInterests] = useState<string[]>([]);
   const navRef = useRef<HTMLElement>(null);
@@ -1373,8 +1393,8 @@ function Index() {
                 setClub(chosen);
                 localStorage.setItem(CLUB_KEY, chosen);
                 const name = LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen;
-                setArrival(name);
-                window.setTimeout(() => setArrival(null), 1500);
+                pendingArrival.current = name;
+                arrivalPlayed.current = false;
               }
             } catch {
               /* ignora */

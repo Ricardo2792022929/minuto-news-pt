@@ -16,7 +16,7 @@ const IMPORTANT = [
 const SKIP = ["horoscopo", "receita", "passatempo", "publicidade", "podcast"];
 
 type Account = { client_email: string; private_key: string };
-type Story = { title: string; url: string; publishedAt: string };
+type Story = { title: string; url: string; publishedAt: string; image?: string | null };
 
 let cached: { token: string; exp: number } | null = null;
 
@@ -80,20 +80,34 @@ function importance(title: string): number {
   return score;
 }
 
-async function send(title: string, url: string): Promise<"sent" | "rejected" | "no-key"> {
+function noticeImage(raw: string | null | undefined): string | undefined {
+  if (!raw || !raw.startsWith("https://") || raw.includes("ik.imagekit.io")) return undefined;
+  return `https://ik.imagekit.io/1aur3rser/tr:w-1200,ar-16-9,fo-auto,q-70,f-jpg/${raw}`;
+}
+
+async function send(title: string, url: string, image?: string | null): Promise<"sent" | "rejected" | "no-key"> {
   const token = await accessToken();
   if (!token) return "no-key";
+  const picture = noticeImage(image);
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({
       message: {
         topic: TOPIC,
-        notification: { title: "Flash Notícias", body: title.slice(0, 180) },
+        notification: {
+          title: "Flash Notícias",
+          body: title.slice(0, 180),
+          ...(picture ? { image: picture } : {}),
+        },
         data: { url },
         android: {
           priority: "HIGH",
-          notification: { channel_id: "news", sound: "default" },
+          notification: {
+            channel_id: "news",
+            sound: "default",
+            ...(picture ? { image: picture } : {}),
+          },
         },
       },
     }),
@@ -110,7 +124,7 @@ export async function notifyImportant(items: Story[]): Promise<"sent" | "none" |
     .sort((a, b) => b.score - a.score || b.item.publishedAt.localeCompare(a.item.publishedAt));
   const best = ranked[0]?.item;
   if (!best) return "none";
-  return send(best.title, best.url);
+  return send(best.title, best.url, best.image);
 }
 
 export async function subscribeToken(device: string): Promise<"ok" | "no-key" | "rejected"> {

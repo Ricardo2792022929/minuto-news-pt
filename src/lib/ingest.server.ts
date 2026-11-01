@@ -353,7 +353,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
     let rewritten = 0;
-    const freshNews: { title: string; url: string; publishedAt: string }[] = [];
+    const freshNews: { title: string; url: string; publishedAt: string; image?: string | null }[] = [];
     const queue = pending.slice(0, 80);
     for (let offset = 0; offset < queue.length; offset += 5) {
       if (expired()) break;
@@ -426,7 +426,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           continue;
         }
         inserted++;
-        freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt });
+        freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt, image: safeImage });
       }
     }
 

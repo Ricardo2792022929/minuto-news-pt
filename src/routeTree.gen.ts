@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicHooksIngestRouteImport } from './routes/api/public/hooks/ingest'
+import { Route as ApiPublicHooksPushTokenRouteImport } from './routes/api/public/hooks/push-token'
 import { Route as ApiPublicHooksRefreshRouteImport } from './routes/api/public/hooks/refresh'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const ApiPublicHooksIngestRoute = ApiPublicHooksIngestRouteImport.update({
   path: '/api/public/hooks/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksPushTokenRoute = ApiPublicHooksPushTokenRouteImport.update({
+  id: '/api/public/hooks/push-token',
+  path: '/api/public/hooks/push-token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksRefreshRoute = ApiPublicHooksRefreshRouteImport.update({
   id: '/api/public/hooks/refresh',
   path: '/api/public/hooks/refresh',
@@ -32,30 +38,34 @@ const ApiPublicHooksRefreshRoute = ApiPublicHooksRefreshRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
+  '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  fullPaths: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
-  id: '__root__' | '/' | '/api/public/hooks/ingest' | '/api/public/hooks/refresh'
+  to: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
+  id: '__root__' | '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicHooksIngestRoute: typeof ApiPublicHooksIngestRoute
+  ApiPublicHooksPushTokenRoute: typeof ApiPublicHooksPushTokenRoute
   ApiPublicHooksRefreshRoute: typeof ApiPublicHooksRefreshRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/push-token': {
+      id: '/api/public/hooks/push-token'
+      path: '/api/public/hooks/push-token'
+      fullPath: '/api/public/hooks/push-token'
+      preLoaderRoute: typeof ApiPublicHooksPushTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/refresh': {
       id: '/api/public/hooks/refresh'
       path: '/api/public/hooks/refresh'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicHooksIngestRoute: ApiPublicHooksIngestRoute,
+  ApiPublicHooksPushTokenRoute: ApiPublicHooksPushTokenRoute,
   ApiPublicHooksRefreshRoute: ApiPublicHooksRefreshRoute,
 }
 export const routeTree = rootRouteImport

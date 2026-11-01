@@ -353,6 +353,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let geminiAttempts = 0, groqAttempts = 0, openrouterAttempts = 0, nvidiaAttempts = 0, cloudflareAttempts = 0;
     let saveError: string | null = null;
     let rewritten = 0;
+    const freshNews: { title: string; url: string; publishedAt: string }[] = [];
     const queue = pending.slice(0, 80);
     for (let offset = 0; offset < queue.length; offset += 5) {
       if (expired()) break;
@@ -425,6 +426,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
           continue;
         }
         inserted++;
+        freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt });
       }
     }
 
@@ -572,7 +574,14 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId };
+    let push: "sent" | "none" | "no-key" | "rejected" | "error" = "none";
+    try {
+      const { notifyImportant } = await import("./push.server");
+      push = await notifyImportant(freshNews);
+    } catch {
+      push = "error";
+    }
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

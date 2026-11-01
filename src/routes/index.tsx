@@ -88,6 +88,7 @@ import {
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
 import type { NewsItem } from "@/lib/news.types";
 import { storyLabel } from "@/lib/story-label";
+import { listenPushOpen, pushPluginReady, registerPush } from "@/lib/push-client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -825,6 +826,41 @@ function useLockedFeedHeight() {
     };
   }, []);
 }
+function PushAsk({
+  busy,
+  onYes,
+  onNo,
+}: {
+  busy: boolean;
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col bg-black px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(4.5rem,env(safe-area-inset-top))] text-feed-fg">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Avisos</p>
+      <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
+        Seja o primeiro a saber
+      </h1>
+      <p className="mt-4 max-w-sm text-base leading-relaxed text-feed-fg/70">
+        A app avisa quando sai uma notícia importante, mesmo fechada. Não é um aviso por cada artigo.
+      </p>
+      <div className="mt-auto flex items-center justify-between gap-3">
+        <button type="button" onClick={onNo} disabled={busy} className="rounded-full px-3 py-3 text-sm font-semibold text-feed-fg/55">
+          Agora não
+        </button>
+        <button
+          type="button"
+          onClick={onYes}
+          disabled={busy}
+          className="min-h-12 rounded-full bg-live px-7 py-3 text-sm font-bold text-live-foreground active:scale-[0.98]"
+        >
+          {busy ? "A ativar…" : "Ativar avisos"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Index() {
   useLockedFeedHeight();
   const [mounted, setMounted] = useState(false);
@@ -833,6 +869,8 @@ function Index() {
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
   const [premiere, setPremiere] = useState(false);
+  const [askPush, setAskPush] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
     const url = cleanUrl(raw);
@@ -893,6 +931,61 @@ function Index() {
     }
     setShowIntro(false);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || showIntro || showOnboarding) return;
+    let cancelled = false;
+    void (async () => {
+      const ready = await pushPluginReady();
+      if (cancelled || !ready) return;
+      listenPushOpen((url) => openReaderRef.current(url));
+      let asked = false;
+      let on = false;
+      try {
+        asked = localStorage.getItem("flash:push-asked") === "1";
+        on = localStorage.getItem("flash:push-on") === "1";
+      } catch {
+        /* ignora */
+      }
+      if (on) {
+        void registerPush().catch(() => {});
+        return;
+      }
+      if (!asked) setAskPush(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, showIntro, showOnboarding]);
+
+  const acceptPush = useCallback(async () => {
+    setPushBusy(true);
+    let on = false;
+    try {
+      on = await registerPush();
+    } catch {
+      on = false;
+    }
+    try {
+      localStorage.setItem("flash:push-asked", "1");
+      localStorage.setItem("flash:push-on", on ? "1" : "0");
+    } catch {
+      /* ignora */
+    }
+    setPushBusy(false);
+    setAskPush(false);
+  }, []);
+
+  const declinePush = useCallback(() => {
+    try {
+      localStorage.setItem("flash:push-asked", "1");
+      localStorage.setItem("flash:push-on", "0");
+    } catch {
+      /* ignora */
+    }
+    setAskPush(false);
+  }, []);
+
   const [interests, setInterests] = useState<string[]>([]);
   const navRef = useRef<HTMLElement>(null);
   const [category, setCategory] = useState<Category>("Tudo");
@@ -1246,6 +1339,9 @@ function Index() {
   return (
     <div className="relative mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl overflow-hidden bg-feed-bg">
       {showIntro && <Intro onDone={closeIntro} />}
+      {askPush && !showIntro && !showOnboarding && (
+        <PushAsk busy={pushBusy} onYes={() => void acceptPush()} onNo={declinePush} />
+      )}
       {showOnboarding && !showIntro && (
         <Onboarding
           onDone={(picked, chosen) => {

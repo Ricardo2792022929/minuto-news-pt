@@ -1025,16 +1025,17 @@ function Index() {
       /* ignora */
     }
     setPushBusy(false);
-    setAskPush(false);
     if (!on) {
+      setAskPush(false);
       playArrival();
       return;
     }
     setPushOk(true);
     window.setTimeout(() => {
-      setPushOk(false);
       playArrival();
-    }, 720);
+      setPushOk(false);
+      setAskPush(false);
+    }, 620);
   }, [playArrival]);
 
   const declinePush = useCallback(() => {
@@ -1458,7 +1459,13 @@ function Index() {
           {/* Feed */}
           <div
             className="absolute inset-0 z-0 overflow-hidden"
-            style={arrival ? { animation: "feed-unfold 1.35s cubic-bezier(.55,.05,.25,1) both", transformOrigin: "50% 56%" } : undefined}
+            style={
+              arrival
+                ? { animation: "feed-unfold 1.35s cubic-bezier(.55,.05,.25,1) both", transformOrigin: "50% 56%" }
+                : askPush || pushOk
+                  ? { visibility: "hidden" }
+                  : undefined
+            }
           >
             {dragX !== 0 && (
               <div

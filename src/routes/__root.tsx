@@ -115,6 +115,16 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt" style={{ backgroundColor: "#000" }}>
       <head>
         <HeadContent />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: "html.flash-native,html.flash-native body{background-color:#F25C27!important}",
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'if(location.search.indexOf("nativeIntro")!==-1){document.documentElement.classList.add("flash-native");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#F25C27")}',
+          }}
+        />
       </head>
       <body style={{ backgroundColor: "#000", margin: 0 }}>
         {children}

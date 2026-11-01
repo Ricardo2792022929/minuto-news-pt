@@ -1332,7 +1332,7 @@ function Index() {
 
   if (!mounted) {
     return (
-      <div className="mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl bg-black" />
+      <div className="mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl bg-transparent" />
     );
   }
 

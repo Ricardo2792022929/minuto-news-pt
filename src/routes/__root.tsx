@@ -122,7 +122,8 @@ function RootShell({ children }: { children: ReactNode }) {
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: 'if(location.search.indexOf("nativeIntro")!==-1){document.documentElement.classList.add("flash-native");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#F25C27")}',
+            __html:
+              'if(location.search.indexOf("nativeIntro")!==-1){document.documentElement.classList.add("flash-native");var m=document.querySelector("meta[name=theme-color]");if(m)m.setAttribute("content","#F25C27")}',
           }}
         />
       </head>

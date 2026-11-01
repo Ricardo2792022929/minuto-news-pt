@@ -115,15 +115,10 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt" style={{ backgroundColor: "#000" }}>
       <head>
         <HeadContent />
-        <style
-          dangerouslySetInnerHTML={{
-            __html: "html.flash-native,html.flash-native body{background-color:#F25C27!important}",
-          }}
-        />
         <script
           dangerouslySetInnerHTML={{
             __html:
-              '(function(){var ua=navigator.userAgent||"";var cap=window.Capacitor;var native=location.search.indexOf("nativeIntro")!==-1||/\\bwv\\b/.test(ua)||!!(cap&&cap.isNativePlatform&&cap.isNativePlatform());if(!native)return;try{sessionStorage.setItem("flash:intro-seen","1")}catch(e){}document.documentElement.classList.add("flash-native");var m=document.querySelector("meta[name=theme-color]");if(m)m.setAttribute("content","#F25C27")})();',
+              '(function(){var ua=navigator.userAgent||"";var cap=window.Capacitor;var native=location.search.indexOf("nativeIntro")!==-1||/\\bwv\\b/.test(ua)||!!(cap&&cap.isNativePlatform&&cap.isNativePlatform());if(!native)return;try{sessionStorage.setItem("flash:intro-seen","1")}catch(e){}})();',
           }}
         />
       </head>

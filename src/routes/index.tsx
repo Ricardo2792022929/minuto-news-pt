@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { INTRO_SRC } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import paperBall from "@/assets/paper-ball.jpg";
+import pushAsk from "@/assets/push-ask.jpg";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
 
@@ -836,25 +837,34 @@ function PushAsk({
   onNo: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col bg-black px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(4.5rem,env(safe-area-inset-top))] text-feed-fg">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Avisos</p>
-      <h1 className="mt-3 max-w-[16rem] font-display text-4xl font-black leading-[0.95] text-balance">
-        Seja o primeiro a saber
-      </h1>
-      <p className="mt-4 max-w-sm text-base leading-relaxed text-feed-fg/70">
-        A app avisa quando sai uma notícia importante, mesmo fechada. Não é um aviso por cada artigo.
-      </p>
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <button type="button" onClick={onNo} disabled={busy} className="rounded-full px-3 py-3 text-sm font-semibold text-feed-fg/55">
-          Agora não
-        </button>
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col bg-black text-feed-fg">
+      <div className="relative min-h-0 flex-1">
+        <img src={pushAsk} alt="" className="absolute inset-0 h-full w-full object-cover object-[center_30%]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black" />
+      </div>
+      <div className="relative -mt-20 px-6 pb-[max(1.1rem,env(safe-area-inset-bottom))]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Avisos</p>
+        <h1 className="mt-2 font-display text-[2.65rem] font-black leading-[0.92] text-balance">
+          Seja o primeiro a saber
+        </h1>
+        <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-feed-fg/75">
+          Um aviso no telemóvel quando sai uma notícia importante. Mesmo com a app fechada.
+        </p>
         <button
           type="button"
           onClick={onYes}
           disabled={busy}
-          className="min-h-12 rounded-full bg-live px-7 py-3 text-sm font-bold text-live-foreground active:scale-[0.98]"
+          className="mt-6 flex min-h-14 w-full items-center justify-center rounded-full bg-live text-base font-bold text-live-foreground active:scale-[0.98] disabled:opacity-70"
         >
           {busy ? "A ativar…" : "Ativar avisos"}
+        </button>
+        <button
+          type="button"
+          onClick={onNo}
+          disabled={busy}
+          className="mt-1 flex min-h-11 w-full items-center justify-center text-sm font-semibold text-feed-fg/55"
+        >
+          Agora não
         </button>
       </div>
     </div>

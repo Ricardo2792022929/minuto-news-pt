@@ -6,10 +6,14 @@ const TOPIC = "flash-importantes";
 const IMPORTANT = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "tragedia",
   "ataque", "guerra", "bomba", "explos", "sismo", "terramoto", "incendio",
-  "detid", "preso", "demite", "demissao", "urgente", "alerta", "acidente",
-  "governo", "presidente", "eleicoes", "parlamento", "orcamento",
-  "ucrania", "gaza", "israel", "nato",
+  "detid", "preso", "prisao", "crime", "assalt", "roubo", "homicid", "conden",
+  "demite", "demissao", "urgente", "alerta", "acidente", "despiste",
+  "inund", "tempestade", "colaps", "crise", "greve",
+  "governo", "presidente", "eleicoes", "parlamento", "orcamento", "ministro", "assembleia", "inflac",
+  "ucrania", "gaza", "israel", "nato", "russia", "putin",
 ];
+
+const SKIP = ["horoscopo", "receita", "passatempo", "publicidade", "podcast"];
 
 type Account = { client_email: string; private_key: string };
 type Story = { title: string; url: string; publishedAt: string };
@@ -70,6 +74,7 @@ function plain(title: string): string {
 
 function importance(title: string): number {
   const text = plain(title);
+  if (SKIP.some((word) => text.includes(word))) return 0;
   let score = 0;
   for (const word of IMPORTANT) if (text.includes(word)) score += 1;
   return score;

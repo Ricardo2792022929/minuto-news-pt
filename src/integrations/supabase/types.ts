@@ -20,13 +20,10 @@ export type Database = {
           created_at: string
           id: string
           image: string | null
-          image_candidates: Json
-          image_status: string
           image_query: string | null
           original_title: string
           published_at: string
           relevance: number
-          related: Json
           resumo: string | null
           source: string
           titulo_inedito: string
@@ -37,13 +34,10 @@ export type Database = {
           created_at?: string
           id: string
           image?: string | null
-          image_candidates?: Json
-          image_status?: string
           image_query?: string | null
           original_title: string
           published_at: string
           relevance?: number
-          related?: Json
           resumo?: string | null
           source: string
           titulo_inedito: string
@@ -54,56 +48,14 @@ export type Database = {
           created_at?: string
           id?: string
           image?: string | null
-          image_candidates?: Json
-          image_status?: string
           image_query?: string | null
           original_title?: string
           published_at?: string
           relevance?: number
-          related?: Json
           resumo?: string | null
           source?: string
           titulo_inedito?: string
           url?: string
-        }
-        Relationships: []
-      }
-      image_api_metrics: {
-        Row: {
-          accepted: number
-          created_at: string
-          failures: number
-          id: number
-          latency_ms: number
-          rejection_reasons: Json
-          requests: number
-          results_found: number
-          run_id: string | null
-          service: string
-        }
-        Insert: {
-          accepted?: number
-          created_at?: string
-          failures?: number
-          id?: number
-          latency_ms?: number
-          rejection_reasons?: Json
-          requests?: number
-          results_found?: number
-          run_id?: string | null
-          service: string
-        }
-        Update: {
-          accepted?: number
-          created_at?: string
-          failures?: number
-          id?: number
-          latency_ms?: number
-          rejection_reasons?: Json
-          requests?: number
-          results_found?: number
-          run_id?: string | null
-          service?: string
         }
         Relationships: []
       }

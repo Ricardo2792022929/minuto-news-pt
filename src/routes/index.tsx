@@ -871,6 +871,29 @@ function PushAsk({
   );
 }
 
+function PushOk() {
+  return (
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black"
+      style={{ animation: "push-ok-out 0.72s ease both" }}
+    >
+      <svg viewBox="0 0 52 52" className="size-28" aria-hidden>
+        <path
+          d="M14 27.5 22.2 36 39 16"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="3.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="38"
+          strokeDashoffset="38"
+          style={{ animation: "check-draw 0.42s cubic-bezier(.65,.05,.36,1) 0.04s forwards" }}
+        />
+      </svg>
+    </div>
+  );
+}
+
 function Index() {
   useLockedFeedHeight();
   const [mounted, setMounted] = useState(false);
@@ -882,6 +905,7 @@ function Index() {
   const arrivalPlayed = useRef(false);
   const [premiere, setPremiere] = useState(false);
   const [askPush, setAskPush] = useState(false);
+  const [pushOk, setPushOk] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const openReaderRef = useRef<(url: string) => void>(() => {});
   openReaderRef.current = (raw) => {
@@ -1002,7 +1026,15 @@ function Index() {
     }
     setPushBusy(false);
     setAskPush(false);
-    playArrival();
+    if (!on) {
+      playArrival();
+      return;
+    }
+    setPushOk(true);
+    window.setTimeout(() => {
+      setPushOk(false);
+      playArrival();
+    }, 720);
   }, [playArrival]);
 
   const declinePush = useCallback(() => {
@@ -1376,6 +1408,7 @@ function Index() {
       {askPush && !showIntro && !showOnboarding && (
         <PushAsk busy={pushBusy} onYes={() => void acceptPush()} onNo={declinePush} />
       )}
+      {pushOk && <PushOk />}
       {showOnboarding && !showIntro && (
         <Onboarding
           onDone={(picked, chosen) => {

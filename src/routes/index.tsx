@@ -1045,11 +1045,13 @@ function Index() {
       setShowOnboarding(true);
     }
     try {
-      const nativeIntro = new URLSearchParams(window.location.search).has("nativeIntro");
+      const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+      const nativeIntro =
+        new URLSearchParams(window.location.search).has("nativeIntro") || Boolean(cap?.isNativePlatform?.());
       if (nativeIntro) sessionStorage.setItem("flash:intro-seen", "1");
       setShowIntro(!nativeIntro && sessionStorage.getItem("flash:intro-seen") !== "1");
     } catch {
-      setShowIntro(true);
+      setShowIntro(false);
     }
     setMounted(true);
   }, []);

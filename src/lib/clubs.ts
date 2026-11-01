@@ -1,10 +1,10 @@
-export type LigaClub = { id: string; name: string; keys: string[] };
+export type LigaClub = { id: string; name: string; keys: string[]; color?: string };
 
 /** Primeira Liga 2026/27. */
 export const LIGA_CLUBS: LigaClub[] = [
-  { id: "porto", name: "FC Porto", keys: ["fc porto", "porto", "dragao", "dragoes"] },
-  { id: "benfica", name: "Benfica", keys: ["benfica"] },
-  { id: "sporting", name: "Sporting", keys: ["sporting"] },
+  { id: "porto", name: "FC Porto", keys: ["fc porto", "porto", "dragao", "dragoes"], color: "#0038A8" },
+  { id: "benfica", name: "Benfica", keys: ["benfica"], color: "#E30613" },
+  { id: "sporting", name: "Sporting", keys: ["sporting"], color: "#008057" },
   { id: "santa-clara", name: "Santa Clara", keys: ["santa clara"] },
   { id: "viseu", name: "Académico de Viseu", keys: ["academico de viseu", "academico"] },
   { id: "arouca", name: "Arouca", keys: ["arouca"] },
@@ -21,6 +21,19 @@ export const LIGA_CLUBS: LigaClub[] = [
   { id: "casa-pia", name: "Casa Pia", keys: ["casa pia"] },
   { id: "estoril", name: "Estoril Praia", keys: ["estoril"] },
 ];
+
+const SMALL_WORDS = new Set(["de", "da", "do", "dos", "das"]);
+
+/** Monograma de duas letras para o clube (ex.: "Gil Vicente" -> "GV", "Benfica" -> "BE"). */
+export function clubInitials(name: string): string {
+  const words = name
+    .replace(/^FC\s+/i, "")
+    .split(/\s+/)
+    .filter((word) => word && !SMALL_WORDS.has(word.toLowerCase()));
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
 
 function plain(title: string): string {
   return title.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");

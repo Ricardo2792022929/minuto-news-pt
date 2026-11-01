@@ -336,6 +336,33 @@
   .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right, .animate-greet-glow, .animate-greet-ring { animation: none; }
 }
 
+/* Onboarding: só transform e opacity (sem blur nem filtros), para correr
+   fluido em WebViews Android de gama baixa. O atraso escalonado vai em
+   animation-delay, sem temporizadores em JavaScript. */
+@keyframes ob-rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ob-slide {
+  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ob-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.ob-rise { animation: ob-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-slide { animation: ob-slide 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-pop { animation: ob-pop 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-rise, .ob-slide, .ob-pop { animation: none; }
+}
+
 /* Selo injetado pelo alojamento, não faz parte da app. */
 #lovable-badge { display: none !important; visibility: hidden !important; pointer-events: none !important; }
 

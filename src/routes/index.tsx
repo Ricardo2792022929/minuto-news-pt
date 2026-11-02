@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { INTRO_SRC } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import { Onboarding } from "@/components/onboarding";
+import { PushAsk } from "@/components/push-ask";
 import paperBall from "@/assets/paper-ball.jpg";
-import pushAsk from "@/assets/push-ask.jpg";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
 
@@ -130,6 +130,16 @@ const CLUB_KEY = "aominuto:club";
 const CLUB_ASKED_KEY = "aominuto:club-asked";
 
 const PAGE_SIZE = 10;
+
+/** Guarda a resposta ao pedido de avisos, venha do fluxo inicial ou do pedido avulso. */
+function savePushChoice(on: boolean) {
+  try {
+    localStorage.setItem("flash:push-asked", "1");
+    localStorage.setItem("flash:push-on", on ? "1" : "0");
+  } catch {
+    /* ignora */
+  }
+}
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -453,50 +463,6 @@ function useLockedFeedHeight() {
     };
   }, []);
 }
-function PushAsk({
-  busy,
-  onYes,
-  onNo,
-}: {
-  busy: boolean;
-  onYes: () => void;
-  onNo: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col bg-black text-feed-fg">
-      <div className="relative min-h-0 flex-1">
-        <img src={pushAsk} alt="" className="absolute inset-0 h-full w-full object-cover object-[center_30%]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black" />
-      </div>
-      <div className="relative -mt-20 px-6 pb-[max(1.1rem,env(safe-area-inset-bottom))]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-live">Avisos</p>
-        <h1 className="mt-2 font-display text-[2.65rem] font-black leading-[0.92] text-balance">
-          Seja o primeiro a saber
-        </h1>
-        <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-feed-fg/75">
-          Um aviso no telemóvel quando sai uma notícia importante. Mesmo com a app fechada.
-        </p>
-        <button
-          type="button"
-          onClick={onYes}
-          disabled={busy}
-          className="mt-6 flex min-h-14 w-full items-center justify-center rounded-full bg-live text-base font-bold text-live-foreground active:scale-[0.98] disabled:opacity-70"
-        >
-          {busy ? "A ativar…" : "Ativar avisos"}
-        </button>
-        <button
-          type="button"
-          onClick={onNo}
-          disabled={busy}
-          className="mt-1 flex min-h-11 w-full items-center justify-center text-sm font-semibold text-feed-fg/55"
-        >
-          Agora não
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function PushOk() {
   return (
     <div
@@ -644,12 +610,7 @@ function Index() {
     } catch {
       on = false;
     }
-    try {
-      localStorage.setItem("flash:push-asked", "1");
-      localStorage.setItem("flash:push-on", on ? "1" : "0");
-    } catch {
-      /* ignora */
-    }
+    savePushChoice(on);
     setPushBusy(false);
     if (!on) {
       setAskPush(false);
@@ -665,15 +626,54 @@ function Index() {
   }, [playArrival]);
 
   const declinePush = useCallback(() => {
-    try {
-      localStorage.setItem("flash:push-asked", "1");
-      localStorage.setItem("flash:push-on", "0");
-    } catch {
-      /* ignora */
-    }
+    savePushChoice(false);
     setAskPush(false);
     playArrival();
   }, [playArrival]);
+
+  // Na primeira utilização o pedido de avisos faz parte do fluxo, se o telemóvel os suporta.
+  const [offerPush, setOfferPush] = useState(false);
+  useEffect(() => {
+    if (!showOnboarding) return;
+    let cancelled = false;
+    void pushPluginReady().then((ready) => {
+      if (cancelled || !ready) return;
+      try {
+        if (
+          localStorage.getItem("flash:push-asked") === "1" ||
+          localStorage.getItem("flash:push-on") === "1"
+        ) {
+          return;
+        }
+      } catch {
+        /* ignora */
+      }
+      setOfferPush(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showOnboarding]);
+
+  const pushHooks = useMemo(
+    () =>
+      offerPush
+        ? {
+            enable: async () => {
+              let on = false;
+              try {
+                on = await registerPush();
+              } catch {
+                on = false;
+              }
+              savePushChoice(on);
+              return on;
+            },
+            decline: () => savePushChoice(false),
+          }
+        : null,
+    [offerPush],
+  );
 
   const [interests, setInterests] = useState<string[]>([]);
   const navRef = useRef<HTMLElement>(null);
@@ -1063,6 +1063,7 @@ function Index() {
             setPremiere(true);
           }}
           onLater={() => setShowOnboarding(false)}
+          push={pushHooks}
         />
       )}
       {arrival ? (

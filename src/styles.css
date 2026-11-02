@@ -32,6 +32,13 @@
   --color-ring: var(--ring);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
+  --color-ob-s1: var(--ob-s1);
+  --color-ob-s2: var(--ob-s2);
+  --color-ob-line: var(--ob-line);
+  --color-ob-fg2: var(--ob-fg2);
+  --color-ob-fg3: var(--ob-fg3);
+  --color-ob-tonal: var(--ob-tonal);
+  --color-ob-on-tonal: var(--ob-on-tonal);
   --font-display: "Schibsted Grotesk", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
 }
@@ -59,6 +66,15 @@
   --border: oklch(0.88 0.015 80);
   --input: oklch(0.88 0.015 80);
   --ring: oklch(0.55 0.22 27);
+
+  /* Onboarding: superfícies escuras em camadas, no tom quente do feed. */
+  --ob-s1: oklch(0.2 0.006 60);
+  --ob-s2: oklch(0.26 0.007 60);
+  --ob-line: oklch(1 0 0 / 0.09);
+  --ob-fg2: oklch(0.98 0.005 90 / 0.68);
+  --ob-fg3: oklch(0.98 0.005 90 / 0.42);
+  --ob-tonal: oklch(0.31 0.09 27);
+  --ob-on-tonal: oklch(0.94 0.04 27);
 }
 
 @layer base {
@@ -336,31 +352,81 @@
   .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right, .animate-greet-glow, .animate-greet-ring { animation: none; }
 }
 
-/* Onboarding: só transform e opacity (sem blur nem filtros), para correr
-   fluido em WebViews Android de gama baixa. O atraso escalonado vai em
-   animation-delay, sem temporizadores em JavaScript. */
+/* Onboarding: animações só com transform e opacidade (compositor, sem blur),
+   escalonadas por animation-delay. Cada uma responde a uma ação ou marca uma
+   única entrada; nada fica em loop exceto o ponto "ao vivo" da pílula. */
 @keyframes ob-rise {
-  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
   to { opacity: 1; transform: none; }
 }
-
+@keyframes ob-lift {
+  from { opacity: 0; transform: translate3d(0, 56px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ob-drop {
+  from { opacity: 0; transform: translate3d(0, -36px, 0) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes ob-slide {
-  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  from { opacity: 0; transform: translate3d(32px, 0, 0); }
   to { opacity: 1; transform: none; }
 }
-
+@keyframes ob-slide-back {
+  from { opacity: 0; transform: translate3d(-32px, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes ob-pop {
-  0% { opacity: 0; transform: scale(0.6); }
-  60% { opacity: 1; transform: scale(1.1); }
+  0% { opacity: 0; transform: scale(0.5); }
+  60% { opacity: 1; transform: scale(1.12); }
   100% { opacity: 1; transform: scale(1); }
 }
 
-.ob-rise { animation: ob-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ob-slide { animation: ob-slide 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ob-pop { animation: ob-pop 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-rise { animation: ob-rise 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-lift { animation: ob-lift 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-drop { animation: ob-drop 600ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both; }
+.ob-slide { animation: ob-slide 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-slide-back { animation: ob-slide-back 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-pop { animation: ob-pop 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Estado de toque Material: camada da cor do texto por cima do botão. */
+.ob-slot { transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease; }
+
+.ob-press { position: relative; overflow: hidden; isolation: isolate; }
+.ob-press::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.ob-press:active::after { opacity: 0.12; }
+.ob-press:disabled::after { display: none; }
+
+.ob-focus:focus-visible { outline: 2px solid oklch(0.98 0.005 90); outline-offset: 2px; }
+
+/* Separador de lista que não chega ao ícone da esquerda. */
+.ob-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 5rem;
+  right: 0;
+  height: 1px;
+  background: var(--ob-line);
+}
+
+/* A lista desvanece junto à barra de ação em vez de ser cortada. */
+.ob-fade-b {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .ob-rise, .ob-slide, .ob-pop { animation: none; }
+  .ob-rise, .ob-lift, .ob-drop, .ob-slide, .ob-slide-back, .ob-pop, .animate-live-pulse { animation: none; }
+  .ob-slot { transition: none; }
 }
 
 /* Selo injetado pelo alojamento, não faz parte da app. */

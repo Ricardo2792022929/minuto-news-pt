@@ -3,12 +3,15 @@ import { createSign } from "node:crypto";
 const PROJECT_ID = "project-4033179589554394532";
 const TOPIC = "flash-importantes";
 
-const IMPORTANT = [
+const STRONG = [
   "morre", "morreu", "morto", "mortos", "mata", "matou", "assassin", "tragedia",
   "ataque", "guerra", "bomba", "explos", "sismo", "terramoto", "incendio",
-  "detid", "preso", "prisao", "crime", "assalt", "roubo", "homicid", "conden",
-  "demite", "demissao", "urgente", "alerta", "acidente", "despiste",
-  "inund", "tempestade", "colaps", "crise", "greve",
+  "homicid", "acidente", "despiste", "inund", "tempestade", "colaps", "alerta", "urgente",
+];
+
+const SOFT = [
+  "detid", "preso", "prisao", "crime", "assalt", "roubo", "conden",
+  "demite", "demissao", "greve", "crise",
   "governo", "presidente", "eleicoes", "parlamento", "orcamento", "ministro", "assembleia", "inflac",
   "ucrania", "gaza", "israel", "nato", "russia", "putin",
 ];
@@ -76,7 +79,8 @@ function importance(title: string): number {
   const text = plain(title);
   if (SKIP.some((word) => text.includes(word))) return 0;
   let score = 0;
-  for (const word of IMPORTANT) if (text.includes(word)) score += 1;
+  for (const word of STRONG) if (text.includes(word)) score += 2;
+  for (const word of SOFT) if (text.includes(word)) score += 1;
   return score;
 }
 
@@ -120,7 +124,7 @@ export async function notifyImportant(items: Story[]): Promise<"sent" | "none" |
   const ranked = items
     .filter((item) => now - new Date(item.publishedAt).getTime() < 90 * 60_000)
     .map((item) => ({ item, score: importance(item.title) }))
-    .filter((row) => row.score > 0)
+    .filter((row) => row.score >= 2)
     .sort((a, b) => b.score - a.score || b.item.publishedAt.localeCompare(a.item.publishedAt));
   const best = ranked[0]?.item;
   if (!best) return "none";

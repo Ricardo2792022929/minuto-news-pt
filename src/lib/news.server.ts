@@ -55,6 +55,7 @@ export const FEEDS: FeedConfig[] = [
   { url: "https://visao.pt/feed/", source: "Visão", fallbackCategory: "Mundo" },
   { url: "https://www.atelevisao.com/feed/", source: "A Televisão", fallbackCategory: "Mundo" },
   { url: "https://www.hiper.fm/feed/", source: "Hiper FM", fallbackCategory: "Mundo" },
+  { url: "https://www.magazine-hd.com/apps/wp/feed/", source: "Magazine HD", fallbackCategory: "Entretenimento" },
   { url: "https://pplware.sapo.pt/feed/", source: "Pplware", fallbackCategory: "Tech" },
   { url: "https://www.leak.pt/feed/", source: "Leak", fallbackCategory: "Tech" },
   { url: "https://www.pcguia.pt/feed/", source: "PC Guia", fallbackCategory: "Tech" },

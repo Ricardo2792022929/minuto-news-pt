@@ -33,10 +33,10 @@ const DEFAULT_CARDS = ["Mundo", "Desporto", "Economia"];
 /** Confirmação final curta antes de entregar as escolhas à app. */
 const DONE_MS = 900;
 
-/** No Android a intro nativa dura ~3 s por cima da app; as boas-vindas só entram depois. */
-const NATIVE_INTRO_MS = 3000;
-/** Folga depois da intro, para a transição não ser cortada. */
-const NATIVE_INTRO_GAP_MS = 250;
+/** No Android a intro nativa passa por cima da app; as boas-vindas esperam só um pouco depois de a página montar. */
+const NATIVE_WAIT_MS = 1200;
+/** Nunca esperar para lá do fim da intro (~3 s desde o arranque da página). */
+const NATIVE_INTRO_END_MS = 3250;
 
 function inNativeShell(): boolean {
   try {
@@ -59,8 +59,8 @@ function useAfterNativeIntro(): boolean {
       setReady(true);
       return;
     }
-    // performance.now() conta desde o arranque da página, que coincide com o início da intro.
-    const wait = Math.max(0, NATIVE_INTRO_MS + NATIVE_INTRO_GAP_MS - performance.now());
+    // performance.now() conta desde o arranque da página.
+    const wait = Math.min(NATIVE_WAIT_MS, Math.max(0, NATIVE_INTRO_END_MS - performance.now()));
     const id = window.setTimeout(() => setReady(true), wait);
     return () => window.clearTimeout(id);
   }, []);

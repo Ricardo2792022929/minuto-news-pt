@@ -33,6 +33,40 @@ const DEFAULT_CARDS = ["Mundo", "Desporto", "Economia"];
 /** Confirmação final curta antes de entregar as escolhas à app. */
 const DONE_MS = 900;
 
+/** No Android a intro nativa dura ~3 s por cima da app; as boas-vindas só entram depois. */
+const NATIVE_INTRO_MS = 3000;
+/** Folga depois da intro, para a transição não ser cortada. */
+const NATIVE_INTRO_GAP_MS = 250;
+
+function inNativeShell(): boolean {
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    return (
+      new URLSearchParams(window.location.search).has("nativeIntro") ||
+      Boolean(cap?.isNativePlatform?.()) ||
+      /\bwv\b/.test(navigator.userAgent || "")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Devolve true quando a intro nativa já acabou (de imediato fora da app Android). */
+function useAfterNativeIntro(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!inNativeShell()) {
+      setReady(true);
+      return;
+    }
+    // performance.now() conta desde o arranque da página, que coincide com o início da intro.
+    const wait = Math.max(0, NATIVE_INTRO_MS + NATIVE_INTRO_GAP_MS - performance.now());
+    const id = window.setTimeout(() => setReady(true), wait);
+    return () => window.clearTimeout(id);
+  }, []);
+  return ready;
+}
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Bom dia";
@@ -74,6 +108,7 @@ export function Onboarding({
   const [picked, setPicked] = useState<string[]>([]);
   const [clubId, setClubId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const introOver = useAfterNativeIntro();
 
   // O pai recria as funções a cada render e o aviso só fica a saber-se a meio do fluxo.
   const latest = useRef({ onDone, picked, clubId, push });
@@ -152,6 +187,9 @@ export function Onboarding({
           : undefined;
 
   const swap = direction > 0 ? "ob-slide" : "ob-slide-back";
+
+  // Enquanto a intro nativa corre, só um fundo preto: as animações começam quando o fluxo monta.
+  if (!introOver) return <div aria-hidden className="fixed inset-0 z-[100] h-[100dvh] bg-black" />;
 
   return (
     <FlowShell

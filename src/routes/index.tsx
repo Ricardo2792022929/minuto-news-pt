@@ -631,48 +631,28 @@ function Index() {
     playArrival();
   }, [playArrival]);
 
-  // Na primeira utilização o pedido de avisos faz parte do fluxo, se o telemóvel os suporta.
-  const [offerPush, setOfferPush] = useState(false);
-  useEffect(() => {
-    if (!showOnboarding) return;
-    let cancelled = false;
-    void pushPluginReady().then((ready) => {
-      if (cancelled || !ready) return;
-      try {
-        if (
-          localStorage.getItem("flash:push-asked") === "1" ||
-          localStorage.getItem("flash:push-on") === "1"
-        ) {
-          return;
-        }
-      } catch {
-        /* ignora */
-      }
-      setOfferPush(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [showOnboarding]);
-
+  // O passo dos avisos aparece sempre na primeira utilização. Só pede a autorização a sério
+  // quando o telemóvel suporta notificações; no browser ou na pré-visualização apenas avança.
   const pushHooks = useMemo(
-    () =>
-      offerPush
-        ? {
-            enable: async () => {
-              let on = false;
-              try {
-                on = await registerPush();
-              } catch {
-                on = false;
-              }
-              savePushChoice(on);
-              return on;
-            },
-            decline: () => savePushChoice(false),
-          }
-        : null,
-    [offerPush],
+    () => ({
+      enable: async () => {
+        if (!(await pushPluginReady())) return false;
+        let on = false;
+        try {
+          on = await registerPush();
+        } catch {
+          on = false;
+        }
+        savePushChoice(on);
+        return on;
+      },
+      decline: () => {
+        void pushPluginReady().then((ready) => {
+          if (ready) savePushChoice(false);
+        });
+      },
+    }),
+    [],
   );
 
   const [interests, setInterests] = useState<string[]>([]);

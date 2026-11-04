@@ -94,7 +94,7 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
     try {
       const res = await fetch(`https://www.lusa.pt/${page}`, {
         headers: { "User-Agent": UA, Accept: "text/html", "Accept-Language": "pt-PT,pt;q=0.9" },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(4000),
         redirect: "follow",
       });
       if (!res.ok) return [] as NewsItem[];

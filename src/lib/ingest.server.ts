@@ -5,19 +5,18 @@ import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
 import { generateCloudflareOne } from "./title-generation.cloudflare.server";
-import { scrapeArticleText } from "./article-scrape.server";
+import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
 import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
 import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
-import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
 import { adequateImage } from "./image-quality";
 import { asLinks, mergeLinks, titlesMatch, type StoryLink } from "./story-match";
 import type { Json } from "@/integrations/supabase/types";
 
 const BATCH = 10;
 const MAX_BATCHES = 8;
-const BUDGET_MS = 55_000;
+const BUDGET_MS = 24_000;
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
 function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
@@ -359,14 +358,11 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       if (expired()) break;
       const wave = queue.slice(offset, offset + 5);
       const titled = await Promise.all(wave.map(async (n, waveIndex) => {
-        const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
-        const start = (offset + waveIndex) % 5;
+        const articleText = null;
+        const start = (offset + waveIndex) % 2;
         const order = [
           async () => { groqAttempts++; return generateGroqOne(n.title, articleText); },
           async () => { cloudflareAttempts++; return generateCloudflareOne(n.title, articleText); },
-          async () => { nvidiaAttempts++; return generateNvidiaOne(n.title, articleText); },
-          async () => { geminiAttempts++; return generateOne(n.title, articleText); },
-          async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
         ];
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         let ai: string | null = null;

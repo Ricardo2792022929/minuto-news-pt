@@ -17,7 +17,20 @@ import type { Json } from "@/integrations/supabase/types";
 
 const BATCH = 10;
 const MAX_BATCHES = 8;
-const BUDGET_MS = 55_000;
+/* O cron-job.org corta a ligação por volta dos 30 s. As notícias novas têm de estar
+   guardadas antes disso; o resto (imagens, reescritas, categorias) usa só o que sobrar. */
+const BUDGET_MS = 20_000;
+const MAINTENANCE_MS = 27_000;
+/** Tempo máximo para reescrever um título (contexto + todas as tentativas das IAs). */
+const TITLE_DEADLINE_MS = 6_000;
+/** Notícias reescritas em paralelo; as IAs rodam, por isso o pedido não cai todo no mesmo serviço. */
+const WAVE = 8;
+
+function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
 type ImageMetric = { requests: number; resultsFound: number; accepted: number; failures: number; latencyMs: number; rejectionReasons: Record<string, number> };
 const imageMetricsStore = new AsyncLocalStorage<Record<string, ImageMetric>>();
 function emptyMetric(): ImageMetric { return { requests: 0, resultsFound: 0, accepted: 0, failures: 0, latencyMs: 0, rejectionReasons: {} }; }
@@ -264,6 +277,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
   const started = Date.now();
   const expired = () => Date.now() - started > BUDGET_MS;
+  const maintenanceOver = () => Date.now() - started > MAINTENANCE_MS;
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
   const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
@@ -279,7 +293,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
   try {
     const cutoff = new Date(Date.now() - 72 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
-    const news = (await getAllNews()).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+    const news = (await withDeadline(getAllNews(), 12_000, [])).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     const existing = new Set<string>();
     const [byId, byUrl] = await Promise.all([
       db.from("articles").select("id").gte("published_at", cutoff).limit(1000),
@@ -355,10 +369,10 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
     let rewritten = 0;
     const freshNews: { title: string; url: string; publishedAt: string; image?: string | null }[] = [];
     const queue = pending.slice(0, 80);
-    for (let offset = 0; offset < queue.length; offset += 5) {
+    for (let offset = 0; offset < queue.length; offset += WAVE) {
       if (expired()) break;
-      const wave = queue.slice(offset, offset + 5);
-      const titled = await Promise.all(wave.map(async (n, waveIndex) => {
+      const wave = queue.slice(offset, offset + WAVE);
+      const titled = await Promise.all(wave.map((n, waveIndex) => withDeadline((async () => {
         const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
         const start = (offset + waveIndex) % 5;
         const order = [
@@ -370,7 +384,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         ];
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         let ai: string | null = null;
-        for (let step = 0; step < order.length && !ai; step += 1) {
+        for (let step = 0; step < order.length && !ai && !expired(); step += 1) {
           try { g = await order[(start + step) % order.length](); } catch { g = null; }
           const candidate = g && validTitle(g.titulo, n.title, articleText);
           if (candidate && isPublishableTitle(candidate, n.title, articleText)) ai = candidate;
@@ -378,7 +392,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         const titulo = ai;
         if (!titulo || !isPublishableTitle(titulo, n.title, articleText)) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
-      }));
+      })(), TITLE_DEADLINE_MS, null)));
       const verifiedImages = titled.map((item) => {
         if (!item) return null;
         const url = item.n.image || item.n.imageCandidates?.[0] || null;
@@ -440,9 +454,18 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       if (writeError) break;
     }
 
+    // Aviso logo a seguir a guardar, antes da manutenção: se a ligação cair, não se perde.
+    let push: "sent" | "none" | "no-key" | "rejected" | "error" = "none";
+    try {
+      const { notifyImportant } = await import("./push.server");
+      push = await notifyImportant(freshNews);
+    } catch {
+      push = "error";
+    }
+
     // Enriquecer as que ainda não têm imagem
     let recategorized = 0;
-    if (!expired()) {
+    if (!maintenanceOver()) {
       const { data: recentImages } = await db.from("articles").select("image").not("image", "is", null).order("published_at", { ascending: false }).limit(80);
       for (const row of recentImages ?? []) if (row.image) rememberImage(used, row.image);
       const { data: missing } = await db.from("articles").select("id,url,image_query,original_title,resumo,category,titulo_inedito").not("image_query", "is", null).order("published_at", { ascending: false }).limit(20);
@@ -479,7 +502,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       }));
     }
 
-    if (!expired()) {
+    if (!maintenanceOver()) {
       const { data: toPrepare } = await db.from("articles").select("image").order("published_at", { ascending: false }).limit(8);
       await Promise.all((toPrepare ?? []).map(async (row) => {
         const kit = imageKitUrl(row.image);
@@ -496,10 +519,10 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       }));
     }
 
-    if (!expired()) {
+    if (!maintenanceOver()) {
       const { data: recent } = await db.from("articles").select("id, original_title, titulo_inedito, resumo").order("published_at", { ascending: false }).limit(80);
       for (const row of recent ?? []) {
-        if (expired() || rewritten >= 24) break;
+        if (maintenanceOver() || rewritten >= 24) break;
         if (!row.original_title || !row.titulo_inedito) continue;
         if (isPublishableTitle(row.titulo_inedito, row.original_title)) continue;
         let next: string | null = null;
@@ -545,7 +568,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
       }
     }
 
-    if (!expired()) {
+    if (!maintenanceOver()) {
       const { data: tagged } = await db
         .from("articles")
         .select("id, original_title, titulo_inedito, resumo, category")
@@ -573,13 +596,6 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         metricsPersist = "metrics_persist_failed";
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
-    }
-    let push: "sent" | "none" | "no-key" | "rejected" | "error" = "none";
-    try {
-      const { notifyImportant } = await import("./push.server");
-      push = await notifyImportant(freshNews);
-    } catch {
-      push = "error";
     }
     return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push };
   } catch (e) {

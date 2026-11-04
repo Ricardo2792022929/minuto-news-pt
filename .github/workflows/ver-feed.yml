@@ -9,12 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
       - name: Últimas notícias
         run: |
-          set -a; . ./.env; set +a
-          URL="${SUPABASE_URL:-$VITE_SUPABASE_URL}"
-          KEY="${SUPABASE_PUBLISHABLE_KEY:-$VITE_SUPABASE_PUBLISHABLE_KEY}"
+          # Base real da app. A chave publishable é pública por desenho (vai dentro da app).
+          URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"
+          KEY="sb_publishable_Q240clLEpscXn_rKI9vNhw_2b0cRfQZ"
           curl -fsS "$URL/rest/v1/articles?select=source,published_at,created_at,titulo_inedito&order=published_at.desc&limit=8" \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o feed.json
           echo "agora: $(date -u +%FT%TZ)"

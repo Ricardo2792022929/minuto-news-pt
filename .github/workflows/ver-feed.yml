@@ -26,3 +26,6 @@ jobs:
               guardada = f"guardada há {int((now-c).total_seconds()//60)} min" if c else ""
               print(f'publicada há {int((now-t).total_seconds()//60):>4} min | {guardada} | {r["source"]}')
           PY
+      - name: Sonda das IAs de título
+        run: |
+          curl -sS --max-time 90 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?probe=1" | python3 -m json.tool || true

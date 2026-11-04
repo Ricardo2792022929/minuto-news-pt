@@ -492,7 +492,7 @@ async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>
     try {
       const page = await fetch(
         `https://news.google.com/rss/articles/${encodeURIComponent(id)}?hl=pt-PT&gl=PT&ceid=PT:pt-150`,
-        { headers, redirect: "follow", signal: AbortSignal.timeout(3000) },
+        { headers, redirect: "follow", signal: AbortSignal.timeout(8000) },
       );
       if (!page.ok) return;
       const html = await page.text();
@@ -521,7 +521,7 @@ async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>
         method: "POST",
         headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
         body: "f.req=" + encodeURIComponent(JSON.stringify([envelopes])),
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(8000),
       },
     );
     if (!post.ok) return resolved;

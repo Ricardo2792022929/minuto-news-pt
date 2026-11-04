@@ -1,0 +1,29 @@
+name: ver feed
+
+# Só leitura: mostra a idade da notícia mais recente. Lançar à mão.
+on:
+  workflow_dispatch:
+
+jobs:
+  ver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Últimas notícias
+        run: |
+          set -a; . ./.env; set +a
+          URL="${SUPABASE_URL:-$VITE_SUPABASE_URL}"
+          KEY="${SUPABASE_PUBLISHABLE_KEY:-$VITE_SUPABASE_PUBLISHABLE_KEY}"
+          curl -fsS "$URL/rest/v1/articles?select=source,published_at,created_at,titulo_inedito&order=published_at.desc&limit=8" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o feed.json
+          echo "agora: $(date -u +%FT%TZ)"
+          python3 - <<'PY'
+          import json, datetime as d
+          now = d.datetime.now(d.timezone.utc)
+          for r in json.load(open("feed.json")):
+              t = d.datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
+              c = d.datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) if r.get("created_at") else None
+              guardada = f"guardada há {int((now-c).total_seconds()//60)} min" if c else ""
+              print(f'publicada há {int((now-t).total_seconds()//60):>4} min | {guardada} | {r["source"]}')
+          PY

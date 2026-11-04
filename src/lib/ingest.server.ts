@@ -375,6 +375,15 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     let rewritten = 0;
     const freshNews: { title: string; url: string; publishedAt: string; image?: string | null }[] = [];
     const queue = pending.slice(0, 80);
+    // Diagnóstico: porque é que as IAs não deram título (contagens e alguns exemplos).
+    const AI_NAMES = ["groq", "cloudflare", "nvidia", "gemini", "openrouter"];
+    const rejectCounts: Record<string, number> = {};
+    const rejectSamples: { api: string; motivo: string; original: string; recebido?: string }[] = [];
+    const noteReject = (api: string, motivo: string, original: string, recebido?: string) => {
+      const key = `${api}: ${motivo}`;
+      rejectCounts[key] = (rejectCounts[key] ?? 0) + 1;
+      if (rejectSamples.length < 8) rejectSamples.push({ api, motivo, original: original.slice(0, 90), ...(recebido ? { recebido: recebido.slice(0, 90) } : {}) });
+    };
     for (let offset = 0; offset < queue.length; offset += WAVE) {
       if (expired()) break;
       const wave = queue.slice(offset, offset + WAVE);
@@ -391,9 +400,13 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
         let ai: string | null = null;
         for (let step = 0; step < order.length && !ai && !expired(); step += 1) {
-          try { g = await order[(start + step) % order.length](); } catch { g = null; }
+          const index = (start + step) % order.length;
+          const api = AI_NAMES[index];
+          try { g = await order[index](); if (!g) noteReject(api, "vazio", n.title); } catch (e) { g = null; noteReject(api, `erro: ${e instanceof Error ? e.message : String(e)}`.slice(0, 90), n.title); }
           const candidate = g && validTitle(g.titulo, n.title, articleText);
+          if (g && !candidate) noteReject(api, "título recusado", n.title, g.titulo);
           if (candidate && isPublishableTitle(candidate, n.title, articleText)) ai = candidate;
+          else if (candidate) noteReject(api, "não publicável", n.title, candidate);
         }
         const titulo = ai;
         if (!titulo || !isPublishableTitle(titulo, n.title, articleText)) return null;
@@ -603,7 +616,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

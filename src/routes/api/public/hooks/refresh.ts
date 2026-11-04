@@ -6,7 +6,8 @@ async function refresh({ request }: { request: Request }) {
     return Response.json(await probeTitleApis());
   }
   const { runIngest } = await import("@/lib/ingest.server");
-  const result = await runIngest();
+  const asked = Number(new URL(request.url).searchParams.get("budget"));
+  const result = await runIngest(asked > 0 ? { budgetMs: asked * 1000 } : {});
   return Response.json(result);
 }
 

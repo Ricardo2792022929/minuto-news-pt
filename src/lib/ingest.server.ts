@@ -20,9 +20,8 @@ const MAX_BATCHES = 8;
 /* O cron-job.org corta a ligação por volta dos 30 s. As notícias novas têm de estar
    guardadas antes disso; o resto (imagens, reescritas, categorias) usa só o que sobrar. */
 const BUDGET_MS = 20_000;
-const MAINTENANCE_MS = 27_000;
-/** Tempo máximo para reescrever um título (contexto + todas as tentativas das IAs). */
-const TITLE_DEADLINE_MS = 6_000;
+/** Chamadas que aguentam mais tempo (pg_cron do Supabase, GitHub) pedem `?budget=<segundos>`. */
+export const MAX_BUDGET_MS = 100_000;
 /** Notícias reescritas em paralelo; as IAs rodam, por isso o pedido não cai todo no mesmo serviço. */
 const WAVE = 8;
 
@@ -269,15 +268,22 @@ async function findHdImage(term: string, used: Set<string>, description = ""): P
   return found;
 }
 
-export async function runIngest(): Promise<Record<string, unknown>> {
-  return imageMetricsStore.run({}, () => runIngestWithMetrics());
+export async function runIngest(options: { budgetMs?: number } = {}): Promise<Record<string, unknown>> {
+  const asked = options.budgetMs;
+  const budgetMs = asked && Number.isFinite(asked) ? Math.min(MAX_BUDGET_MS, Math.max(BUDGET_MS, Math.round(asked))) : BUDGET_MS;
+  return imageMetricsStore.run({}, () => runIngestWithMetrics(budgetMs));
 }
 
-async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
+async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
   const started = Date.now();
-  const expired = () => Date.now() - started > BUDGET_MS;
-  const maintenanceOver = () => Date.now() - started > MAINTENANCE_MS;
+  // Com mais tempo, tudo ganha folga: recolha, cada título (contexto + todas as IAs) e manutenção.
+  const longRun = budgetMs > BUDGET_MS;
+  const collectMs = longRun ? 25_000 : 12_000;
+  const titleDeadlineMs = longRun ? 20_000 : 6_000;
+  const maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
+  const expired = () => Date.now() - started > budgetMs;
+  const maintenanceOver = () => Date.now() - started > maintenanceMs;
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
   const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
@@ -293,7 +299,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
   try {
     const cutoff = new Date(Date.now() - 72 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
-    const news = (await withDeadline(getAllNews(), 12_000, [])).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+    const news = (await withDeadline(getAllNews(), collectMs, [])).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     const existing = new Set<string>();
     const [byId, byUrl] = await Promise.all([
       db.from("articles").select("id").gte("published_at", cutoff).limit(1000),
@@ -392,7 +398,7 @@ async function runIngestWithMetrics(): Promise<Record<string, unknown>> {
         const titulo = ai;
         if (!titulo || !isPublishableTitle(titulo, n.title, articleText)) return null;
         return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
-      })(), TITLE_DEADLINE_MS, null)));
+      })(), titleDeadlineMs, null)));
       const verifiedImages = titled.map((item) => {
         if (!item) return null;
         const url = item.n.image || item.n.imageCandidates?.[0] || null;

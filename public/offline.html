@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Sem ligação</title>
+<style>
+  :root { --live: oklch(0.55 0.22 27); --fg: oklch(0.97 0.005 90); --fg2: oklch(0.74 0.01 90); --s1: oklch(0.2 0.006 60); }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #000; color: var(--fg); -webkit-tap-highlight-color: transparent; }
+  body { display: flex; flex-direction: column; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 32px; text-align: center; }
+  .icon { width: 88px; height: 88px; border-radius: 50%; background: var(--s1); display: flex; align-items: center; justify-content: center; margin-bottom: 28px; }
+  .icon svg { width: 40px; height: 40px; stroke: var(--fg2); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  h1 { font-size: 1.75rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.01em; }
+  p { margin-top: 10px; max-width: 30ch; font-size: 15px; line-height: 1.45; color: var(--fg2); }
+  footer { padding: 16px 24px max(20px, env(safe-area-inset-bottom)); background: var(--s1); border-radius: 28px 28px 0 0; }
+  button { width: 100%; height: 56px; border: 0; border-radius: 999px; background: var(--live); color: oklch(0.98 0.005 90); font: 600 16px/1 inherit; font-family: inherit; }
+  button:active { transform: scale(0.98); }
+  button:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+  button[disabled] { opacity: 0.6; }
+</style>
+</head>
+<body>
+<main role="alert">
+  <div class="icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/><path d="M3 3l18 18"/></svg>
+  </div>
+  <h1>Sem ligação</h1>
+  <p>Liga-te à internet para veres as últimas notícias.</p>
+</main>
+<footer>
+  <button id="retry" type="button">Tentar outra vez</button>
+</footer>
+<script>
+  var TARGET = "https://minuto-news-pt.lovable.app/?nativeIntro=1";
+  var button = document.getElementById("retry");
+  function go() {
+    button.disabled = true;
+    button.textContent = "A ligar…";
+    window.location.replace(TARGET);
+  }
+  button.addEventListener("click", go);
+  // Quando a rede volta, entra sozinho.
+  window.addEventListener("online", go);
+</script>
+</body>
+</html>

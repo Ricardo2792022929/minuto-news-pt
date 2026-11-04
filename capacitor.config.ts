@@ -9,6 +9,8 @@ const config: CapacitorConfig = {
     url: "https://minuto-news-pt.lovable.app/?nativeIntro=1",
     androidScheme: "https",
     cleartext: false,
+    // Sem rede (ou erro a abrir o site) mostra esta página local em vez do erro do Android.
+    errorPath: "/offline.html",
   },
 };
 

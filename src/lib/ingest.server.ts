@@ -10,7 +10,7 @@ import { scrapeArticleText } from "./article-scrape.server";
 import { imageKitUrl } from "./imagekit";
 import { storyImageUrl } from "./image-policy";
 import { imageSearchTerms, storyEntities } from "./image-search.server";
-import { imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
+import { cleanStoryTitle, imageAlreadyUsed, rememberImage, scoreCandidate, wikipediaPageFits } from "./image-relevance";
 import { imageFromArticlePage, imageFromSameStory } from "./article-image.server";
 import { adequateImage } from "./image-quality";
 import { asLinks, mergeLinks, titlesMatch, type StoryLink } from "./story-match";
@@ -431,7 +431,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     };
     const saveOne = async (item: { n: (typeof queue)[number]; titulo: string; resumo: string }) => {
       const { n, titulo, resumo } = item;
-      const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
+      const category = classify(`${cleanStoryTitle(n.title)} ${n.excerpt ?? ""}`, n.category || "Mundo");
       const picked = (() => { const url = n.image || n.imageCandidates?.[0] || null; return url ? { url, status: "original" as const } : null; })();
       const rawImage = picked?.url ?? null;
       const safeImage = storyImageUrl(rawImage, false);

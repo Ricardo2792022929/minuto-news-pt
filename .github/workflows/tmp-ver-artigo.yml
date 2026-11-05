@@ -1,0 +1,37 @@
+# Temporário: ver uma notícia e a imagem que lhe foi dada. Apagar depois.
+name: tmp ver artigo
+on:
+  push:
+    branches: [tmp-ver-artigo]
+jobs:
+  ver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Notícia
+        run: |
+          URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"
+          KEY="sb_publishable_Q240clLEpscXn_rKI9vNhw_2b0cRfQZ"
+          curl -sS "$URL/rest/v1/articles?select=*&or=(titulo_inedito.ilike.*Santos%20Silva*,original_title.ilike.*Santos%20Silva*)&order=published_at.desc&limit=3" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o a.json
+          python3 -c "
+          import json; a=json.load(open('a.json'))
+          for r in a:
+              for k in ('id','source','url','published_at','created_at','original_title','titulo_inedito','image','image_status','image_candidates','image_query','category'):
+                  print(k,'=',r.get(k))
+              print('---')
+          "
+          python3 - <<'PY'
+          import json, re, urllib.request
+          for r in json.load(open("a.json")):
+              try:
+                  req = urllib.request.Request(r["url"], headers={"User-Agent": "Mozilla/5.0 Chrome/130"})
+                  html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "replace")
+              except Exception as e:
+                  print("fetch fail", e); continue
+              for m in re.finditer(r'<meta[^>]+(?:og:image|twitter:image)[^>]*>', html):
+                  print("META", m.group(0)[:300])
+              imgs = re.findall(r'<img[^>]+src="([^"]+)"', html)
+              print("IMGS", len(imgs))
+              for i in imgs[:25]: print("  ", i[:200])
+          PY

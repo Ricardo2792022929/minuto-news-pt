@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as ApiPublicHooksIngestRouteImport } from './routes/api/public/hooks/ingest'
 import { Route as ApiPublicHooksPushTokenRouteImport } from './routes/api/public/hooks/push-token'
 import { Route as ApiPublicHooksRefreshRouteImport } from './routes/api/public/hooks/refresh'
@@ -17,6 +18,11 @@ import { Route as ApiPublicHooksRefreshRouteImport } from './routes/api/public/h
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactoRoute = ContactoRouteImport.update({
+  id: '/contacto',
+  path: '/contacto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicHooksIngestRoute = ApiPublicHooksIngestRouteImport.update({
@@ -37,12 +43,14 @@ const ApiPublicHooksRefreshRoute = ApiPublicHooksRefreshRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contacto': typeof ContactoRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contacto': typeof ContactoRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
@@ -50,20 +58,38 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contacto': typeof ContactoRoute
   '/api/public/hooks/ingest': typeof ApiPublicHooksIngestRoute
   '/api/public/hooks/push-token': typeof ApiPublicHooksPushTokenRoute
   '/api/public/hooks/refresh': typeof ApiPublicHooksRefreshRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
+  fullPaths:
+    | '/'
+    | '/contacto'
+    | '/api/public/hooks/ingest'
+    | '/api/public/hooks/push-token'
+    | '/api/public/hooks/refresh'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
-  id: '__root__' | '/' | '/api/public/hooks/ingest' | '/api/public/hooks/push-token' | '/api/public/hooks/refresh'
+  to:
+    | '/'
+    | '/contacto'
+    | '/api/public/hooks/ingest'
+    | '/api/public/hooks/push-token'
+    | '/api/public/hooks/refresh'
+  id:
+    | '__root__'
+    | '/'
+    | '/contacto'
+    | '/api/public/hooks/ingest'
+    | '/api/public/hooks/push-token'
+    | '/api/public/hooks/refresh'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContactoRoute: typeof ContactoRoute
   ApiPublicHooksIngestRoute: typeof ApiPublicHooksIngestRoute
   ApiPublicHooksPushTokenRoute: typeof ApiPublicHooksPushTokenRoute
   ApiPublicHooksRefreshRoute: typeof ApiPublicHooksRefreshRoute
@@ -76,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contacto': {
+      id: '/contacto'
+      path: '/contacto'
+      fullPath: '/contacto'
+      preLoaderRoute: typeof ContactoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/ingest': {
@@ -104,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContactoRoute: ContactoRoute,
   ApiPublicHooksIngestRoute: ApiPublicHooksIngestRoute,
   ApiPublicHooksPushTokenRoute: ApiPublicHooksPushTokenRoute,
   ApiPublicHooksRefreshRoute: ApiPublicHooksRefreshRoute,

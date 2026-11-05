@@ -87,6 +87,10 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
   }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length]);
 
   const failed = !ready && active && finished;
+  // Fundo: a mesma foto desfocada. Se a foto veio direta (sem ImageKit), desfoca-se no próprio telemóvel.
+  const readyOriginal = ready ? urls.find((url) => url === ready || imageKitUrl(url) === ready) ?? ready : null;
+  const backdropKit = readyOriginal ? imageKitUrl(readyOriginal, "backdrop") : null;
+  const backdropSrc = fill && ready ? backdropKit ?? ready : null;
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
 
   return (
@@ -104,6 +108,20 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           ) : null}
         </div>
       )}
+      {backdropSrc && (
+        <img
+          src={backdropSrc}
+          alt=""
+          aria-hidden
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center",
+            transform: "scale(1.12)",
+            filter: backdropKit ? "brightness(0.5) saturate(1.25)" : "blur(28px) brightness(0.5) saturate(1.25)",
+          }}
+        />
+      )}
       {ready && (
         <img
           src={ready}
@@ -111,7 +129,13 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
+          style={fill ? {
+            // Foto inteira (4:5) no meio do ecrã, com as pontas a fundir-se no fundo desfocado.
+            position: "absolute", top: "50%", left: "50%", width: "min(100%, 80svh)", aspectRatio: "4 / 5",
+            transform: "translate(-50%, -54%)", objectFit: "cover", objectPosition: "center center",
+            maskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
+          } : { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
         />
       )}
     </div>

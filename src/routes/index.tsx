@@ -7,6 +7,24 @@ import paperBall from "@/assets/paper-ball.jpg";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
 
+const TITLE_LINKS = new Set(["da", "de", "do", "das", "dos"]);
+
+/** Quem ou o quê no início do título ("Santos Silva", "Presidente da República", "Banda U2") fica destacado a amarelo. */
+function splitTitleLead(title: string): [string, string] {
+  const tokens = title.trim().split(/\s+/).filter(Boolean);
+  const isName = (token: string) => /^[\p{Lu}\d]/u.test(token);
+  let end = 0;
+  while (end < tokens.length && end < 4) {
+    const token = tokens[end] ?? "";
+    if (isName(token)) { end++; continue; }
+    if (end > 0 && TITLE_LINKS.has(token.toLowerCase()) && isName(tokens[end + 1] ?? "")) { end++; continue; }
+    break;
+  }
+  // Pelo menos duas palavras ficam fora do destaque; um título só com nomes não leva destaque.
+  if (end === 0 || tokens.length - end < 2) return ["", title];
+  return [tokens.slice(0, end).join(" "), tokens.slice(end).join(" ")];
+}
+
 function StoryTitle({
   title,
   open,
@@ -21,10 +39,11 @@ function StoryTitle({
   const words = title.trim().split(/\s+/).filter(Boolean).length;
   const size =
     words > 10 || title.length > 78
-      ? "text-[clamp(1.25rem,5vw,1.6rem)]"
+      ? "text-[clamp(1.5rem,6.1vw,1.95rem)]"
       : words > 7
-        ? "text-[clamp(1.42rem,5.7vw,1.85rem)]"
-        : "text-[clamp(1.58rem,6.5vw,2.1rem)]";
+        ? "text-[clamp(1.72rem,7vw,2.25rem)]"
+        : "text-[clamp(1.95rem,8vw,2.6rem)]";
+  const [lead, rest] = splitTitleLead(title);
 
   useEffect(() => {
     const el = ref.current;
@@ -40,11 +59,14 @@ function StoryTitle({
     <>
       <h2
         ref={ref}
-        className={`mt-1.5 w-full text-left font-display font-bold leading-[1.2] tracking-tight text-pretty break-words text-feed-fg drop-shadow-md ${size} ${
+        className={`mt-2 w-full text-left font-display font-extrabold leading-[1.06] tracking-[-0.025em] text-balance break-words text-feed-fg ${size} ${
           open ? "max-h-[40vh] overflow-y-auto" : "line-clamp-4"
         }`}
+        style={{ textShadow: "0 2px 14px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.6)" }}
       >
-        {title}
+        {lead ? <span className="text-yellow-400">{lead}</span> : null}
+        {lead && rest ? " " : null}
+        {rest}
       </h2>
       {overflows && (
         <button

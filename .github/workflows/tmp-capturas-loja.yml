@@ -7,7 +7,7 @@ permissions:
   contents: write
 jobs:
   capturas:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       DEMO_NOW: "2026-11-05T18:47:00Z"

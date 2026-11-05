@@ -68,19 +68,6 @@ function StoryTitle({
         {lead && rest ? " " : null}
         {rest}
       </h2>
-      {overflows && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggle();
-          }}
-          className="mt-1 text-left text-[13px] font-semibold text-white/85"
-        >
-          {open ? "Ver menos" : "Ver mais"}
-        </button>
-      )}
     </>
   );
 }
@@ -96,6 +83,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
+  ArrowRight,
   Bookmark,
   Check,
   EllipsisVertical,
@@ -1211,7 +1199,10 @@ function Index() {
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
                     <div className="mt-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">Ler notícia</p>
+                      <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[13px] font-bold text-black shadow-lg shadow-black/30">
+                        Ler notícia
+                        <ArrowRight className="size-3.5" />
+                      </p>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"

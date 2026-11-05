@@ -1244,7 +1244,7 @@ function Index() {
                       open={openTitle === a.id}
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
-                    <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="mt-3 flex translate-y-1.5 items-center justify-between gap-3">
                       <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[0.8125rem] font-bold text-black shadow-lg shadow-black/30">
                         Ler notícia
                         <ArrowRight className="size-3.5" />

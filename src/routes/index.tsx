@@ -68,6 +68,12 @@ function StoryTitle({
         {lead && rest ? " " : null}
         {rest}
       </h2>
+      {overflows && (
+        // Espaço que o "Ver mais" ocupava: o texto saiu, mas o título e as etiquetas ficam exatamente onde estavam.
+        <span aria-hidden className="invisible mt-1 block text-left text-[13px] font-semibold">
+          Ver mais
+        </span>
+      )}
     </>
   );
 }

@@ -290,18 +290,32 @@ export async function runIngest(options: { budgetMs?: number } = {}): Promise<Re
 
 async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
-  const started = Date.now();
+  let started = Date.now();
   // Com mais tempo, tudo ganha folga: recolha, cada título (contexto + todas as IAs) e manutenção.
   const longRun = budgetMs > BUDGET_MS;
   const collectMs = longRun ? 25_000 : 12_000;
-  const maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
-  const expired = () => Date.now() - started > budgetMs;
+  // O tempo de espera pelo bloqueio sai do orçamento, para não passar dos 120 s do pg_cron.
+  let effectiveBudget = budgetMs;
+  let maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
+  const expired = () => Date.now() - started > effectiveBudget;
   const maintenanceOver = () => Date.now() - started > maintenanceMs;
+  const isLocked = async () => {
+    const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
+    const lockedUntil = current?.locked_until ? new Date(current.locked_until).getTime() : 0;
+    return lockedUntil > Date.now() && lockedUntil < Date.now() + 4 * 60_000;
+  };
+  // Outra ronda a correr (por exemplo a do agendador do Lovable): nas rondas longas espera que acabe (até 60 s), em vez de perder esta.
+  let waitedMs = 0;
+  while (await isLocked()) {
+    if (!longRun || waitedMs >= 60_000) return { skipped: "locked", waitedMs };
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    waitedMs += 5_000;
+  }
+  started = Date.now();
+  effectiveBudget = Math.max(BUDGET_MS, budgetMs - waitedMs);
+  maintenanceMs = effectiveBudget + (longRun ? 10_000 : 7_000);
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
-  const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
-  const lockedUntil = current?.locked_until ? new Date(current.locked_until).getTime() : 0;
-  if (lockedUntil > Date.now() && lockedUntil < Date.now() + 4 * 60_000) return { skipped: "locked" };
   const { error: lockError } = await db.from("ingest_state").upsert(
     { id: 1, locked_until: until, updated_at: nowIso },
     { onConflict: "id" },
@@ -652,7 +666,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory, esperouMs: waitedMs };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

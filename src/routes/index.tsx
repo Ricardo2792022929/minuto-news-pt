@@ -8,15 +8,6 @@ import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
 
 const TITLE_LINKS = new Set(["da", "de", "do", "das", "dos"]);
-/** Palavras comuns que abrem títulos: sozinhas não são um nome, por isso não levam destaque. */
-const COMMON_OPENERS = new Set([
-  "festival", "governo", "estudo", "ministro", "ministra", "presidente", "polícia", "policia", "tribunal", "câmara", "camara",
-  "homem", "mulher", "jovem", "jovens", "criança", "crianca", "crianças", "criancas", "idoso", "idosa", "incêndio", "incendio",
-  "acidente", "greve", "preço", "preco", "preços", "precos", "bolsa", "banco", "empresa", "empresas", "hospital", "escola",
-  "professores", "médicos", "medicos", "alunos", "trabalhadores", "portugueses", "turistas", "chuva", "calor", "frio", "tempestade",
-  "sismo", "guerra", "ataque", "explosão", "explosao", "morreu", "morre", "novo", "nova", "novos", "novas", "mais", "menos",
-  "há", "ha", "quase", "cerca", "um", "uma", "o", "a", "os", "as", "este", "esta", "já", "ja",
-]);
 
 /** Quem ou o quê no início do título ("Santos Silva", "Presidente da República", "Banda U2") fica destacado a amarelo. */
 function splitTitleLead(title: string): [string, string] {
@@ -31,7 +22,6 @@ function splitTitleLead(title: string): [string, string] {
   }
   // Pelo menos duas palavras ficam fora do destaque; um título só com nomes não leva destaque.
   if (end === 0 || tokens.length - end < 2) return ["", title];
-  if (end === 1 && COMMON_OPENERS.has((tokens[0] ?? "").toLowerCase().replace(/[^\p{L}]/gu, ""))) return ["", title];
   return [tokens.slice(0, end).join(" "), tokens.slice(end).join(" ")];
 }
 
@@ -62,8 +52,7 @@ function StoryTitle({
       setOverflows(true);
       return;
     }
-    const line = parseFloat(getComputedStyle(el).lineHeight) || 30;
-    setOverflows(el.scrollHeight > el.clientHeight + line * 0.5);
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
   }, [title, open, size]);
 
   return (
@@ -107,7 +96,6 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
-  ArrowRight,
   Bookmark,
   Check,
   EllipsisVertical,
@@ -1194,14 +1182,14 @@ function Index() {
                   )}
 
                   <div className="relative z-10 mt-auto bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                    <div className="flex h-7 items-center gap-1.5 text-[11px] font-semibold">
-                      <span className={`inline-flex h-7 shrink-0 items-center rounded-full px-3 text-[12.5px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
+                    <div className="flex items-center gap-2 text-[11px] font-semibold">
+                      <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
                       </span>
-                      <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-white/15 px-2.5 uppercase tracking-wider text-white backdrop-blur-sm">
+                      <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
                         {storyLabel(a)}
                       </span>
-                      <span className="min-w-0 truncate pl-0.5 text-white/80">{a.source}</span>
+                      <span className="min-w-0 truncate text-white/75">{a.source}</span>
                       {(a.sources?.length ?? 0) > 1 ? (
                         <button
                           type="button"
@@ -1211,7 +1199,7 @@ function Index() {
                             e.stopPropagation();
                             setSourceStory(a);
                           }}
-                          className="ml-auto inline-flex h-7 shrink-0 items-center rounded-full bg-white/15 px-2.5 text-white backdrop-blur-sm"
+                          className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-white"
                         >
                           {a.sources!.length} fontes
                         </button>
@@ -1222,11 +1210,8 @@ function Index() {
                       open={openTitle === a.id}
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <p className="inline-flex h-11 items-center gap-2 rounded-full bg-white pl-4 pr-3.5 text-sm font-bold text-black shadow-lg shadow-black/30">
-                        Ler notícia
-                        <ArrowRight className="size-4" />
-                      </p>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">Ler notícia</p>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"

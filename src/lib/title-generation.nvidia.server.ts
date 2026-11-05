@@ -1,7 +1,8 @@
-import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, NVIDIA_LIMIT, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = "google/gemma-4-31b-it";
-const TIMEOUT_MS = 8_000;
+/* Respondeu 0 vezes em 8 s nas rondas reais (AbortError em 100%): mais tempo para o modelo grande. */
+const TIMEOUT_MS = 15_000;
 let nvidiaCooldownUntil = 0;
 
 const SYSTEM = `És o editor do Flash Notícias. O título é o texto sobre a imagem num feed vertical de telemóvel. Tem de ser lido em menos de 2 segundos e dizer exactamente o que aconteceu.
@@ -50,6 +51,8 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
   if (!apiKey) { recordFailure("nvidia", "sem chave"); return null; }
   if (Date.now() < nvidiaCooldownUntil) { recordFailure("nvidia", "em pausa"); return null; }
 
+  const release = tryAcquire("nvidia", NVIDIA_LIMIT);
+  if (!release) { recordFailure("nvidia", "limite próprio"); return null; }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -103,5 +106,6 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
     return null;
   } finally {
     clearTimeout(timer);
+    release();
   }
 }

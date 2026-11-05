@@ -56,6 +56,31 @@ export function drainFailures(): Record<string, number> {
   failureCounts.clear();
   return out;
 }
+/* Limites do plano gratuito, aplicados do nosso lado para não chegar ao 429.
+   Cada IA tem pedidos por minuto, pedidos em simultâneo e (opcional) pedidos por dia (UTC).
+   Sem vaga, a IA é saltada e a notícia segue para a seguinte. Valores ~10% abaixo do oficial. */
+type Gate = { starts: number[]; inFlight: number; day: string; today: number };
+const gates = new Map<string, Gate>();
+export function tryAcquire(name: string, limit: { perMinute: number; parallel: number; perDay?: number }): (() => void) | null {
+  const now = Date.now();
+  let gate = gates.get(name);
+  if (!gate) { gate = { starts: [], inFlight: 0, day: "", today: 0 }; gates.set(name, gate); }
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (gate.day !== day) { gate.day = day; gate.today = 0; }
+  gate.starts = gate.starts.filter((t) => now - t < 60_000);
+  if (gate.inFlight >= limit.parallel || gate.starts.length >= limit.perMinute) return null;
+  if (limit.perDay !== undefined && gate.today >= limit.perDay) return null;
+  gate.starts.push(now); gate.inFlight += 1; gate.today += 1;
+  const current = gate;
+  let released = false;
+  return () => { if (!released) { released = true; current.inFlight = Math.max(0, current.inFlight - 1); } };
+}
+const envNumber = (name: string, fallback: number) => { const n = Number(process.env[name]); return Number.isFinite(n) && n > 0 ? n : fallback; };
+export const GEMINI_LIMIT = { perMinute: envNumber("GEMINI_RPM", 12), parallel: 3, perDay: envNumber("GEMINI_RPD", 900) };
+export const GROQ_LIMIT = { perMinute: envNumber("GROQ_RPM", 5), parallel: 2, perDay: envNumber("GROQ_RPD", 120) };
+export const OPENROUTER_LIMIT = { perMinute: envNumber("OPENROUTER_RPM", 18), parallel: 2, perDay: envNumber("OPENROUTER_RPD", 45) };
+export const NVIDIA_LIMIT = { perMinute: envNumber("NVIDIA_RPM", 36), parallel: 4 };
+export const CLOUDFLARE_LIMIT = { perMinute: envNumber("CLOUDFLARE_RPM", 250), parallel: 6 };
 const errName = (e: unknown) => (e instanceof Error ? e.name : "erro");
 
 const responseSchema = {
@@ -359,6 +384,8 @@ export async function generateOne(title: string, articleText?: string | null): P
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
     if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
+    if (!release) { recordFailure("gemini", "limite próprio"); continue; }
     try {
       const res = await callGemini(MODEL, account.key, prompt);
       if (!res.ok) {
@@ -386,6 +413,8 @@ export async function generateOne(title: string, articleText?: string | null): P
     } catch (e) {
       console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
       recordFailure("gemini", `falhou ${errName(e)}`);
+    } finally {
+      release();
     }
   }
   return null;

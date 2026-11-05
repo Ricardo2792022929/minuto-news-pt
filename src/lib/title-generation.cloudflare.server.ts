@@ -1,4 +1,4 @@
-import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { CLOUDFLARE_LIMIT, GatewayError, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8";
 const TIMEOUT_MS = 8_000;
@@ -51,6 +51,8 @@ export async function generateCloudflareOne(title: string, articleText?: string 
   if (!token || !account) { recordFailure("cloudflare", "sem chave"); return null; }
   if (Date.now() < cloudflareCooldownUntil) { recordFailure("cloudflare", "em pausa"); return null; }
 
+  const release = tryAcquire("cloudflare", CLOUDFLARE_LIMIT);
+  if (!release) { recordFailure("cloudflare", "limite próprio"); return null; }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -99,5 +101,6 @@ export async function generateCloudflareOne(title: string, articleText?: string 
     return null;
   } finally {
     clearTimeout(timer);
+    release();
   }
 }

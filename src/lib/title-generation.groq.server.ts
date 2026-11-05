@@ -1,4 +1,4 @@
-import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, GROQ_LIMIT, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
 const TIMEOUT_MS = 6_000;
@@ -52,6 +52,8 @@ export async function generateGroqOne(title: string, articleText?: string | null
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
     if (Date.now() < groqCooldownUntil[account.slot]) { recordFailure("groq", "em pausa"); continue; }
+    const release = tryAcquire(`groq:${account.slot}`, GROQ_LIMIT);
+    if (!release) { recordFailure("groq", "limite próprio"); continue; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
@@ -103,6 +105,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
       recordFailure("groq", `falhou ${error instanceof Error ? error.name : "erro"}`);
     } finally {
       clearTimeout(timer);
+      release();
     }
   }
   if (blocked === accounts.length) throw new GatewayError("Groq HTTP 401", 401);

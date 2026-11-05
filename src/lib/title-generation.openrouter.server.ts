@@ -1,4 +1,4 @@
-import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, OPENROUTER_LIMIT, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = "google/gemma-4-31b-it:free";
 const TIMEOUT_MS = 8_000;
@@ -38,6 +38,8 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
   if (!apiKey) { recordFailure("openrouter", "sem chave"); return null; }
   if (Date.now() < openrouterCooldownUntil) { recordFailure("openrouter", "em pausa"); return null; }
 
+  const release = tryAcquire("openrouter", OPENROUTER_LIMIT);
+  if (!release) { recordFailure("openrouter", "limite próprio"); return null; }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -97,5 +99,6 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
     return null;
   } finally {
     clearTimeout(timer);
+    release();
   }
 }

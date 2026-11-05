@@ -70,7 +70,7 @@ function StoryTitle({
       </h2>
       {overflows && (
         // Espaço que o "Ver mais" ocupava, agora por baixo dos botões: o título fica onde estava e os botões sobem para junto dele.
-        <span aria-hidden className="invisible order-last mt-1 block text-left text-[13px] font-semibold">
+        <span aria-hidden className="invisible order-last mt-1 block text-left text-[0.8125rem] font-semibold">
           Ver mais
         </span>
       )}
@@ -411,13 +411,13 @@ function SavedList({
         >
           <div className="flex gap-4">
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-live">
+              <div className="text-[0.625rem] font-bold uppercase tracking-widest text-live">
                 {item.source} · {storyLabel(item)}
               </div>
               <h3 className="mt-1.5 font-display text-xl font-bold leading-snug text-balance">
                 {item.title}
               </h3>
-              <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+              <p className="mt-2 text-[0.6875rem] font-medium text-muted-foreground">
                 {timeAgo(item.publishedAt)} ·{" "}
                 {formatClock(new Date(item.publishedAt))}
               </p>
@@ -434,7 +434,7 @@ function SavedList({
               e.stopPropagation();
               onRemove(item.id);
             }}
-            className="mt-2 text-[11px] font-semibold text-muted-foreground hover:text-live"
+            className="mt-2 text-[0.6875rem] font-semibold text-muted-foreground hover:text-live"
           >
             Remover
           </button>
@@ -451,7 +451,7 @@ function SavedList({
 function LiveWhen() {
   const now = useClock();
   return (
-    <span className="text-[11px] font-semibold text-feed-fg/75">
+    <span className="text-[0.6875rem] font-semibold text-feed-fg/75">
       Em direto · {formatClock(now)}
     </span>
   );
@@ -476,7 +476,7 @@ function LiveDateLine() {
     return () => { active = false; };
   }, []);
   return (
-    <p className="min-w-0 truncate text-[11px] text-feed-fg/70">
+    <p className="min-w-0 truncate text-[0.6875rem] text-feed-fg/70">
       {formatDate(now)} · {city}
     </p>
   );
@@ -1216,8 +1216,8 @@ function Index() {
                   )}
 
                   <div className="relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                    <div className="flex items-center gap-2 text-[11px] font-semibold">
-                      <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
+                    <div className="flex items-center gap-2 text-[0.6875rem] font-semibold">
+                      <span className={`shrink-0 rounded-full px-3 py-1.5 text-[0.8125rem] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
                       </span>
                       <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
@@ -1245,7 +1245,7 @@ function Index() {
                       onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
                     />
                     <div className="mt-3 flex items-center justify-between gap-3">
-                      <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[13px] font-bold text-black shadow-lg shadow-black/30">
+                      <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[0.8125rem] font-bold text-black shadow-lg shadow-black/30">
                         Ler notícia
                         <ArrowRight className="size-3.5" />
                       </p>
@@ -1365,7 +1365,7 @@ function Index() {
                       }}
                       className="rounded-2xl bg-white/10 px-3 py-3 text-left"
                     >
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-white/60">{link.source}</span>
+                      <span className="block text-[0.6875rem] font-bold uppercase tracking-wider text-white/60">{link.source}</span>
                       <span className="mt-1 block text-sm font-semibold text-white">{link.title}</span>
                     </button>
                   ))}
@@ -1382,7 +1382,7 @@ function Index() {
                 </h1>
                 <Link
                   to="/contacto"
-                  className="pointer-events-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 text-[11px] font-bold text-black"
+                  className="pointer-events-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-yellow-400 px-3 text-[0.6875rem] font-bold text-black"
                 >
                   <Phone className="size-3.5" />
                   Contacto

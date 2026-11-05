@@ -101,7 +101,7 @@ export function TopBar({
           <button
             type="button"
             onClick={action.onClick}
-            className={`flex h-12 items-center rounded-full px-4 text-[15px] font-semibold text-ob-fg2 ob-press ob-focus`}
+            className={`flex h-12 items-center rounded-full px-4 text-[0.9375rem] font-semibold text-ob-fg2 ob-press ob-focus`}
           >
             {action.label}
           </button>
@@ -183,7 +183,7 @@ export function SheetHeader({ title, hint }: { title: string; hint: string }) {
       <h1 className="font-display text-[1.75rem] font-extrabold leading-[1.1] tracking-[-0.01em] text-balance">
         {title}
       </h1>
-      <p aria-live="polite" className="mt-2 max-w-[34ch] text-[15px] leading-[1.45] text-ob-fg2">
+      <p aria-live="polite" className="mt-2 max-w-[34ch] text-[0.9375rem] leading-[1.45] text-ob-fg2">
         {hint}
       </p>
     </header>
@@ -221,7 +221,7 @@ export function TextButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
     <button
       type="button"
       {...props}
-      className={`flex h-12 w-full items-center justify-center rounded-full text-[15px] font-semibold text-ob-fg2 ob-press disabled:opacity-50 ob-focus`}
+      className={`flex h-12 w-full items-center justify-center rounded-full text-[0.9375rem] font-semibold text-ob-fg2 ob-press disabled:opacity-50 ob-focus`}
     />
   );
 }
@@ -261,7 +261,7 @@ export function FeedFan({
         return (
           <div
             key={topic.category}
-            className="ob-slot absolute left-1/2 top-0 h-[220px] w-[124px] -ml-[62px]"
+            className="ob-slot absolute left-1/2 top-0 h-[13.75rem] w-[7.75rem] -ml-[3.875rem]"
             style={{
               zIndex: slot.z,
               opacity: faded ? 0.55 : 1,
@@ -269,7 +269,7 @@ export function FeedFan({
             }}
           >
             <div
-              className="ob-lift relative size-full overflow-hidden rounded-[18px] shadow-[0_18px_28px_-10px_rgba(0,0,0,0.7)]"
+              className="ob-lift relative size-full overflow-hidden rounded-[1.125rem] shadow-[0_18px_28px_-10px_rgba(0,0,0,0.7)]"
               style={{ background: cardBackground(topic.hue), animationDelay: `${index * 90}ms` }}
             >
               <topic.Icon
@@ -277,20 +277,20 @@ export function FeedFan({
                 strokeWidth={1.5}
               />
               {index === 0 && extra > 0 ? (
-                <span className="ob-pop absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                <span className="ob-pop absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[0.6875rem] font-bold tabular-nums text-white">
                   +{extra}
                 </span>
               ) : null}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-3 pt-10">
                 <div className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 rounded-full bg-live px-2 py-0.5 text-[10px] font-extrabold text-live-foreground">
+                  <span className="flex items-center gap-1 rounded-full bg-live px-2 py-0.5 text-[0.625rem] font-extrabold text-live-foreground">
                     {index === 0 ? (
                       <span className="animate-live-pulse size-1.5 rounded-full bg-live-foreground" />
                     ) : null}
                     Agora
                   </span>
                   {index === 0 ? (
-                    <span className="truncate text-[10px] font-semibold text-white/80">
+                    <span className="truncate text-[0.625rem] font-semibold text-white/80">
                       {topic.category}
                     </span>
                   ) : null}
@@ -305,7 +305,7 @@ export function FeedFan({
       {club ? (
         <span
           key={club.id}
-          className="ob-pop absolute left-[78px] top-[196px] z-10 flex size-11 items-center justify-center rounded-full text-[13px] font-extrabold text-white ring-[3px] ring-black"
+          className="ob-pop absolute left-[4.875rem] top-[12.25rem] z-10 flex size-11 items-center justify-center rounded-full text-[0.8125rem] font-extrabold text-white ring-[3px] ring-black"
           style={{ background: club.color ?? "oklch(0.4 0.03 60)" }}
         >
           {clubInitials(club.name)}
@@ -323,10 +323,10 @@ export function NotificationMock() {
   return (
     <div className="relative size-full">
       <div
-        className="absolute inset-x-6 top-[14px] h-[120px] rounded-[24px] bg-ob-s2 opacity-50"
+        className="absolute inset-x-6 top-[0.875rem] h-[7.5rem] rounded-[1.5rem] bg-ob-s2 opacity-50"
         style={{ transform: "scale(0.96)" }}
       />
-      <div className="ob-drop absolute inset-x-0 top-0 rounded-[24px] bg-ob-s2 p-3.5 shadow-[0_18px_30px_-12px_rgba(0,0,0,0.7)]">
+      <div className="ob-drop absolute inset-x-0 top-0 rounded-[1.5rem] bg-ob-s2 p-3.5 shadow-[0_18px_30px_-12px_rgba(0,0,0,0.7)]">
         <div className="flex items-center gap-2">
           <span className="flex size-5 items-center justify-center rounded-md bg-live">
             <Zap className="size-3 text-live-foreground" strokeWidth={2.5} />
@@ -335,7 +335,7 @@ export function NotificationMock() {
         </div>
         <div className="mt-2.5 flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold leading-5">Última hora</p>
+            <p className="text-[0.9375rem] font-semibold leading-5">Última hora</p>
             <p className="mt-0.5 text-sm leading-5 text-ob-fg2">
               Aqui chega o aviso, mesmo com a app fechada.
             </p>

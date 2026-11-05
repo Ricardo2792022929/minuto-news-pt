@@ -86,7 +86,7 @@ function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; 
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block text-[15px] font-semibold leading-5">{title}</span>
+        <span className="block text-[0.9375rem] font-semibold leading-5">{title}</span>
         <span className="mt-0.5 block text-sm leading-5 text-ob-fg2">{text}</span>
       </span>
     </li>
@@ -260,7 +260,7 @@ export function Onboarding({
                         type="button"
                         aria-pressed={active}
                         onClick={() => toggleTopic(topic.category)}
-                        className={`flex h-12 items-center gap-2.5 rounded-2xl pl-2 pr-4 text-[15px] font-medium transition-[background-color,transform] duration-150 ob-focus ${
+                        className={`flex h-12 items-center gap-2.5 rounded-2xl pl-2 pr-4 text-[0.9375rem] font-medium transition-[background-color,transform] duration-150 ob-focus ${
                           active ? "bg-ob-tonal text-ob-on-tonal" : "bg-ob-s2 text-feed-fg"
                         }`}
                       >
@@ -311,7 +311,7 @@ export function Onboarding({
                       >
                         <span
                           aria-hidden
-                          className="flex size-10 flex-none items-center justify-center rounded-full text-[13px] font-bold text-white"
+                          className="flex size-10 flex-none items-center justify-center rounded-full text-[0.8125rem] font-bold text-white"
                           style={{ background: item.color ?? "oklch(0.36 0.02 60)" }}
                         >
                           {clubInitials(item.name)}
@@ -369,7 +369,7 @@ export function Onboarding({
               <h1 className="mt-5 font-display text-[1.75rem] font-extrabold leading-tight">
                 Tudo pronto
               </h1>
-              <p className="mt-1 text-[15px] text-ob-fg2">A preparar o teu feed.</p>
+              <p className="mt-1 text-[0.9375rem] text-ob-fg2">A preparar o teu feed.</p>
             </div>
           ) : null}
         </div>

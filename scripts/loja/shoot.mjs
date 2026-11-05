@@ -14,9 +14,10 @@ mkdirSync(OUT, { recursive: true });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const BLURRED = new URL("./fotos-blur/", import.meta.url).pathname;
 function photoFor(url) {
   const name = decodeURIComponent(url.split("?")[0].split("/").pop() || "");
-  const file = path.join(PHOTOS, name);
+  const file = path.join(/\/tr:[^/]*bl-/.test(url) ? BLURRED : PHOTOS, name);
   return existsSync(file) ? file : null;
 }
 

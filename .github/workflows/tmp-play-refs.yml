@@ -1,0 +1,24 @@
+# Temporário: recolhe referências de screenshots de apps de notícias na Google Play. Apagar depois.
+name: tmp play refs
+on:
+  push:
+    branches: [tmp-play-refs]
+permissions:
+  contents: write
+jobs:
+  refs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recolher
+        run: python3 scripts/loja/play_refs.py 2>&1 | tee refs-log.txt
+      - name: Publicar no ramo tmp-play-refs-out
+        if: always()
+        run: |
+          mkdir -p refs && cp refs-log.txt refs/ || true
+          cd refs
+          git init -q -b out
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -q -m "refs"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" out:tmp-play-refs-out

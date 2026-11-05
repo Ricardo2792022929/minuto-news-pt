@@ -31,6 +31,24 @@ const GROUPS_IN_PARALLEL = 3;
 const FAIL_PAUSE_MS = 60 * 60_000;
 const failedRecently = new Map<string, number>();
 
+/* As colunas related, image_status e image_candidates e a tabela image_api_metrics existem na base
+   (confirmado com o workflow ver-feed), mas não nos tipos gerados do Supabase. Este cliente sem tipos
+   deixa usá-las sem erros de compilação, em vez de as retirar. */
+type LooseError = { code?: string; message: string; hint?: string } | null;
+type LooseResult = { data: unknown; error: LooseError };
+type LooseQuery = PromiseLike<LooseResult> & {
+  eq: (column: string, value: string) => LooseQuery;
+  maybeSingle: () => PromiseLike<LooseResult>;
+};
+type LooseDb = {
+  from: (table: string) => {
+    insert: (values: unknown) => PromiseLike<LooseResult>;
+    update: (values: unknown) => LooseQuery;
+    select: (columns: string) => LooseQuery;
+  };
+};
+const looseDb = (db: unknown) => db as LooseDb;
+
 function batchSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const s = raw.replace(/\s+/g, " ").trim();
@@ -290,18 +308,33 @@ export async function runIngest(options: { budgetMs?: number } = {}): Promise<Re
 
 async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
-  const started = Date.now();
+  const loose = looseDb(db);
+  let started = Date.now();
   // Com mais tempo, tudo ganha folga: recolha, cada título (contexto + todas as IAs) e manutenção.
   const longRun = budgetMs > BUDGET_MS;
   const collectMs = longRun ? 25_000 : 12_000;
-  const maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
-  const expired = () => Date.now() - started > budgetMs;
+  // O tempo de espera pelo bloqueio sai do orçamento, para não passar dos 120 s do pg_cron.
+  let effectiveBudget = budgetMs;
+  let maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
+  const expired = () => Date.now() - started > effectiveBudget;
   const maintenanceOver = () => Date.now() - started > maintenanceMs;
+  const isLocked = async () => {
+    const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
+    const lockedUntil = current?.locked_until ? new Date(current.locked_until).getTime() : 0;
+    return lockedUntil > Date.now() && lockedUntil < Date.now() + 4 * 60_000;
+  };
+  // Outra ronda a correr (por exemplo a do agendador do Lovable): nas rondas longas espera que acabe (até 60 s), em vez de perder esta.
+  let waitedMs = 0;
+  while (await isLocked()) {
+    if (!longRun || waitedMs >= 60_000) return { skipped: "locked", waitedMs };
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    waitedMs += 5_000;
+  }
+  started = Date.now();
+  effectiveBudget = Math.max(BUDGET_MS, budgetMs - waitedMs);
+  maintenanceMs = effectiveBudget + (longRun ? 10_000 : 7_000);
   const nowIso = new Date().toISOString();
   const until = new Date(Date.now() + 3 * 60_000).toISOString();
-  const { data: current } = await db.from("ingest_state").select("id, locked_until").eq("id", 1).maybeSingle();
-  const lockedUntil = current?.locked_until ? new Date(current.locked_until).getTime() : 0;
-  if (lockedUntil > Date.now() && lockedUntil < Date.now() + 4 * 60_000) return { skipped: "locked" };
   const { error: lockError } = await db.from("ingest_state").upsert(
     { id: 1, locked_until: until, updated_at: nowIso },
     { onConflict: "id" },
@@ -401,7 +434,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
       const picked = (() => { const url = n.image || n.imageCandidates?.[0] || null; return url ? { url, status: "original" as const } : null; })();
       const rawImage = picked?.url ?? null;
-      const safeImage = storyImageUrl(rawImage, picked?.status === "search");
+      const safeImage = storyImageUrl(rawImage, false);
       const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
       const row = {
         id: n.id,
@@ -409,7 +442,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         category,
         url: n.url.slice(0, 2000),
         image: safeImage,
-        image_status: safeImage ? (picked?.status ?? "original") : "provisional",
+        image_status: safeImage ? "original" : "provisional",
         image_candidates: sameStory,
         image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
         original_title: n.title.slice(0, 500),
@@ -419,16 +452,14 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         published_at: n.publishedAt,
         related: (extras.get(n.id) ?? []) as Json,
       };
-      let { error } = await db.from("articles").insert(row);
+      let { error } = await loose.from("articles").insert(row);
       if (error && error.code !== "23505" && /related/i.test(error.message)) {
         const { related: _related, ...withoutRelated } = row;
-        const again = await db.from("articles").insert(withoutRelated);
-        error = again.error;
+        error = (await loose.from("articles").insert(withoutRelated)).error;
       }
       if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
-        const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
-        const again = await db.from("articles").insert(legacy);
-        error = again.error;
+        const { related: _r, image_status: _status, image_candidates: _candidates, ...legacy } = row;
+        error = (await loose.from("articles").insert(legacy)).error;
       }
       if (error) {
         if (error.code === "23505") return;
@@ -463,8 +494,10 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
           attempts[provider.api] = (attempts[provider.api] ?? 0) + 1;
           const { responded, answers } = await askBatch(provider, chunk.map((x) => ({ title: x.n.title, articleText: x.articleText })));
           for (let k = 0; k < chunk.length; k++) {
-            const { n, articleText } = chunk[k];
-            if (responded) chunk[k].responses++;
+            const slot = chunk[k];
+            if (!slot) continue;
+            const { n, articleText } = slot;
+            if (responded) slot.responses++;
             const got = answers.get(k + 1);
             if (!got) { noteReject(provider.api, responded ? "faltou no lote" : "vazio", n.title); continue; }
             const candidate = validTitle(got.titulo, n.title, articleText);
@@ -488,7 +521,9 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       while (!expired()) {
         const i = nextGroup++;
         if (i >= groups.length) return;
-        await titleGroup(groups[i]);
+        const group = groups[i];
+        if (!group) return;
+        await titleGroup(group);
       }
     };
     await Promise.all(Array.from({ length: GROUPS_IN_PARALLEL }, () => groupWorker()));
@@ -499,13 +534,15 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     openrouterAttempts = attempts["openrouter"] ?? 0;
     nvidiaAttempts = attempts["nvidia"] ?? 0;
 
+    // Outras fontes da mesma notícia, já guardada numa ronda anterior: juntam-se às ligações dela.
     const touched = new Set(queue.map((item) => item.id));
     for (const [id, list] of extras) {
       if (!list.length || touched.has(id)) continue;
-      const { data: current, error: readError } = await db.from("articles").select("related").eq("id", id).maybeSingle();
+      const { data: current, error: readError } = await loose.from("articles").select("related").eq("id", id).maybeSingle();
       if (readError) break;
-      const merged = mergeLinks(asLinks(current?.related), list);
-      const { error: writeError } = await db.from("articles").update({ related: merged as Json }).eq("id", id);
+      const previous = current && typeof current === "object" ? (current as { related?: unknown }).related : undefined;
+      const merged = mergeLinks(asLinks(previous), list);
+      const { error: writeError } = await loose.from("articles").update({ related: merged as Json }).eq("id", id);
       if (writeError) break;
     }
 
@@ -549,7 +586,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
             await db.from("articles").update({ image_query: null }).eq("id", m.id);
             return;
           }
-          const saved = await db.from("articles").update({ image: img, image_status: status, image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
+          const saved = await loose.from("articles").update({ image: img, image_status: status, image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
           if (saved.error && /image_status|image_candidates/i.test(saved.error.message)) {
             await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
           }
@@ -646,13 +683,13 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     }));
     let metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
     if (imageMetricsRows.length) {
-      const { error: metricsError } = await db.from("image_api_metrics").insert(imageMetricsRows);
+      const { error: metricsError } = await loose.from("image_api_metrics").insert(imageMetricsRows);
       if (metricsError) {
         metricsPersist = "metrics_persist_failed";
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory, esperouMs: waitedMs };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

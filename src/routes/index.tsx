@@ -858,7 +858,9 @@ function Index() {
   useEffect(() => {
     if (!mounted) return;
     const index = CATEGORIES.indexOf(category);
-    const neighbors = [CATEGORIES[index - 1], CATEGORIES[index + 1]].filter(Boolean);
+    const neighbors = [CATEGORIES[index - 1], CATEGORIES[index + 1]].filter(
+      (item): item is (typeof CATEGORIES)[number] => Boolean(item),
+    );
     for (const neighbor of neighbors) {
       const key = ["news", neighbor, interests.join(","), club];
       queryClient.prefetchInfiniteQuery({
@@ -952,7 +954,7 @@ function Index() {
           setPrevArticles(articlesRef.current);
           setCategory((current) => {
             const index = CATEGORIES.indexOf(current);
-            return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)];
+            return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)] ?? current;
           });
           setDragX(0);
           setSettling(false);

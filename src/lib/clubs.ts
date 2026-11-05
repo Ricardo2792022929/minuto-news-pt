@@ -31,8 +31,10 @@ export function clubInitials(name: string): string {
     .split(/\s+/)
     .filter((word) => word && !SMALL_WORDS.has(word.toLowerCase()));
   if (words.length === 0) return "";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
+  const first = words[0] ?? "";
+  if (words.length === 1) return first.slice(0, 2).toUpperCase();
+  const second = words[1] ?? "";
+  return `${first.charAt(0)}${second.charAt(0)}`.toUpperCase();
 }
 
 function plain(title: string): string {

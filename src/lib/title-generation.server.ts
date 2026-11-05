@@ -190,7 +190,7 @@ function endsAfterComma(words: string[]): boolean {
   const joined = words.join(" ");
   const parts = joined.split(/[,;]/).map((p) => p.trim()).filter(Boolean);
   if (parts.length < 2) return false;
-  return parts[parts.length - 1].split(/\s+/).length < 3;
+  return (parts[parts.length - 1] ?? "").split(/\s+/).length < 3;
 }
 
 const BRAZIL = /\b(voce|voces|onibus|goleiro|zagueiro|torcida|gramado|celular|usuario|caminhao|xicara|equipe|gol|time|trem|fato|registro|arquibancada)\b/;
@@ -226,7 +226,7 @@ function isPrefixCut(candidate: string, original: string): boolean {
 export function forceMax10Words(raw: string): string {
   let t = raw.replace(/\s+/g, " ").trim().replace(/^[\"«“]+|[\"'»”]+$/g, "").replace(/[.!?]+$/, "");
   t = t.replace(PREFIX, "").trim();
-  if (t.includes(":") && t.split(":")[0].split(" ").length <= 4) {
+  if (t.includes(":") && (t.split(":")[0] ?? "").split(" ").length <= 4) {
     t = t.split(":").slice(1).join(":").trim();
   }
   const all = t.split(/\s+/).map(stripToken).filter(Boolean);
@@ -254,7 +254,8 @@ function foldTitle(value: string): string {
 }
 
 function clubsInTitle(text: string): string[] {
-  const folded = foldTitle(text);
+  // Pontuação vira espaço: "Nacional:" ou "(Benfica)" contam como o clube.
+  const folded = foldTitle(text).replace(/[^\p{L}\p{N}\s]/gu, " ");
   const hits: { id: string; index: number }[] = [];
   for (const club of LIGA_CLUBS) {
     if (club.id === "nacional" && folded.includes("selecao")) continue;
@@ -393,7 +394,8 @@ export async function generateOne(title: string, articleText?: string | null): P
   const start = geminiTurn % accounts.length;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
-    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    if (!account) continue;
+    if (Date.now() < (geminiCooldownUntil[account.slot] ?? 0)) { recordFailure("gemini", "em pausa"); continue; }
     const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
     if (!release) { recordFailure("gemini", "limite próprio"); continue; }
     try {
@@ -441,7 +443,8 @@ export async function askGeminiRaw(system: string, user: string, schema: unknown
   const start = geminiTurn % accounts.length;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
-    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    if (!account) continue;
+    if (Date.now() < (geminiCooldownUntil[account.slot] ?? 0)) { recordFailure("gemini", "em pausa"); continue; }
     const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
     if (!release) { recordFailure("gemini", "limite próprio"); continue; }
     const ctrl = new AbortController();

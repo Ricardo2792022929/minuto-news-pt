@@ -256,7 +256,7 @@ export function FeedFan({
   return (
     <div className="relative size-full">
       {topics.slice(0, 3).map((topic, index) => {
-        const slot = SLOTS[index];
+        const slot = SLOTS[index] ?? { x: 0, y: 0, r: 0, s: 1, z: 1 };
         const faded = dim && !chosen.has(topic.category);
         return (
           <div

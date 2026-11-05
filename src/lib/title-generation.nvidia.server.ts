@@ -1,6 +1,6 @@
 import { GatewayError, NVIDIA_LIMIT, recordFailure, recordSample, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
-const MODEL = "google/gemma-4-31b-it";
+const MODEL = process.env["NVIDIA_MODEL"] || "google/gemma-4-31b-it";
 const TIMEOUT_MS = 8_000;
 let nvidiaCooldownUntil = 0;
 

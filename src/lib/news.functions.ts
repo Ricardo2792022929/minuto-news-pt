@@ -239,8 +239,14 @@ export const getNews = createServerFn({ method: "GET" })
       let mineIndex = 0;
       let otherIndex = 0;
       while (mineIndex < mine.length || otherIndex < other.length) {
-        for (let step = 0; step < 3 && mineIndex < mine.length; step += 1) ordered.push(mine[mineIndex++]);
-        if (otherIndex < other.length) ordered.push(other[otherIndex++]);
+        for (let step = 0; step < 3 && mineIndex < mine.length; step += 1) {
+          const next = mine[mineIndex++];
+          if (next) ordered.push(next);
+        }
+        if (otherIndex < other.length) {
+          const next = other[otherIndex++];
+          if (next) ordered.push(next);
+        }
         if (mineIndex >= mine.length && otherIndex >= other.length) break;
       }
     } else {
@@ -467,8 +473,8 @@ function groupStories(items: NewsItem[]): NewsItem[] {
     }]);
     if (!host.image && item.image) {
       host.image = item.image;
-      host.imageStatus = item.imageStatus;
-      host.imageCandidates = item.imageCandidates;
+      if (item.imageStatus !== undefined) host.imageStatus = item.imageStatus;
+      if (item.imageCandidates !== undefined) host.imageCandidates = item.imageCandidates;
     }
   }
   return out;

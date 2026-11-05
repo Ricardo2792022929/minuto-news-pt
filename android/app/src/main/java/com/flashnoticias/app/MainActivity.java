@@ -32,29 +32,68 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // Barras transparentes: a "faixa de cor" que o Android desenha por trás da barra de estado
+        // ficava preta por cima do vídeo até a barra se esconder.
+        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        // O vídeo também ocupa a zona do notch/câmara.
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode = android.os.Build.VERSION.SDK_INT >= 30
+                    ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
         hideBars();
         bridge.getWebView().setBackgroundColor(android.graphics.Color.BLACK);
+        // O "tamanho da letra" do Android aumentava o texto da WebView sem mexer no resto e desarrumava o feed.
+        // Respeita-se até +15% (acessibilidade) e nunca abaixo de 100%; o resto do ajuste é feito pelo site (rem por largura).
+        float fontScale = getResources().getConfiguration().fontScale;
+        bridge.getWebView().getSettings().setTextZoom(Math.round(Math.min(Math.max(fontScale, 1f), 1.15f) * 100));
+
+        // A intro arranca primeiro, para o vídeo começar a carregar o mais cedo possível.
+        startIntro();
+
         // Sem rede: abre logo a página local "Sem ligação" (servida dos assets da app).
         if (!isOnline()) showOffline();
         watchNetwork();
+    }
 
+    /**
+     * O vídeo vai diretamente para a DecorView (a janela inteira) e não para o conteúdo do AppCompat:
+     * esse conteúdo tem fitsSystemWindows e reservava o espaço da barra de estado no primeiro instante,
+     * o que dava uma faixa em cima até a barra se esconder. Na DecorView ocupa o ecrã todo desde o 1.º frame.
+     */
+    private void startIntro() {
         FullVideo video = new FullVideo(this);
-        video.setVideoURI(Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.intro));
+        // Preto até haver imagem do vídeo (sem relances da WebView por baixo).
+        video.setBackgroundColor(android.graphics.Color.BLACK);
         video.setOnPreparedListener(mp -> {
-            video.setBackgroundColor(android.graphics.Color.TRANSPARENT);
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+            mp.setOnInfoListener((player, what, extra) -> {
+                // Só tira o fundo preto quando o 1.º frame já está desenhado.
+                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                    video.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+                }
+                return false;
+            });
             hideBars();
             video.start();
+            // Salvaguarda: há aparelhos que nunca enviam RENDERING_START; não deixar o vídeo tapado.
+            video.postDelayed(() -> video.setBackgroundColor(android.graphics.Color.TRANSPARENT), 300);
         });
         video.setOnCompletionListener(mp -> finishIntro(video));
         video.setOnErrorListener((mp, what, extra) -> {
             finishIntro(video);
             return true;
         });
-        addContentView(video, new FrameLayout.LayoutParams(
+
+        ViewGroup decor = (ViewGroup) getWindow().getDecorView();
+        decor.addView(video, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+        video.setVideoURI(Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.intro));
     }
 
     /** Há internet a sério: a rede existe e o Android confirmou que chega à internet (exclui Wi-Fi de hotel com login). */

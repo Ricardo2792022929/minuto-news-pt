@@ -17,7 +17,9 @@ export async function imageFromSameStory(title: string): Promise<string | null> 
     });
     if (!res.ok) return null;
     const xml = await res.text();
-    const links = [...xml.matchAll(/<link>([^<]+)<\/link>/g)].map((m) => m[1]).filter((l) => l.startsWith("http") && !l.includes("news.google.com"));
+    const links = [...xml.matchAll(/<link>([^<]+)<\/link>/g)]
+      .map((m) => m[1])
+      .filter((l): l is string => Boolean(l) && l.startsWith("http") && !l.includes("news.google.com"));
     for (const link of links.slice(0, 2)) {
       if (/rtp\.pt/i.test(link)) continue;
       const img = await imageFromArticlePage(link);

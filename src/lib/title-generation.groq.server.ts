@@ -51,6 +51,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
   let blocked = 0;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
+    if (!account) continue;
     if (Date.now() < groqCooldownUntil[account.slot]) { recordFailure("groq", "em pausa"); continue; }
     const release = tryAcquire(`groq:${account.slot}`, GROQ_LIMIT);
     if (!release) { recordFailure("groq", "limite próprio"); continue; }
@@ -120,6 +121,7 @@ export async function askGroqRaw(system: string, user: string, maxTokens: number
   const start = groqTurn % accounts.length;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
+    if (!account) continue;
     if (Date.now() < groqCooldownUntil[account.slot]) { recordFailure("groq", "em pausa"); continue; }
     const release = tryAcquire(`groq:${account.slot}`, GROQ_LIMIT);
     if (!release) { recordFailure("groq", "limite próprio"); continue; }

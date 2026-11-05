@@ -175,7 +175,8 @@ export function Onboarding({
     .filter((topic): topic is (typeof TOPICS)[number] => Boolean(topic));
 
   const order: Step[] = ["welcome", "topics", "club", ...(push ? (["push"] as const) : [])];
-  const index = Math.max(0, order.indexOf(step === "done" ? order[order.length - 1] : step));
+  const lastStep = order[order.length - 1] ?? "welcome";
+  const index = Math.max(0, order.indexOf(step === "done" ? lastStep : step));
 
   const back =
     step === "topics"
@@ -198,8 +199,8 @@ export function Onboarding({
         <TopBar
           total={order.length}
           index={index}
-          onBack={back}
-          action={step === "topics" ? { label: "Saltar", onClick: onLater } : undefined}
+          {...(back ? { onBack: back } : {})}
+          {...(step === "topics" ? { action: { label: "Saltar", onClick: onLater } } : {})}
         />
       }
       stage={

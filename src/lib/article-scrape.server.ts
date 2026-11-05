@@ -53,7 +53,7 @@ function extractJsonLd(html: string): string | null {
   const blocks = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
   for (const block of blocks) {
     try {
-      const data = JSON.parse(block[1]);
+      const data = JSON.parse(block[1] ?? "");
       const article = Array.isArray(data) ? data.find((d) => d["@type"]?.includes?.("Article") || d["@type"] === "NewsArticle") : data;
       const body = article?.articleBody || article?.description;
       if (typeof body === "string" && body.length > 80) return cleanText(body);
@@ -65,7 +65,7 @@ function extractJsonLd(html: string): string | null {
 function extractParagraphs(html: string): string | null {
   const article = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? html;
   const paragraphs = [...article.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
-    .map((m) => cleanText(m[1].replace(/<[^>]+>/g, " ")))
+    .map((m) => cleanText((m[1] ?? "").replace(/<[^>]+>/g, " ")))
     .filter((p) => p.length > 40 && !/cookie|subscreva|newsletter|publicidade|partilhe|comentário/i.test(p));
   return paragraphs.length ? paragraphs.slice(0, 6).join(" ") : null;
 }

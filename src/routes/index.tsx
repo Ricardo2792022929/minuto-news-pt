@@ -69,8 +69,8 @@ function StoryTitle({
         {rest}
       </h2>
       {overflows && (
-        // Espaço que o "Ver mais" ocupava: o texto saiu, mas o título e as etiquetas ficam exatamente onde estavam.
-        <span aria-hidden className="invisible mt-1 block text-left text-[13px] font-semibold">
+        // Espaço que o "Ver mais" ocupava, agora por baixo dos botões: o título fica onde estava e os botões sobem para junto dele.
+        <span aria-hidden className="invisible order-last mt-1 block text-left text-[13px] font-semibold">
           Ver mais
         </span>
       )}
@@ -1175,7 +1175,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 mt-auto bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className="relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}

@@ -112,3 +112,56 @@ export async function generateGroqOne(title: string, articleText?: string | null
   if (blocked === accounts.length) throw new GatewayError("Groq HTTP 401", 401);
   return null;
 }
+
+/** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. Mesmas pausas e limites. */
+export async function askGroqRaw(system: string, user: string, maxTokens: number): Promise<string | null> {
+  const accounts = groqAccounts();
+  if (!accounts.length) { recordFailure("groq", "sem chave"); return null; }
+  const start = groqTurn % accounts.length;
+  for (let step = 0; step < accounts.length; step += 1) {
+    const account = accounts[(start + step) % accounts.length];
+    if (Date.now() < groqCooldownUntil[account.slot]) { recordFailure("groq", "em pausa"); continue; }
+    const release = tryAcquire(`groq:${account.slot}`, GROQ_LIMIT);
+    if (!release) { recordFailure("groq", "limite próprio"); continue; }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { authorization: `Bearer ${account.key}`, "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0.7,
+          max_tokens: maxTokens,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => "")).slice(0, 200);
+        if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+          const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+          groqCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+        }
+        recordFailure("groq", response.status === 400 ? `HTTP 400 ${detail.replace(/\s+/g, " ").slice(0, 50)}` : `HTTP ${response.status}`);
+        continue;
+      }
+      const payload = (await response.json()) as { choices?: { message?: { content?: string | null; reasoning?: string | null } }[] };
+      const message = payload.choices?.[0]?.message;
+      const raw = message?.content || message?.reasoning || "";
+      if (!raw.includes("{")) { recordFailure("groq", "sem JSON"); continue; }
+      groqTurn = account.slot + 1;
+      return raw;
+    } catch (error) {
+      recordFailure("groq", `falhou ${error instanceof Error ? error.name : "erro"}`);
+    } finally {
+      clearTimeout(timer);
+      release();
+    }
+  }
+  return null;
+}

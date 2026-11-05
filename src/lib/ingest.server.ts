@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { drainFailures, drainSamples, generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
+import { drainFailures, drainSamples, generateOne, GatewayError, recordSample, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
+import { BATCH_PROVIDERS, askBatch } from "./title-batch.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
@@ -23,7 +24,19 @@ const BUDGET_MS = 20_000;
 /** Chamadas que aguentam mais tempo (pg_cron do Supabase, GitHub) pedem `?budget=<segundos>`. */
 export const MAX_BUDGET_MS = 100_000;
 /** Notícias reescritas em paralelo; as IAs rodam, por isso o pedido não cai todo no mesmo serviço. */
-const WAVE = 8;
+/** Notícias por grupo e grupos em paralelo. Cada grupo é 1 pedido por IA (ou 2 nas IAs de lote curto). */
+const GROUP_SIZE = 8;
+const GROUPS_IN_PARALLEL = 3;
+/** Notícia recusada por duas ou mais IAs: fica de fora durante 1 hora. Memória da instância do servidor. */
+const FAIL_PAUSE_MS = 60 * 60_000;
+const failedRecently = new Map<string, number>();
+
+function batchSummary(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.replace(/\s+/g, " ").trim();
+  if (s.length < 20 || s.length > 300 || /[*_`#>\[\]]/.test(s)) return null;
+  return s;
+}
 
 function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -281,7 +294,6 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
   // Com mais tempo, tudo ganha folga: recolha, cada título (contexto + todas as IAs) e manutenção.
   const longRun = budgetMs > BUDGET_MS;
   const collectMs = longRun ? 25_000 : 12_000;
-  const titleDeadlineMs = longRun ? 20_000 : 6_000;
   const maintenanceMs = budgetMs + (longRun ? 10_000 : 7_000);
   const expired = () => Date.now() - started > budgetMs;
   const maintenanceOver = () => Date.now() - started > maintenanceMs;
@@ -377,7 +389,6 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     const freshNews: { title: string; url: string; publishedAt: string; image?: string | null }[] = [];
     const queue = pending.slice(0, 80);
     // Diagnóstico: porque é que as IAs não deram título (contagens e alguns exemplos).
-    const AI_NAMES = ["groq", "gemini", "cloudflare", "openrouter", "nvidia"];
     const rejectCounts: Record<string, number> = {};
     const rejectSamples: { api: string; motivo: string; original: string; recebido?: string }[] = [];
     const noteReject = (api: string, motivo: string, original: string, recebido?: string) => {
@@ -385,31 +396,6 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       rejectCounts[key] = (rejectCounts[key] ?? 0) + 1;
       if (rejectSamples.length < 8) rejectSamples.push({ api, motivo, original: original.slice(0, 90), ...(recebido ? { recebido: recebido.slice(0, 90) } : {}) });
     };
-    // Ordem fixa: as mais rápidas e boas primeiro, a Nvidia (lenta) por último.
-    const order = (n: { title: string }, articleText: string | null) => [
-      async () => { groqAttempts++; return generateGroqOne(n.title, articleText); },
-      async () => { geminiAttempts++; return generateOne(n.title, articleText); },
-      async () => { cloudflareAttempts++; return generateCloudflareOne(n.title, articleText); },
-      async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
-      async () => { nvidiaAttempts++; return generateNvidiaOne(n.title, articleText); },
-    ];
-    const titleOne = (n: (typeof queue)[number]) => withDeadline((async () => {
-      const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
-      const steps = order(n, articleText);
-      let chosen: Awaited<ReturnType<typeof generateGroqOne>> = null;
-      let ai: string | null = null;
-      for (let step = 0; step < steps.length && !ai && !expired(); step += 1) {
-        const api = AI_NAMES[step];
-        let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-        try { g = await steps[step](); if (!g) noteReject(api, "vazio", n.title); } catch (e) { g = null; noteReject(api, `erro: ${e instanceof Error ? e.message : String(e)}`.slice(0, 90), n.title); }
-        const candidate = g && validTitle(g.titulo, n.title, articleText);
-        if (g && !candidate) noteReject(api, "título recusado", n.title, g.titulo);
-        if (candidate && isPublishableTitle(candidate, n.title, articleText)) { ai = candidate; chosen = g; }
-        else if (candidate) noteReject(api, "não publicável", n.title, candidate);
-      }
-      if (!ai || !isPublishableTitle(ai, n.title, articleText)) return null;
-      return { n, titulo: ai, resumo: chosen?.resumo || n.excerpt?.trim() || ai };
-    })(), titleDeadlineMs, null);
     const saveOne = async (item: { n: (typeof queue)[number]; titulo: string; resumo: string }) => {
       const { n, titulo, resumo } = item;
       const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
@@ -452,18 +438,66 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       inserted++;
       freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt, image: safeImage });
     };
-    // Fila de trabalhadores: cada um pega na próxima notícia (a mais recente primeiro) assim que acaba a sua,
-    // sem esperar pela mais lenta do grupo.
-    let nextIndex = 0;
-    const worker = async () => {
+    // Títulos em lote: grupos de 8 notícias (mais recentes primeiro). Cada grupo passa pelas IAs por ordem;
+    // cada IA recebe as que ainda faltam num só pedido. O que volta passa pelas regras, um a um.
+    const attempts: Record<string, number> = {};
+    let skippedByMemory = 0;
+    const work = queue.filter((n) => {
+      const until = failedRecently.get(n.id) ?? 0;
+      if (until > Date.now()) { skippedByMemory++; return false; }
+      return true;
+    });
+    const groups: (typeof queue)[] = [];
+    for (let i = 0; i < work.length; i += GROUP_SIZE) groups.push(work.slice(i, i + GROUP_SIZE));
+    const titleGroup = async (group: typeof queue) => {
+      const texts = await Promise.all(group.map((n) => (expired() ? null : scrapeArticleText(n.url).catch(() => null))));
+      let left = group.map((n, i) => ({ n, articleText: texts[i] ?? null, responses: 0 }));
+      let reachedEnd = true;
+      for (const provider of BATCH_PROVIDERS) {
+        if (!left.length) break;
+        if (expired()) { reachedEnd = false; break; }
+        const done = new Set<string>();
+        for (let i = 0; i < left.length; i += provider.size) {
+          if (expired()) { reachedEnd = false; break; }
+          const chunk = left.slice(i, i + provider.size);
+          attempts[provider.api] = (attempts[provider.api] ?? 0) + 1;
+          const { responded, answers } = await askBatch(provider, chunk.map((x) => ({ title: x.n.title, articleText: x.articleText })));
+          for (let k = 0; k < chunk.length; k++) {
+            const { n, articleText } = chunk[k];
+            if (responded) chunk[k].responses++;
+            const got = answers.get(k + 1);
+            if (!got) { noteReject(provider.api, responded ? "faltou no lote" : "vazio", n.title); continue; }
+            const candidate = validTitle(got.titulo, n.title, articleText);
+            if (!candidate) {
+              noteReject(provider.api, "título recusado", n.title, typeof got.titulo === "string" ? got.titulo : undefined);
+              recordSample(provider.api, got.titulo);
+              continue;
+            }
+            if (!isPublishableTitle(candidate, n.title, articleText)) { noteReject(provider.api, "não publicável", n.title, candidate); continue; }
+            done.add(n.id);
+            await saveOne({ n, titulo: candidate, resumo: batchSummary(got.resumo) || n.excerpt?.trim() || candidate });
+          }
+        }
+        left = left.filter((x) => !done.has(x.n.id));
+      }
+      // Recusada por pelo menos duas IAs que responderam: fica de fora durante um tempo, em vez de gastar pedidos em todas as rondas.
+      if (reachedEnd) for (const x of left) if (x.responses >= 2) failedRecently.set(x.n.id, Date.now() + FAIL_PAUSE_MS);
+    };
+    let nextGroup = 0;
+    const groupWorker = async () => {
       while (!expired()) {
-        const i = nextIndex++;
-        if (i >= queue.length) return;
-        const item = await titleOne(queue[i]);
-        if (item) await saveOne(item);
+        const i = nextGroup++;
+        if (i >= groups.length) return;
+        await titleGroup(groups[i]);
       }
     };
-    await Promise.all(Array.from({ length: WAVE }, () => worker()));
+    await Promise.all(Array.from({ length: GROUPS_IN_PARALLEL }, () => groupWorker()));
+    for (const [id, until] of failedRecently) if (until <= Date.now()) failedRecently.delete(id);
+    groqAttempts = attempts["groq"] ?? 0;
+    geminiAttempts = attempts["gemini"] ?? 0;
+    cloudflareAttempts = attempts["cloudflare"] ?? 0;
+    openrouterAttempts = attempts["openrouter"] ?? 0;
+    nvidiaAttempts = attempts["nvidia"] ?? 0;
 
     const touched = new Set(queue.map((item) => item.id));
     for (const [id, list] of extras) {
@@ -618,7 +652,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples() };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

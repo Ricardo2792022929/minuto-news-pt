@@ -105,3 +105,47 @@ export async function generateCloudflareOne(title: string, articleText?: string 
     release();
   }
 }
+
+/** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. */
+export async function askCloudflareRaw(system: string, user: string, maxTokens: number): Promise<string | null> {
+  const token = process.env["CLOUDFLARE_API_TOKEN"];
+  const account = process.env["CLOUDFLARE_ACCOUNT_ID"];
+  if (!token || !account) { recordFailure("cloudflare", "sem chave"); return null; }
+  if (Date.now() < cloudflareCooldownUntil) { recordFailure("cloudflare", "em pausa"); return null; }
+  const release = tryAcquire("cloudflare", CLOUDFLARE_LIMIT);
+  if (!release) { recordFailure("cloudflare", "limite próprio"); return null; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${MODEL}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        temperature: 0.6,
+        max_tokens: maxTokens,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    const body = await response.text();
+    if (!response.ok || /daily free allocation|exceeded/i.test(body.slice(0, 300))) {
+      if (response.status === 429 || /daily free allocation|exceeded/i.test(body.slice(0, 300))) cloudflareCooldownUntil = Date.now() + 15 * 60_000;
+      recordFailure("cloudflare", `HTTP ${response.status}`);
+      return null;
+    }
+    const payload = JSON.parse(body) as { result?: { response?: unknown }; response?: unknown };
+    const value = payload.result?.response ?? payload.response ?? "";
+    const raw = typeof value === "string" ? value : JSON.stringify(value);
+    if (!raw.includes("{") && !raw.includes("[")) { recordFailure("cloudflare", "sem JSON"); return null; }
+    return raw;
+  } catch (error) {
+    recordFailure("cloudflare", `falhou ${error instanceof Error ? error.name : "erro"}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+    release();
+  }
+}

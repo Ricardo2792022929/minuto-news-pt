@@ -104,7 +104,7 @@ const browser = await chromium.launch();
   await page.getByRole("button", { name: "Começar" }).click();
   await wait(700);
   for (const topic of ["Economia", "Mundo", "Cultura", "Desporto"]) {
-    await page.getByRole("button", { name: topic, exact: true }).click();
+    await page.getByRole("group", { name: "Temas" }).getByRole("button", { name: topic, exact: true }).click();
     await wait(250);
   }
   await wait(1200);
@@ -174,7 +174,7 @@ const prefs = {
 
   // Secções
   for (const section of ["Desporto", "Economia", "Mundo", "Política", "Cultura", "Tech"]) {
-    await page.getByRole("button", { name: section, exact: true }).first().click();
+    await page.getByRole("navigation").getByRole("button", { name: section, exact: true }).click();
     await wait(1500);
     await waitImages(page);
     await shot(page, `12-seccao-${section.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()}`);

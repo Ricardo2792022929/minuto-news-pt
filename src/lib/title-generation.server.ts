@@ -395,7 +395,7 @@ export async function generateOne(title: string, articleText?: string | null): P
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
     if (!account) continue;
-    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    if (Date.now() < (geminiCooldownUntil[account.slot] ?? 0)) { recordFailure("gemini", "em pausa"); continue; }
     const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
     if (!release) { recordFailure("gemini", "limite próprio"); continue; }
     try {
@@ -444,7 +444,7 @@ export async function askGeminiRaw(system: string, user: string, schema: unknown
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
     if (!account) continue;
-    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    if (Date.now() < (geminiCooldownUntil[account.slot] ?? 0)) { recordFailure("gemini", "em pausa"); continue; }
     const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
     if (!release) { recordFailure("gemini", "limite próprio"); continue; }
     const ctrl = new AbortController();

@@ -116,6 +116,7 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
         const thumb = images.get(url);
         const large = thumb ? largeLusaImage(thumb) : null;
         const imageCandidates = [...new Set([large, thumb].filter((value): value is string => Boolean(value)))];
+        const cover = imageCandidates[0];
         items.push({
           id: hashId(canonical(url)),
           source: "Lusa",
@@ -124,7 +125,7 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
           excerpt: "",
           url,
           publishedAt,
-          image: imageCandidates[0],
+          ...(cover ? { image: cover } : {}),
           imageCandidates,
         });
       }

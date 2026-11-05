@@ -501,9 +501,9 @@ async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>
       const html = await page.text();
       const tag = html.match(/data-n-a-id="([^"]+)"\s+data-n-a-ts="([^"]+)"\s+data-n-a-sg="([^"]+)"/);
       if (!tag) return;
-      const [, id, ts, sg] = tag;
-      if (!id || !ts || !sg) return;
-      signatures.push({ link, id, ts, sg });
+      const [, linkId, linkTs, linkSg] = tag;
+      if (!linkId || !linkTs || !linkSg) return;
+      signatures.push({ link, id: linkId, ts: linkTs, sg: linkSg });
     } catch {
       /* esta manchete fica de fora */
     }

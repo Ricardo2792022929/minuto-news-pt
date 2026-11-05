@@ -20,63 +20,47 @@ jobs:
           for id in 1453873531674-2151bcd01707 1529107386315-e1a2ed48a620 1518186285589-2f7649de83e0 1522778119026-d647f0596c20 1449824913935-59a10b8d2000 1459749411175-04bf5292ceea 1518770660439-4636190af475; do
             curl -fsSL "https://images.unsplash.com/photo-$id?w=1600&q=85&fm=jpg" -o "out/fotos/app-$id.jpg" || echo "falhou $id"
           done
-      - name: Fotos livres por tema (Unsplash, licença Unsplash; só não-premium)
+      - name: Fotos livres por tema (Openverse, só CC0 e domínio público)
         run: |
-          python3 - <<'PY'
-          import json, urllib.request, urllib.parse, os
+          python3 - <<'PY2'
+          import json, urllib.request, urllib.parse, os, time
           queries = {
-            "estadio": "football stadium night lights",
-            "futebol": "soccer ball grass",
-            "lisboa": "lisbon city",
-            "eletrico": "lisbon tram",
-            "porto": "porto portugal river",
-            "economia": "stock market screen",
-            "euro": "euro coins money",
-            "parlamento": "parliament building",
-            "concerto": "concert crowd lights",
-            "cinema": "cinema theater",
-            "tech": "smartphone technology",
-            "chip": "circuit board",
-            "chuva": "rain umbrella street",
-            "mundo": "earth from space",
-            "aviao": "airplane sky",
-            "comboio": "train station",
-            "mar": "atlantic ocean waves portugal",
-            "noticias": "newspaper coffee",
-            "telemovel": "hand holding phone dark",
+            "estadio": "football stadium", "futebol": "soccer ball", "lisboa": "lisbon",
+            "eletrico": "lisbon tram", "porto": "porto ribeira", "economia": "stock market",
+            "euro": "euro coins", "parlamento": "parliament", "concerto": "concert crowd",
+            "cinema": "cinema", "tech": "smartphone", "chip": "circuit board",
+            "chuva": "rain umbrella", "mundo": "earth from space", "aviao": "airplane",
+            "comboio": "train station", "mar": "ocean waves", "noticias": "newspaper",
+            "cidade": "city night", "praia": "beach portugal",
           }
           meta = []
-          hdr = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36", "Accept": "application/json"}
+          hdr = {"User-Agent": "flash-noticias-store-assets/1.0"}
           for name, q in queries.items():
+            url = "https://api.openverse.org/v1/images/?page_size=12&license=cc0,pdm&size=large&q=" + urllib.parse.quote(q)
             try:
-              req = urllib.request.Request("https://unsplash.com/napi/search/photos?per_page=8&orientation=portrait&query=" + urllib.parse.quote(q), headers=hdr)
-              data = json.load(urllib.request.urlopen(req, timeout=30))
+              data = json.load(urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=40))
             except Exception as e:
-              print("pesquisa falhou", name, e); continue
+              print("pesquisa falhou", name, e); time.sleep(2); continue
             n = 0
             for r in data.get("results", []):
-              if r.get("premium") or r.get("plus"): continue
-              raw = r.get("urls", {}).get("raw", "")
-              if "images.unsplash.com" not in raw: continue
-              n += 1
-              fn = f"out/fotos/{name}-{n}.jpg"
+              src = r.get("url") or ""
+              if not src.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png")): continue
+              fn = f"out/fotos/{name}-{n+1}.jpg"
               try:
-                urllib.request.urlretrieve(raw + "&w=1400&q=85&fm=jpg", fn)
+                req = urllib.request.Request(src, headers={"User-Agent": "Mozilla/5.0 flash-noticias-store-assets"})
+                blob = urllib.request.urlopen(req, timeout=40).read()
+                if len(blob) < 60000: continue
+                open(fn, "wb").write(blob)
               except Exception as e:
-                print("download falhou", fn, e); continue
-              meta.append({"file": os.path.basename(fn), "id": r.get("id"), "autor": r.get("user", {}).get("name"), "link": r.get("links", {}).get("html"), "descricao": r.get("alt_description")})
-              if n >= 4: break
+                print("download falhou", src, e); continue
+              n += 1
+              meta.append({"file": os.path.basename(fn), "titulo": r.get("title"), "autor": r.get("creator"), "licenca": r.get("license"), "fonte": r.get("foreign_landing_url"), "w": r.get("width"), "h": r.get("height")})
+              if n >= 5: break
             print(name, n)
+            time.sleep(1.5)
           json.dump(meta, open("out/fotos/creditos.json", "w"), ensure_ascii=False, indent=1)
-          PY
+          PY2
           ls out/fotos | wc -l
-      - name: Fontes Inter e Schibsted Grotesk
-        run: |
-          mkdir -p out/fonts
-          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36"
-          curl -fsSL -A "$UA" "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Schibsted+Grotesk:wght@500;600;700;800;900&display=swap" -o out/fonts/fonts.css
-          grep -o 'https://fonts.gstatic.com[^)]*' out/fonts/fonts.css | sort -u | while read u; do curl -fsSL "$u" -o "out/fonts/$(echo "$u" | sed 's#https://fonts.gstatic.com/##; s#/#_#g')"; done
-          ls out/fonts | wc -l
       - uses: actions/upload-artifact@v4
         with:
           name: material

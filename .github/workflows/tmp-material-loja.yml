@@ -1,0 +1,84 @@
+# Temporário: junta fotos livres de direitos e notícias reais do feed para as imagens da Play Store. Apagar depois.
+name: tmp material loja
+on:
+  push:
+    branches: [tmp-material-loja]
+jobs:
+  juntar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notícias do feed
+        run: |
+          mkdir -p out/fotos
+          URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"
+          KEY="sb_publishable_Q240clLEpscXn_rKI9vNhw_2b0cRfQZ"
+          curl -fsS "$URL/rest/v1/articles?select=id,source,category,titulo_inedito,resumo,original_title,published_at,url,image_status&order=published_at.desc&limit=500" \
+            -H "apikey: $KEY" -o out/articles.json
+          python3 -c "import json;print(len(json.load(open('out/articles.json'))),'notícias')"
+      - name: Fotos da app (Unsplash, já usadas como imagens de categoria)
+        run: |
+          for id in 1453873531674-2151bcd01707 1529107386315-e1a2ed48a620 1518186285589-2f7649de83e0 1522778119026-d647f0596c20 1449824913935-59a10b8d2000 1459749411175-04bf5292ceea 1518770660439-4636190af475; do
+            curl -fsSL "https://images.unsplash.com/photo-$id?w=1600&q=85&fm=jpg" -o "out/fotos/app-$id.jpg" || echo "falhou $id"
+          done
+      - name: Fotos livres por tema (Unsplash, licença Unsplash; só não-premium)
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse, os
+          queries = {
+            "estadio": "football stadium night lights",
+            "futebol": "soccer ball grass",
+            "lisboa": "lisbon city",
+            "eletrico": "lisbon tram",
+            "porto": "porto portugal river",
+            "economia": "stock market screen",
+            "euro": "euro coins money",
+            "parlamento": "parliament building",
+            "concerto": "concert crowd lights",
+            "cinema": "cinema theater",
+            "tech": "smartphone technology",
+            "chip": "circuit board",
+            "chuva": "rain umbrella street",
+            "mundo": "earth from space",
+            "aviao": "airplane sky",
+            "comboio": "train station",
+            "mar": "atlantic ocean waves portugal",
+            "noticias": "newspaper coffee",
+            "telemovel": "hand holding phone dark",
+          }
+          meta = []
+          hdr = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36", "Accept": "application/json"}
+          for name, q in queries.items():
+            try:
+              req = urllib.request.Request("https://unsplash.com/napi/search/photos?per_page=8&orientation=portrait&query=" + urllib.parse.quote(q), headers=hdr)
+              data = json.load(urllib.request.urlopen(req, timeout=30))
+            except Exception as e:
+              print("pesquisa falhou", name, e); continue
+            n = 0
+            for r in data.get("results", []):
+              if r.get("premium") or r.get("plus"): continue
+              raw = r.get("urls", {}).get("raw", "")
+              if "images.unsplash.com" not in raw: continue
+              n += 1
+              fn = f"out/fotos/{name}-{n}.jpg"
+              try:
+                urllib.request.urlretrieve(raw + "&w=1400&q=85&fm=jpg", fn)
+              except Exception as e:
+                print("download falhou", fn, e); continue
+              meta.append({"file": os.path.basename(fn), "id": r.get("id"), "autor": r.get("user", {}).get("name"), "link": r.get("links", {}).get("html"), "descricao": r.get("alt_description")})
+              if n >= 4: break
+            print(name, n)
+          json.dump(meta, open("out/fotos/creditos.json", "w"), ensure_ascii=False, indent=1)
+          PY
+          ls out/fotos | wc -l
+      - name: Fontes Inter e Schibsted Grotesk
+        run: |
+          mkdir -p out/fonts
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36"
+          curl -fsSL -A "$UA" "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Schibsted+Grotesk:wght@500;600;700;800;900&display=swap" -o out/fonts/fonts.css
+          grep -o 'https://fonts.gstatic.com[^)]*' out/fonts/fonts.css | sort -u | while read u; do curl -fsSL "$u" -o "out/fonts/$(echo "$u" | sed 's#https://fonts.gstatic.com/##; s#/#_#g')"; done
+          ls out/fonts | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: material
+          path: out
+          retention-days: 2

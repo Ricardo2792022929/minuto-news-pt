@@ -254,7 +254,8 @@ function foldTitle(value: string): string {
 }
 
 function clubsInTitle(text: string): string[] {
-  const folded = foldTitle(text);
+  // Pontuação vira espaço: "Nacional:" ou "(Benfica)" contam como o clube.
+  const folded = foldTitle(text).replace(/[^\p{L}\p{N}\s]/gu, " ");
   const hits: { id: string; index: number }[] = [];
   for (const club of LIGA_CLUBS) {
     if (club.id === "nacional" && folded.includes("selecao")) continue;

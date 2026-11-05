@@ -134,7 +134,6 @@ export async function askGroqRaw(system: string, user: string, maxTokens: number
           model: MODEL,
           temperature: 0.7,
           max_tokens: maxTokens,
-          response_format: { type: "json_object" },
           messages: [
             { role: "system", content: system },
             { role: "user", content: user },

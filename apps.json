@@ -1,0 +1,263 @@
+[
+ {
+  "id": "com.google.android.apps.magazines",
+  "name": "Google Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.347560882568359",
+  "ratings": "1965944",
+  "dev": "Google LLC",
+  "shots": 21
+ },
+ {
+  "id": "pt.sicnoticias.app",
+  "name": "SIC Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.4800000190734863",
+  "ratings": "1043",
+  "dev": "IMPRESA PUBLISHING",
+  "shots": 8
+ },
+ {
+  "id": "com.cnn.mobile.android.phone",
+  "name": "CNN: Live & Breaking News",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.21999979019165",
+  "ratings": "587231",
+  "dev": "CNN",
+  "shots": 16
+ },
+ {
+  "id": "com.newspaperdirect.jn.android",
+  "name": "Jornal de Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.304347991943359",
+  "ratings": "34",
+  "dev": "Noticias_Ilimitadas",
+  "shots": 6
+ },
+ {
+  "id": "com.microsoft.amp.apps.bingnews",
+  "name": "MSN",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.44513463973999",
+  "ratings": "303975",
+  "dev": "Microsoft Corporation",
+  "shots": 5
+ },
+ {
+  "id": "com.opera.app.news",
+  "name": "Opera News: notícias populares",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.380000114440918",
+  "ratings": "708591",
+  "dev": "Opera",
+  "shots": 8
+ },
+ {
+  "id": "com.nytimes.android",
+  "name": "NYTimes: US and Global News",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.820000171661377",
+  "ratings": "207848",
+  "dev": "The New York Times Company",
+  "shots": 8
+ },
+ {
+  "id": "flipboard.app",
+  "name": "Flipboard",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.2799999713897705",
+  "ratings": "1408654",
+  "dev": "Flipboard",
+  "shots": 19
+ },
+ {
+  "id": "com.noticiasaominuto.pt",
+  "name": "Notícias ao Minuto Portugal",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.066666603088379",
+  "ratings": "2349",
+  "dev": "New adVentures",
+  "shots": 10
+ },
+ {
+  "id": "com.thealllatestnews.portugal.noticias",
+  "name": "Notícias de Portugal",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.153846263885498",
+  "ratings": "93",
+  "dev": "News Online App",
+  "shots": 18
+ },
+ {
+  "id": "pt.iol.cnnportugal",
+  "name": "CNN Portugal",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.9800000190734863",
+  "ratings": "786",
+  "dev": "Media Capital",
+  "shots": 16
+ },
+ {
+  "id": "com.journey.app",
+  "name": "Journey: Diário, Jornal",
+  "category": "LIFESTYLE",
+  "rating": "4.659999847412109",
+  "ratings": "94371",
+  "dev": "Two App Studio Pte. Ltd.",
+  "shots": 16
+ },
+ {
+  "id": "pt.controlinveste.dn",
+  "name": "DN - Diário de Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.8333332538604736",
+  "ratings": "8",
+  "dev": "Global Media Group",
+  "shots": 6
+ },
+ {
+  "id": "mnn.Android",
+  "name": "AP News: World & Local",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.610000133514404",
+  "ratings": "145468",
+  "dev": "The Associated Press",
+  "shots": 17
+ },
+ {
+  "id": "sun.way2sms.hyd.com",
+  "name": "Way2News Daily News App",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.199999809265137",
+  "ratings": "1226387",
+  "dev": "Way2News ( Formerly Way2SMS )",
+  "shots": 7
+ },
+ {
+  "id": "com.checkitt",
+  "name": "Ground News",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.71999979019165",
+  "ratings": "33219",
+  "dev": "Snapwise Inc.(dba Ground News)",
+  "shots": 13
+ },
+ {
+  "id": "com.news.app.global",
+  "name": "Breaking News - Live Headlines",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.666666507720947",
+  "ratings": "44925",
+  "dev": "YING LIANG HK LIMITED",
+  "shots": 5
+ },
+ {
+  "id": "pt.observador.mobile.android",
+  "name": "Observador",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.546296119689941",
+  "ratings": "2736",
+  "dev": "Observador",
+  "shots": 8
+ },
+ {
+  "id": "pt.publico.android",
+  "name": "Público",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.458483695983887",
+  "ratings": "4469",
+  "dev": "Público Comunicação Social S.A.",
+  "shots": 12
+ },
+ {
+  "id": "pt.impresapub.expresso",
+  "name": "Expresso",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.615384578704834",
+  "ratings": "3971",
+  "dev": "IMPRESA PUBLISHING",
+  "shots": 9
+ },
+ {
+  "id": "pt.rtp.noticias.android",
+  "name": "RTP Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.859999895095825",
+  "ratings": "1185",
+  "dev": "Rádio e Televisão de Portugal",
+  "shots": 6
+ },
+ {
+  "id": "pt.sapo.mobile.android.newsstand",
+  "name": "SAPO",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.1007120609283447",
+  "ratings": "27101",
+  "dev": "MEO – Serviços de Comunicações e Multimédia, S.A.",
+  "shots": 8
+ },
+ {
+  "id": "co.squidapp.squid",
+  "name": "SQUID - Notícias",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.550000190734863",
+  "ratings": "37501",
+  "dev": "Squid App",
+  "shots": 7
+ },
+ {
+  "id": "com.nis.app",
+  "name": "Inshorts - News in 60 words",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "2.799999952316284",
+  "ratings": "616191",
+  "dev": "Inshorts",
+  "shots": 14
+ },
+ {
+  "id": "bbc.mobile.news.ww",
+  "name": "BBC: World News & Stories",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "3.609999895095825",
+  "ratings": "441876",
+  "dev": "BBC Studios Distribution Ltd.",
+  "shots": 21
+ },
+ {
+  "id": "com.newsbreak.app501465",
+  "name": "newsbreak",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": null,
+  "ratings": null,
+  "dev": "MINOANDESIGN",
+  "shots": 6
+ },
+ {
+  "id": "jp.gocro.smartnews.android",
+  "name": "SmartNews: Local Breaking News",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.047618865966797",
+  "ratings": "702133",
+  "dev": "SmartNews, Inc.",
+  "shots": 11
+ },
+ {
+  "id": "com.guardian",
+  "name": "The Guardian - UK & World News",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "4.740087985992432",
+  "ratings": "406144",
+  "dev": "Guardian News & Media Ltd",
+  "shots": 14
+ },
+ {
+  "id": "com.particlenews.newsbreak",
+  "name": "NewsBreak: Local News & Alerts",
+  "category": "NEWS_AND_MAGAZINES",
+  "rating": "5",
+  "ratings": "642435",
+  "dev": "Particle Media Inc.",
+  "shots": 7
+ }
+]

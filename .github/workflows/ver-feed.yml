@@ -29,3 +29,20 @@ jobs:
       - name: Sonda das IAs de título
         run: |
           curl -sS --max-time 90 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?probe=1" | python3 -m json.tool || true
+      - name: Colunas das notícias
+        run: |
+          URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"
+          KEY="sb_publishable_Q240clLEpscXn_rKI9vNhw_2b0cRfQZ"
+          for COLS in related image_candidates image_status; do
+            CODE=$(curl -s -o out.json -w "%{http_code}" "$URL/rest/v1/articles?select=id,$COLS&order=published_at.desc&limit=40" -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+            python3 - "$COLS" "$CODE" <<'PY'
+          import json, sys
+          col, code = sys.argv[1], sys.argv[2]
+          body = json.load(open("out.json"))
+          if code != "200":
+              print(f"{col}: HTTP {code} {str(body)[:120]}")
+          else:
+              filled = sum(1 for r in body if r.get(col) not in (None, [], "", {}))
+              print(f"{col}: existe; preenchida em {filled} das {len(body)} notícias mais recentes")
+          PY
+          done

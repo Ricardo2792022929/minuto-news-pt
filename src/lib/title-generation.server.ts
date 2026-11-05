@@ -86,7 +86,8 @@ export function tryAcquire(name: string, limit: { perMinute: number; parallel: n
 }
 const envNumber = (name: string, fallback: number) => { const n = Number(process.env[name]); return Number.isFinite(n) && n > 0 ? n : fallback; };
 export const GEMINI_LIMIT = { perMinute: envNumber("GEMINI_RPM", 12), parallel: 3, perDay: envNumber("GEMINI_RPD", 900) };
-export const GROQ_LIMIT = { perMinute: envNumber("GROQ_RPM", 5), parallel: 2, perDay: envNumber("GROQ_RPD", 120) };
+// Groq gpt-oss-20b grátis: 30 RPM, 8K tokens/min, 200K tokens/dia. Um lote gasta ~4K tokens: ~2 por minuto, ~45 por dia.
+export const GROQ_LIMIT = { perMinute: envNumber("GROQ_RPM", 2), parallel: 1, perDay: envNumber("GROQ_RPD", 45) };
 export const OPENROUTER_LIMIT = { perMinute: envNumber("OPENROUTER_RPM", 18), parallel: 2, perDay: envNumber("OPENROUTER_RPD", 45) };
 export const NVIDIA_LIMIT = { perMinute: envNumber("NVIDIA_RPM", 36), parallel: 4 };
 export const CLOUDFLARE_LIMIT = { perMinute: envNumber("CLOUDFLARE_RPM", 250), parallel: 6 };
@@ -424,6 +425,55 @@ export async function generateOne(title: string, articleText?: string | null): P
       console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
       recordFailure("gemini", `falhou ${errName(e)}`);
     } finally {
+      release();
+    }
+  }
+  return null;
+}
+
+/** Regras dos títulos, partilhadas com os pedidos em lote. */
+export const TITLE_SYSTEM = SYSTEM;
+
+/** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. Alterna as contas. */
+export async function askGeminiRaw(system: string, user: string, schema: unknown): Promise<string | null> {
+  const accounts = geminiAccounts();
+  if (!accounts.length) { recordFailure("gemini", "sem chave"); return null; }
+  const start = geminiTurn % accounts.length;
+  for (let step = 0; step < accounts.length; step += 1) {
+    const account = accounts[(start + step) % accounts.length];
+    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
+    const release = tryAcquire(`gemini:${account.slot}`, GEMINI_LIMIT);
+    if (!release) { recordFailure("gemini", "limite próprio"); continue; }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15_000);
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": account.key },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.7, responseMimeType: "application/json", responseSchema: schema, thinkingConfig: { thinkingLevel: "minimal" } },
+        }),
+      });
+      if (!res.ok) {
+        const retryAfter = Number(res.headers.get("retry-after") ?? 0);
+        if (res.status === 429 || res.status === 401 || res.status === 403) {
+          geminiCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+        }
+        recordFailure("gemini", `HTTP ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      if (!raw.includes("{")) { recordFailure("gemini", "sem JSON"); continue; }
+      geminiTurn = account.slot + 1;
+      return raw;
+    } catch (e) {
+      recordFailure("gemini", `falhou ${errName(e)}`);
+    } finally {
+      clearTimeout(timer);
       release();
     }
   }

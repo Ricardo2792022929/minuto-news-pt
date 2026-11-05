@@ -103,3 +103,54 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
     release();
   }
 }
+
+/** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. */
+export async function askOpenRouterRaw(system: string, user: string, maxTokens: number): Promise<string | null> {
+  const apiKey = process.env["OPENROUTER_API_KEY"];
+  if (!apiKey) { recordFailure("openrouter", "sem chave"); return null; }
+  if (Date.now() < openrouterCooldownUntil) { recordFailure("openrouter", "em pausa"); return null; }
+  const release = tryAcquire("openrouter", OPENROUTER_LIMIT);
+  if (!release) { recordFailure("openrouter", "limite próprio"); return null; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "HTTP-Referer": process.env["OPENROUTER_SITE_URL"] || "https://minuto-news.pt",
+        "X-Title": "FlashNoticias",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+        const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+        openrouterCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+      }
+      recordFailure("openrouter", `HTTP ${response.status}`);
+      return null;
+    }
+    const payload = (await response.json()) as { choices?: { message?: { content?: string | null; reasoning?: string | null } }[] };
+    const message = payload.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning || "";
+    if (!raw.includes("{")) { recordFailure("openrouter", "sem JSON"); return null; }
+    return raw;
+  } catch (error) {
+    recordFailure("openrouter", `falhou ${error instanceof Error ? error.name : "erro"}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+    release();
+  }
+}

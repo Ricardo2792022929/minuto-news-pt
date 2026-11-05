@@ -109,3 +109,49 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
     release();
   }
 }
+
+/** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. */
+export async function askNvidiaRaw(system: string, user: string, maxTokens: number): Promise<string | null> {
+  const apiKey = process.env["NVIDIA_API_KEY"];
+  if (!apiKey) { recordFailure("nvidia", "sem chave"); return null; }
+  if (Date.now() < nvidiaCooldownUntil) { recordFailure("nvidia", "em pausa"); return null; }
+  const release = tryAcquire("nvidia", NVIDIA_LIMIT);
+  if (!release) { recordFailure("nvidia", "limite próprio"); return null; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      if (response.status === 429 || response.status === 401 || response.status === 403) {
+        const retryAfter = Number(response.headers.get("retry-after") ?? 0);
+        nvidiaCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
+      }
+      recordFailure("nvidia", `HTTP ${response.status}`);
+      return null;
+    }
+    const payload = (await response.json()) as { choices?: { message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null } }[] };
+    const message = payload.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning_content || message?.reasoning || "";
+    if (!raw.includes("{")) { recordFailure("nvidia", "sem JSON"); return null; }
+    return raw;
+  } catch (error) {
+    recordFailure("nvidia", `falhou ${error instanceof Error ? error.name : "erro"}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+    release();
+  }
+}

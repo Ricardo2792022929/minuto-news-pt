@@ -147,6 +147,31 @@ const CLUB_ASKED_KEY = "aominuto:club-asked";
 
 const PAGE_SIZE = 10;
 
+const FEED_CACHE_KEY = "flash:feed-cache";
+/** Mais velho do que isto já não vale a pena mostrar enquanto chega o feed novo. */
+const FEED_CACHE_MAX_AGE_MS = 6 * 3600_000;
+
+/** 1.ª página do feed guardada neste aparelho, se for das mesmas preferências e recente. */
+function readFeedCache(key: string): GetNewsResult | undefined {
+  try {
+    const raw = localStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return undefined;
+    const cached = JSON.parse(raw) as { key?: string; at?: number; page?: GetNewsResult };
+    if (cached.key !== key || !cached.at || Date.now() - cached.at > FEED_CACHE_MAX_AGE_MS) return undefined;
+    return Array.isArray(cached.page?.items) && cached.page.items.length ? cached.page : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeFeedCache(key: string, page: GetNewsResult) {
+  try {
+    localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ key, at: Date.now(), page }));
+  } catch {
+    /* storage cheio ou bloqueado — o feed funciona na mesma */
+  }
+}
+
 /** Guarda a resposta ao pedido de avisos, venha do fluxo inicial ou do pedido avulso. */
 function savePushChoice(on: boolean) {
   try {
@@ -809,10 +834,18 @@ function Index() {
     }
   }, []);
 
+  // Última 1.ª página guardada neste aparelho: mostra-se logo ao abrir (durante a intro já está pronta)
+  // enquanto o pedido novo corre; quando chega, substitui-a.
+  const feedCacheKey = `${category}|${interests.join(",")}|${club}`;
   const query = useInfiniteQuery({
     queryKey: ["news", category, interests.join(","), club, premiere],
     enabled: mounted,
     refetchInterval: 60_000,
+    placeholderData: () => {
+      if (!mounted) return undefined;
+      const page = readFeedCache(feedCacheKey);
+      return page ? { pages: [page], pageParams: [0] } : undefined;
+    },
     queryFn: ({ pageParam }) =>
       fetchNews({ data: { offset: pageParam, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests, club: club || undefined, premiere: premiere && pageParam === 0 && category === "Tudo" } }),
     initialPageParam: 0,
@@ -838,16 +871,23 @@ function Index() {
   countRef.current = articles.length;
   articlesRef.current = articles;
   fetchMoreRef.current = () => {
-    if (hasMoreRef.current) void query.fetchNextPage();
+    // Com a página guardada ainda no ecrã, não pedir a seguinte: cancelava o pedido da 1.ª página nova.
+    if (hasMoreRef.current && !query.isPlaceholderData) void query.fetchNextPage();
   };
   hasMoreRef.current = Boolean(query.hasNextPage);
 
   useEffect(() => {
-    if (!mounted || tab !== "feed") return;
+    if (!mounted || tab !== "feed" || query.isPlaceholderData) return;
     if (articles.length < 12 && query.hasNextPage && !query.isFetchingNextPage) {
       void query.fetchNextPage();
     }
   }, [mounted, tab, articles.length, query.hasNextPage, query.isFetchingNextPage, query]);
+
+  // Guarda a 1.ª página nova para a próxima abertura da app.
+  const firstPage = query.isPlaceholderData ? undefined : query.data?.pages[0];
+  useEffect(() => {
+    if (firstPage?.items.length) writeFeedCache(feedCacheKey, firstPage);
+  }, [firstPage, feedCacheKey]);
 
   useEffect(() => {
     for (const item of articles.slice(0, 6)) warmOrigin(item.url);
@@ -1265,6 +1305,17 @@ function Index() {
                   Não foi possível carregar as notícias. Tenta novamente dentro
                   de instantes.
                 </p>
+              </div>
+            )}
+
+            {mounted && !isError && !articles.length && !query.isSuccess && (
+              <div
+                role="status"
+                aria-label="A carregar notícias"
+                className="flex w-full items-center justify-center"
+                style={{ height: "var(--feed-h, 100svh)" }}
+              >
+                <div className="size-9 animate-spin rounded-full border-2 border-white/20 border-t-live" />
               </div>
             )}
 

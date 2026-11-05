@@ -62,6 +62,9 @@ function shockScore(title: string): number {
   return score;
 }
 
+/** Tempo máximo que o feed espera pelas fotografias das páginas das fontes antes de responder. */
+const BARE_IMAGE_WAIT_MS = 1000;
+
 // Lê apenas notícias já pré-processadas (com título final pronto) da base de dados.
 export const getNews = createServerFn({ method: "GET" })
   .validator(
@@ -80,12 +83,8 @@ export const getNews = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<GetNewsResult> => {
     const url = process.env["FLASH_DB_URL"] || process.env["SUPABASE_URL"]!;
     const key = process.env["FLASH_DB_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-    try {
-      const { rewriteOpenedTitles } = await import("./rewrite-open.server");
-      await rewriteOpenedTitles();
-    } catch (error) {
-      console.error("resumo", error instanceof Error ? error.message : error);
-    }
+    // Os títulos colados são reescritos pelo agendador (/api/public/hooks/refresh), nunca aqui:
+    // chamar a IA neste pedido atrasava a abertura do feed vários segundos. Até lá, canShow() esconde-os.
     const db = createClient(url, key, {
       auth: { persistSession: false },
       global: {
@@ -439,13 +438,15 @@ export const getNews = createServerFn({ method: "GET" })
       try {
         const { imageFromArticlePage } = await import("./article-image.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await Promise.all(bare.map(async (item) => {
+        const lookups = Promise.all(bare.map(async (item) => {
           const image = storyImageUrl(await imageFromArticlePage(item.url));
           if (!image) return;
           item.image = image;
           item.imageStatus = "original";
           await supabaseAdmin.from("articles").update({ image, image_query: null }).eq("id", item.id);
         }));
+        // No máximo ~1 s à espera das fotografias das fontes; as que faltarem ficam com a imagem da categoria.
+        await Promise.race([lookups, new Promise((resolve) => setTimeout(resolve, BARE_IMAGE_WAIT_MS))]);
       } catch { /* o feed abre mesmo que a fotografia da fonte falhe */ }
     }
 

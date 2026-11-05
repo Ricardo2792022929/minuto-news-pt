@@ -88,6 +88,18 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+
+  /*
+   * Telemóveis: o tamanho base (1rem) acompanha a largura do ecrã, desenhado para 390px = 16px.
+   * Como textos, espaços, botões e ícones são em rem, a app fica com as mesmas proporções
+   * num Android pequeno (360px ≈ 14,8px) ou grande (430px ≈ 17,6px). Limites para não exagerar.
+   * Tablets e computador ficam com os 16px normais.
+   */
+  @media (max-width: 640px) {
+    html {
+      font-size: clamp(14px, calc(100vw / 24.375), 18px);
+    }
+  }
 }
 
 @keyframes ticker-scroll {

@@ -45,6 +45,19 @@ export class GatewayError extends Error {
 
 export type GeneratedTitle = { titulo: string; resumo: string };
 
+/** Diagnóstico: porque é que cada IA não deu título. A ronda lê e limpa isto no fim. */
+const failureCounts = new Map<string, number>();
+export function recordFailure(api: string, reason: string): void {
+  const key = `${api}: ${reason}`.slice(0, 80);
+  failureCounts.set(key, (failureCounts.get(key) ?? 0) + 1);
+}
+export function drainFailures(): Record<string, number> {
+  const out = Object.fromEntries(failureCounts);
+  failureCounts.clear();
+  return out;
+}
+const errName = (e: unknown) => (e instanceof Error ? e.name : "erro");
+
 const responseSchema = {
   type: "OBJECT",
   properties: { titulo: { type: "STRING" }, resumo: { type: "STRING" } },
@@ -345,7 +358,7 @@ export async function generateOne(title: string, articleText?: string | null): P
   const start = geminiTurn % accounts.length;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
-    if (Date.now() < geminiCooldownUntil[account.slot]) continue;
+    if (Date.now() < geminiCooldownUntil[account.slot]) { recordFailure("gemini", "em pausa"); continue; }
     try {
       const res = await callGemini(MODEL, account.key, prompt);
       if (!res.ok) {
@@ -354,6 +367,7 @@ export async function generateOne(title: string, articleText?: string | null): P
           geminiCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
         }
         console.error("Gemini HTTP", res.status, (await res.text().catch(() => "")).slice(0, 200));
+        recordFailure("gemini", `HTTP ${res.status}`);
         continue;
       }
       const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
@@ -362,6 +376,7 @@ export async function generateOne(title: string, articleText?: string | null): P
       const titulo = validTitle(parsed.titulo, title, articleText);
       if (!titulo) {
         console.error("Gemini resposta inválida", raw.slice(0, 200));
+        recordFailure("gemini", "título recusado");
         continue;
       }
       geminiTurn = account.slot + 1;
@@ -370,6 +385,7 @@ export async function generateOne(title: string, articleText?: string | null): P
       return { titulo, resumo };
     } catch (e) {
       console.error(`Gemini falhou após ${Date.now() - started}ms`, e instanceof Error ? e.message : e);
+      recordFailure("gemini", `falhou ${errName(e)}`);
     }
   }
   return null;

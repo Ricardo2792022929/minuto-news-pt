@@ -1,4 +1,4 @@
-import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8";
 const TIMEOUT_MS = 8_000;
@@ -48,7 +48,8 @@ function parseJson(raw: string): { titulo?: unknown; resumo?: unknown } | null {
 export async function generateCloudflareOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const token = process.env["CLOUDFLARE_API_TOKEN"];
   const account = process.env["CLOUDFLARE_ACCOUNT_ID"];
-  if (!token || !account || Date.now() < cloudflareCooldownUntil) return null;
+  if (!token || !account) { recordFailure("cloudflare", "sem chave"); return null; }
+  if (Date.now() < cloudflareCooldownUntil) { recordFailure("cloudflare", "em pausa"); return null; }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -75,6 +76,7 @@ export async function generateCloudflareOne(title: string, articleText?: string 
         cloudflareCooldownUntil = Date.now() + 15 * 60_000;
       }
       console.error("Cloudflare HTTP", response.status, body.slice(0, 200));
+      recordFailure("cloudflare", `HTTP ${response.status}`);
       if (response.status === 401 || response.status === 403) {
         throw new GatewayError(`Cloudflare HTTP ${response.status}`, response.status);
       }
@@ -86,12 +88,14 @@ export async function generateCloudflareOne(title: string, articleText?: string 
     const titulo = parsed && validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("Cloudflare devolveu título inválido");
+      recordFailure("cloudflare", parsed ? "título recusado" : "sem JSON");
       return null;
     }
     return { titulo, resumo: (parsed && validSummary(parsed.resumo)) || titulo };
   } catch (error) {
     if (error instanceof GatewayError) throw error;
     console.error("Cloudflare falhou", error instanceof Error ? error.message : error);
+    recordFailure("cloudflare", `falhou ${error instanceof Error ? error.name : "erro"}`);
     return null;
   } finally {
     clearTimeout(timer);

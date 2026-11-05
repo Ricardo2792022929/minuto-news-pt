@@ -1,0 +1,54 @@
+# Temporário: corre a app com uma base falsa e tira capturas reais para a Play Store. Apagar depois.
+name: tmp capturas loja
+on:
+  push:
+    branches: [tmp-material-loja]
+permissions:
+  contents: write
+jobs:
+  capturas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DEMO_NOW: "2026-11-05T18:47:00Z"
+      FLASH_DB_URL: http://127.0.0.1:54321
+      FLASH_DB_KEY: sb_publishable_demo
+      FLASH_DB_SERVICE_KEY: sb_secret_demo
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_demo
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependências
+        run: |
+          mv bun.lock /tmp/bun.lock.bak
+          npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org/ 2>&1 | tail -5
+          npm install --no-save --no-audit --no-fund playwright@1.56.1 2>&1 | tail -2
+          npx playwright install --with-deps chromium 2>&1 | tail -2
+      - name: Base falsa e servidor da app
+        run: |
+          nohup node scripts/loja/mock-db.mjs > mock.log 2>&1 &
+          nohup npx vite dev --port 8080 --strictPort --host 127.0.0.1 > vite.log 2>&1 &
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ || true)
+            if [ "$code" = "200" ]; then echo "app pronta ($i s)"; break; fi
+            sleep 2
+          done
+          tail -20 vite.log
+      - name: Capturas
+        run: |
+          node scripts/loja/shoot.mjs
+          echo "--- vite ---"; tail -30 vite.log; echo "--- base ---"; tail -5 mock.log
+      - name: Publicar no ramo tmp-loja-shots
+        if: always()
+        run: |
+          cp vite.log mock.log shots/ 2>/dev/null || true
+          cd shots
+          git init -q -b tmp-loja-shots
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -q -m "capturas"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" tmp-loja-shots:tmp-loja-shots

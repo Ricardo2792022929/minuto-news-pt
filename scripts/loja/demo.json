@@ -1,0 +1,253 @@
+[
+ {
+  "id": "demo-01",
+  "source": "Correio da Manhã",
+  "category": "Cultura",
+  "title": "Banda U2 anuncia segundo concerto em Lisboa",
+  "summary": "Os U2 vão realizar um segundo concerto em Lisboa no mês de maio de 2027.",
+  "original": "U2 anunciam segundo concerto em Lisboa em maio de 2027",
+  "url": "https://www.cmjornal.pt/cultura/detalhe/u2-anunciam-segundo-concerto-em-lisboa-em-maio-de-2027",
+  "minutes": 2,
+  "image": "concerto.jpg",
+  "related": [
+   {
+    "source": "Lusa",
+    "title": "Banda U2 anuncia nova data de concerto em Lisboa",
+    "url": "https://www.lusa.pt/culture/article/2026-11-05/48075339/u2-com-mais-uma-data-em-lisboa-após-enorme-procura-de-bilhetes",
+    "publishedAt": "2026-11-05T17:55:00+00:00"
+   },
+   {
+    "source": "Diário de Coimbra",
+    "title": "A banda U2 anuncia segundo concerto em Lisboa",
+    "url": "https://www.diariocoimbra.pt/2026/11/05/u2-anunciam-segundo-concerto-em-lisboa/?utm_source=rss&utm_medium=rss&utm_campaign=u2-anunciam-segundo-concerto-em-lisboa",
+    "publishedAt": "2026-11-05T17:45:59+00:00"
+   },
+   {
+    "source": "Sábado",
+    "title": "Banda anuncia mais uma data em Lisboa após procura",
+    "url": "https://www.sabado.pt/gps/detalhe/u2-com-mais-uma-data-em-lisboa-apos-enorme-procura-de-bilhetes",
+    "publishedAt": "2026-11-05T17:55:34+00:00"
+   },
+   {
+    "source": "Magazine HD",
+    "title": "Banda U2 anuncia segundo concerto em Portugal",
+    "url": "https://www.magazine-hd.com/apps/wp/u2-segundo-concerto-portugal-precos-bilhetes/",
+    "publishedAt": "2026-11-05T18:25:20+00:00"
+   }
+  ],
+  "saved": false
+ },
+ {
+  "id": "demo-02",
+  "source": "CNN Portugal",
+  "category": "Desporto",
+  "title": "Benfica defronta o Lech Poznań na Liga Europa",
+  "summary": "O Benfica joga contra o Lech Poznań para a Liga Europa.",
+  "original": "Liga Europa: Benfica - Lech Poznań (20:00)",
+  "url": "https://cnnportugal.iol.pt/benfica-lech-poznan/benfica-onze/liga-europa-benfica-lech-poznan-20-00/20261105/6aecd646d34e5a653d733169",
+  "minutes": 6,
+  "image": "estadio.jpg",
+  "related": [
+   {
+    "source": "RTP Notícias",
+    "title": "Benfica recebe o Lech Poznan na Liga Europa",
+    "url": "https://www.rtp.pt/noticias/desporto/sl-benfica-lech-poznan_e1777203",
+    "publishedAt": "2026-11-05T18:31:04+00:00"
+   },
+   {
+    "source": "Record",
+    "title": "Benfica defronta o Lech Poznan em jogo direto",
+    "url": "https://www.record.pt/internacional/competicoes-de-clubes/liga-europa/detalhe/20261105-162157-benfica-lech-poznan-em-direto",
+    "publishedAt": "2026-11-05T18:15:00+00:00"
+   }
+  ],
+  "saved": false
+ },
+ {
+  "id": "demo-03",
+  "source": "Jornal Económico",
+  "category": "Economia",
+  "title": "Bolsa de Lisboa sobe com a Sonae a liderar",
+  "summary": "O índice da Bolsa de Lisboa terminou a sessão com ganhos, sendo a Sonae a empresa com a maior subida.",
+  "original": "Bolsa de Lisboa encerra sessão em terreno positivo com Sonae a liderar ganhos",
+  "url": "https://jornaleconomico.sapo.pt/noticias/bolsa-de-lisboa-encerra-sessao-em-terreno-positivo-com-sonae-a-liderar-ganhos/",
+  "minutes": 11,
+  "image": "bolsa.jpg",
+  "related": [
+   {
+    "source": "Jornal de Negócios",
+    "title": "Bolsa de Lisboa fecha no verde com Sonae",
+    "url": "https://www.jornaldenegocios.pt/mercados/bolsa/detalhe/lisboa-fecha-no-verde-em-dia-misto-na-europa-nos-e-sonae-disparam",
+    "publishedAt": "2026-11-05T17:08:00+00:00"
+   },
+   {
+    "source": "Executive Digest",
+    "title": "Bolsa de Lisboa fecha em alta com Sonae",
+    "url": "https://executivedigest.sapo.pt/bolsa-de-lisboa-fecha-no-verde-com-sonae-sgps-a-subir-mais-de-5/",
+    "publishedAt": "2026-11-05T17:22:28+00:00"
+   }
+  ],
+  "saved": true
+ },
+ {
+  "id": "demo-04",
+  "source": "Executive Digest",
+  "category": "Mundo",
+  "title": "Carris reforça transportes com shuttle e passe conjunto",
+  "summary": "A Carris reforçou a oferta de transporte com passes conjuntos e novos autocarros.",
+  "original": "Web Summit: Carris reforça transporte com ‘shuttle’ e passe conjunto com metro e comboios",
+  "url": "https://executivedigest.sapo.pt/web-summit-carris-reforca-transporte-com-shuttle-e-passe-conjunto-com-metro-e-comboios/",
+  "minutes": 14,
+  "image": "eletrico.jpg",
+  "related": null,
+  "saved": true
+ },
+ {
+  "id": "demo-05",
+  "source": "ECO",
+  "category": "Economia",
+  "title": "Caixa Geral de Depósitos atinge lucros recorde",
+  "summary": "A Caixa Geral de Depósitos registou lucros de 1,434 mil milhões de euros até setembro.",
+  "original": "Lucro da Caixa Geral de Depósitos bate recorde acima de 1,4 mil milhões até setembro",
+  "url": "https://eco.sapo.pt/2026/11/05/lucro-da-caixa-geral-de-depositos-bate-recorde-acima-de-14-mil-milhoes-ate-setembro/",
+  "minutes": 19,
+  "image": "euros.jpg",
+  "related": [
+   {
+    "source": "CNN Portugal",
+    "title": "Lucros da Caixa Geral de Depósitos aumentam até setembro",
+    "url": "https://cnnportugal.iol.pt/caixa-geral-de-depositos/cgd/lucros-da-cgd-crescem-2-5-para-1-434-milhoes-de-euros-ate-setembro/20261105/6aecb74bd34e9ce6f1b4343c",
+    "publishedAt": "2026-11-05T17:21:00+00:00"
+   },
+   {
+    "source": "RTP Notícias",
+    "title": "Lucros da Caixa crescem dois vírgula cinco por cento",
+    "url": "https://www.rtp.pt/noticias/economia/lucros-da-caixa-crescem-2-5-para-1-434-mil-milhoes-ate-setembro_n1777179",
+    "publishedAt": "2026-11-05T16:49:20+00:00"
+   },
+   {
+    "source": "Lusa",
+    "title": "Banco público regista lucros de 1434 milhões de euros",
+    "url": "https://www.lusa.pt/economia/article/2026-11-05/48074738/lucros-da-cgd-crescem-2-5-para-1-434-me-até-setembro",
+    "publishedAt": "2026-11-05T16:43:00+00:00"
+   },
+   {
+    "source": "Correio da Manhã",
+    "title": "Lucros da Caixa Geral de Depósitos sobem",
+    "url": "https://www.cmjornal.pt/economia/detalhe/lucros-da-cgd-crescem-2-5-para-1-434-milhoes-de-euros-ate-setembro",
+    "publishedAt": "2026-11-05T16:51:41+00:00"
+   }
+  ],
+  "saved": false
+ },
+ {
+  "id": "demo-06",
+  "source": "ECO",
+  "category": "Tech",
+  "title": "Organizações começam a usar a inteligência artificial de forma prática",
+  "summary": "Organizações começam a usar a inteligência artificial de forma prática",
+  "original": "Aplicações práticas da IA nas organizações",
+  "url": "https://eco.sapo.pt/opiniao/aplicacoes-praticas-da-ia-nas-organizacoes/",
+  "minutes": 23,
+  "image": "circuito.jpg",
+  "related": null,
+  "saved": false
+ },
+ {
+  "id": "demo-07",
+  "source": "Zerozero",
+  "category": "Desporto",
+  "title": "AGF Aarhus e SC Braga empatam a zero",
+  "summary": "O jogo entre o AGF Aarhus e o SC Braga terminou com um empate nulo.",
+  "original": "AGF Aarhus 0-0 SC Braga ao minuto",
+  "url": "https://www.zerozero.pt/noticias/agf-aarhus-0-0-sc-braga-ao-minuto/1252858",
+  "minutes": 31,
+  "image": "bola.jpg",
+  "related": null,
+  "saved": false
+ },
+ {
+  "id": "demo-08",
+  "source": "Visão",
+  "category": "Cultura",
+  "title": "Festival de cinema celebra vinte edições em Lisboa",
+  "summary": "O LEFFEST celebra vinte edições com uma programação especial.",
+  "original": "LEFFEST 2026: Cannes, Veneza, o diabo e outros pecados cinematográficos",
+  "url": "https://visao.pt/atualidade/cultura/2026-11-05-leffest-2026-cannes-veneza-o-diabo-e-outros-pecados-cinematograficos/?utm_source=rss&utm_medium=rss&utm_campaign=leffest-2026-cannes-veneza-o-diabo-e-outros-pecados-cinematograficos",
+  "minutes": 38,
+  "image": "cinema.jpg",
+  "related": null,
+  "saved": true
+ },
+ {
+  "id": "demo-09",
+  "source": "Jornal de Negócios",
+  "category": "Mundo",
+  "title": "Web Summit avalia permanência em Lisboa nos próximos anos",
+  "summary": "Existem conversas positivas para a Web Summit continuar em Lisboa.",
+  "original": "Saída da Web Summit de Lisboa? \"2029 ainda está longe\", mas há \"boas conversas\" para ficar",
+  "url": "https://www.jornaldenegocios.pt/empresas/web-summit/detalhe/saida-da-web-summit-de-lisboa-2029-ainda-esta-longe-mas-ha-boas-conversas-para-ficar",
+  "minutes": 44,
+  "image": "lisboa.jpg",
+  "related": null,
+  "saved": false
+ },
+ {
+  "id": "demo-10",
+  "source": "Jornal de Negócios",
+  "category": "Política",
+  "title": "Nova lei de Programação Militar chega em breve ao Parlamento",
+  "summary": "A nova lei de Programação Militar com investimento extra será discutida em breve no Parlamento.",
+  "original": "Nova lei de Programação Militar, com investimento extra-SAFE, estará “daqui a pouco tempo” no Parlamento",
+  "url": "https://www.jornaldenegocios.pt/economia/defesa/detalhe/nova-lei-de-programacao-militar-com-investimento-extra-safe-estara-daqui-a-pouco-tempo-no-parlamento",
+  "minutes": 52,
+  "image": "parlamento.jpg",
+  "related": null,
+  "saved": false
+ },
+ {
+  "id": "demo-11",
+  "source": "ECO",
+  "category": "Política",
+  "title": "Portugal organiza a cimeira ibero-americana de 2030",
+  "summary": "Portugal foi escolhido para acolher e organizar a cimeira da comunidade ibero-americana no ano de 2030.",
+  "original": "Portugal vai organizar e acolher cimeira ibero-americana de 2030",
+  "url": "https://eco.sapo.pt/2026/11/05/portugal-vai-organizar-e-acolher-cimeira-ibero-americana-de-2030/",
+  "minutes": 58,
+  "image": "porto.jpg",
+  "related": [
+   {
+    "source": "Jornal Económico",
+    "title": "Portugal organiza a cimeira ibero-americana no ano de 2030",
+    "url": "https://jornaleconomico.sapo.pt/noticias/portugal-vai-organizar-a-acolher-cimeira-ibero-americana-de-2030/",
+    "publishedAt": "2026-11-05T18:46:15+00:00"
+   },
+   {
+    "source": "Jornal de Negócios",
+    "title": "Portugal organiza a cimeira ibero-americana de 2030",
+    "url": "https://www.jornaldenegocios.pt/economia/detalhe/portugal-vai-organizar-a-acolher-cimeira-ibero-americana-de-2030",
+    "publishedAt": "2026-11-05T19:06:00+00:00"
+   },
+   {
+    "source": "RTP Notícias",
+    "title": "Portugal recebe a Cimeira Ibero-Americana em 2030",
+    "url": "https://www.rtp.pt/noticias/mundo/seguro-confirma-realizacao-da-cimeira-ibero-americana-de-2030-em-portugal_n1777184",
+    "publishedAt": "2026-11-05T17:14:32+00:00"
+   }
+  ],
+  "saved": false
+ },
+ {
+  "id": "demo-12",
+  "source": "Lusa",
+  "category": "Cultura",
+  "title": "Fundação Gulbenkian inaugura exposição de arte contemporânea",
+  "summary": "O Centro de Arte Moderna da Gulbenkian inaugura uma nova exposição baseada no conceito de lugar.",
+  "original": "Ideia de lugar marca nova exposição da coleção de arte contemporânea da Gulbenkian",
+  "url": "https://www.lusa.pt/culture/article/2026-11-05/48074462/ideia-de-lugar-marca-nova-exposição-da-coleção-de-arte-contemporânea-da-gulbenkian",
+  "minutes": 75,
+  "image": "museu.jpg",
+  "related": null,
+  "saved": false
+ }
+]

@@ -61,12 +61,16 @@ export function asLinks(value: unknown): StoryLink[] {
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
-    if (typeof row.source !== "string" || typeof row.url !== "string" || typeof row.title !== "string") return [];
+    const source = row["source"];
+    const url = row["url"];
+    const title = row["title"];
+    const publishedAt = row["publishedAt"];
+    if (typeof source !== "string" || typeof url !== "string" || typeof title !== "string") return [];
     return [{
-      source: row.source,
-      title: row.title,
-      url: row.url,
-      publishedAt: typeof row.publishedAt === "string" ? row.publishedAt : new Date(0).toISOString(),
+      source,
+      title,
+      url,
+      publishedAt: typeof publishedAt === "string" ? publishedAt : new Date(0).toISOString(),
     }];
   });
 }

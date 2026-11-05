@@ -415,7 +415,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
       const picked = (() => { const url = n.image || n.imageCandidates?.[0] || null; return url ? { url, status: "original" as const } : null; })();
       const rawImage = picked?.url ?? null;
-      const safeImage = storyImageUrl(rawImage, picked?.status === "search");
+      const safeImage = storyImageUrl(rawImage, false);
       const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
       const row = {
         id: n.id,
@@ -423,27 +423,14 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         category,
         url: n.url.slice(0, 2000),
         image: safeImage,
-        image_status: safeImage ? (picked?.status ?? "original") : "provisional",
-        image_candidates: sameStory,
         image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
         original_title: n.title.slice(0, 500),
         titulo_inedito: titulo.slice(0, 180),
         resumo: resumo.slice(0, 300),
         relevance: relevance100(n),
         published_at: n.publishedAt,
-        related: (extras.get(n.id) ?? []) as Json,
       };
-      let { error } = await db.from("articles").insert(row);
-      if (error && error.code !== "23505" && /related/i.test(error.message)) {
-        const { related: _related, ...withoutRelated } = row;
-        const again = await db.from("articles").insert(withoutRelated);
-        error = again.error;
-      }
-      if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
-        const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
-        const again = await db.from("articles").insert(legacy);
-        error = again.error;
-      }
+      const { error } = await db.from("articles").insert(row);
       if (error) {
         if (error.code === "23505") return;
         saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
@@ -477,8 +464,10 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
           attempts[provider.api] = (attempts[provider.api] ?? 0) + 1;
           const { responded, answers } = await askBatch(provider, chunk.map((x) => ({ title: x.n.title, articleText: x.articleText })));
           for (let k = 0; k < chunk.length; k++) {
-            const { n, articleText } = chunk[k];
-            if (responded) chunk[k].responses++;
+            const slot = chunk[k];
+            if (!slot) continue;
+            const { n, articleText } = slot;
+            if (responded) slot.responses++;
             const got = answers.get(k + 1);
             if (!got) { noteReject(provider.api, responded ? "faltou no lote" : "vazio", n.title); continue; }
             const candidate = validTitle(got.titulo, n.title, articleText);
@@ -502,7 +491,9 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       while (!expired()) {
         const i = nextGroup++;
         if (i >= groups.length) return;
-        await titleGroup(groups[i]);
+        const group = groups[i];
+        if (!group) return;
+        await titleGroup(group);
       }
     };
     await Promise.all(Array.from({ length: GROUPS_IN_PARALLEL }, () => groupWorker()));
@@ -512,16 +503,6 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     cloudflareAttempts = attempts["cloudflare"] ?? 0;
     openrouterAttempts = attempts["openrouter"] ?? 0;
     nvidiaAttempts = attempts["nvidia"] ?? 0;
-
-    const touched = new Set(queue.map((item) => item.id));
-    for (const [id, list] of extras) {
-      if (!list.length || touched.has(id)) continue;
-      const { data: current, error: readError } = await db.from("articles").select("related").eq("id", id).maybeSingle();
-      if (readError) break;
-      const merged = mergeLinks(asLinks(current?.related), list);
-      const { error: writeError } = await db.from("articles").update({ related: merged as Json }).eq("id", id);
-      if (writeError) break;
-    }
 
     // Aviso logo a seguir a guardar, antes da manutenção: se a ligação cair, não se perde.
     let push: "sent" | "none" | "no-key" | "rejected" | "error" = "none";
@@ -563,10 +544,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
             await db.from("articles").update({ image_query: null }).eq("id", m.id);
             return;
           }
-          const saved = await db.from("articles").update({ image: img, image_status: status, image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
-          if (saved.error && /image_status|image_candidates/i.test(saved.error.message)) {
-            await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
-          }
+          await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
         } catch { /* a próxima atualização tenta outra vez */ }
       }));
     }
@@ -658,14 +636,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted,
       failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons, run_id: runId,
     }));
-    let metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
-    if (imageMetricsRows.length) {
-      const { error: metricsError } = await db.from("image_api_metrics").insert(imageMetricsRows);
-      if (metricsError) {
-        metricsPersist = "metrics_persist_failed";
-        console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
-      }
-    }
+    const metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
     return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory, esperouMs: waitedMs };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {

@@ -44,7 +44,8 @@ function decode(value: string): string {
 function largeLusaImage(src: string): string | null {
   const match = src.match(/\/temp\/images\/\d+x\d+\/cache_\d+x\d+_[A-Za-z]+_[A-Za-z]+_(\d+(?:_\d+)+)\.(jpe?g|png|webp)/i);
   if (!match) return null;
-  const ext = match[2].toLowerCase() === "jpeg" ? "JPG" : match[2].toUpperCase();
+  const kind = match[2] ?? "";
+  const ext = kind.toLowerCase() === "jpeg" ? "JPG" : kind.toUpperCase();
   return `https://www.lusa.pt/TEMP/IMAGES/780x1200/CACHE_780X1200_ANALOG_WATERMARKED_${match[1]}.${ext}`;
 }
 
@@ -100,17 +101,22 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
       if (!res.ok) return [] as NewsItem[];
       const html = await res.text();
       const images = new Map<string, string>();
-      for (const match of html.matchAll(IMAGE)) images.set(match[1], match[2]);
+      for (const match of html.matchAll(IMAGE)) {
+        const key = match[1];
+        const value = match[2];
+        if (key && value) images.set(key, value);
+      }
       const items: NewsItem[] = [];
       for (const match of html.matchAll(HEADLINE)) {
         const url = match[1];
-        const title = decode(match[2]);
-        const publishedAt = lisbonToIso(match[3]);
-        if (!publishedAt || title.length < 15) continue;
+        const title = decode(match[2] ?? "");
+        const publishedAt = lisbonToIso(match[3] ?? "");
+        if (!url || !publishedAt || title.length < 15) continue;
         if (Date.now() - new Date(publishedAt).getTime() > 30 * 3600_000) continue;
         const thumb = images.get(url);
         const large = thumb ? largeLusaImage(thumb) : null;
         const imageCandidates = [...new Set([large, thumb].filter((value): value is string => Boolean(value)))];
+        const cover = imageCandidates[0];
         items.push({
           id: hashId(canonical(url)),
           source: "Lusa",
@@ -119,7 +125,7 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
           excerpt: "",
           url,
           publishedAt,
-          image: imageCandidates[0],
+          ...(cover ? { image: cover } : {}),
           imageCandidates,
         });
       }

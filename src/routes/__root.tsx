@@ -115,6 +115,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt" style={{ backgroundColor: "#000" }}>
       <head>
         <HeadContent />
+        {/* Em app nativa (Capacitor/webview) entra direto no feed, sem ecrã de boas-vindas. */}
         <script
           dangerouslySetInnerHTML={{
             __html:

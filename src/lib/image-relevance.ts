@@ -9,6 +9,7 @@ const GENERIC = new Set([
   "chip", "chips", "modelo", "modelos", "dados", "nuvem", "smartphone", "telemovel",
   "telefone", "empresa", "mercado", "noticia", "noticias", "governo", "portugal",
   "portugues", "portuguesa", "lisboa", "mundo", "hoje", "ontem", "novo", "nova",
+  "influencer", "influencers", "youtuber", "youtubers", "tiktoker", "podcast", "entrevista", "opiniao",
 ]);
 
 const STOP = new Set([
@@ -24,6 +25,7 @@ const GENERIC_PAGES = new Set([
   "inteligencia artificial", "artificial intelligence", "tecnologia", "technology",
   "computador", "computer", "smartphone", "telemovel", "robot", "robo", "chip",
   "microchip", "software", "internet", "empresa", "company",
+  "influencer", "social media influencer", "influenciador digital", "youtuber", "podcast",
 ]);
 
 const BRANDS = [
@@ -61,6 +63,21 @@ function unique(values: string[]): string[] {
   return out;
 }
 
+/** Rubricas que alguns jornais põem antes do título (ex.: RTP Antena 1 "14h Influencer: …"). Não são o assunto da notícia. */
+const RUBRICS = new Set([
+  "influencer", "opiniao", "analise", "entrevista", "exclusivo", "urgente", "ultima hora", "direto", "em direto",
+  "video", "videos", "fotogaleria", "podcast", "reportagem", "cronica", "editorial", "comentario", "explicador",
+  "fact check", "polígrafo", "poligrafo", "breves", "resumo",
+]);
+
+/** Tira a hora do noticiário ("14h", "07h30") e uma rubrica genérica antes de dois pontos. Um nome antes de dois pontos (quem fala) fica. */
+export function cleanStoryTitle(title: string): string {
+  let out = title.replace(/^\s*\d{1,2}h(?:\d{2})?\s+/i, "");
+  const label = out.match(/^\s*([^:]{2,24}):\s+(.+)$/);
+  if (label && RUBRICS.has(FOLD(label[1] ?? ""))) out = label[2] ?? out;
+  return out.trim();
+}
+
 export function namedQuery(title: string): string | null {
   for (const [pattern, query] of NAMED) if (pattern.test(title)) return query;
   return null;
@@ -68,15 +85,20 @@ export function namedQuery(title: string): string | null {
 
 /** Empresas, pessoas, produtos e clubes. Um tema genérico não conta como entidade. */
 export function storyEntities(title: string, description = ""): string[] {
+  title = cleanStoryTitle(title);
   const blob = `${title} ${description.slice(0, 360)}`;
   const folded = FOLD(blob);
   const brands = BRANDS.filter((brand) => hasTerm(folded, brand));
   const products = blob.match(PRODUCT) ?? [];
-  const proper = title.match(/\b\p{Lu}[\p{L}\d'’.-]{2,}(?:\s+(?:d[aeo]s?|de|e|\p{Lu}[\p{L}\d'’.-]{2,})){0,3}/gu) ?? [];
+  const proper = (title.match(/\b\p{Lu}[\p{L}\d'’.-]{2,}(?:\s+(?:(?:d[aeo]s?|de)(?=\s)|\p{Lu}[\p{L}\d'’.-]{2,})){0,3}/gu) ?? [])
+    .map((name) => name.replace(/\s+(?:d[aeo]s?|de)$/u, ""));
   const names = proper.filter((name) => {
     const foldedName = FOLD(name);
     return foldedName.length > 2 && !GENERIC.has(foldedName) && !STOP.has(foldedName);
   });
+  // Nomes com mais palavras primeiro: "Augusto Santos Silva" diz mais do que uma palavra solta com maiúscula.
+  const words = (name: string) => name.trim().split(/\s+/).length;
+  names.sort((a, b) => words(b) - words(a));
   const named = namedQuery(title);
   return unique([...(named ? [named] : []), ...brands, ...products, ...names]).slice(0, 4);
 }

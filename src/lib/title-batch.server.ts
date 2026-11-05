@@ -84,7 +84,7 @@ export function parseBatch(raw: string | null, count: number): Map<number, Batch
   return out;
 }
 
-type Provider = { api: BatchApi; size: number; ask: (items: BatchItem[]) => Promise<string | null> };
+type Provider = { api: BatchApi; size: number; ask: (items: BatchItem[], timeLeftMs?: number) => Promise<string | null> };
 
 /** Tokens de saída: ~70 por notícia, mais folga para o raciocínio dos modelos que pensam antes. */
 const outTokens = (count: number, extra: number) => Math.min(4000, 120 + count * 90 + extra);
@@ -95,11 +95,11 @@ export const BATCH_PROVIDERS: Provider[] = [
   { api: "gemini", size: 8, ask: (items) => askGeminiRaw(BATCH_SYSTEM, batchPrompt(items), GEMINI_BATCH_SCHEMA) },
   { api: "cloudflare", size: 4, ask: (items) => askCloudflareRaw(BATCH_SYSTEM, batchPrompt(items), outTokens(items.length, 0)) },
   { api: "openrouter", size: 8, ask: (items) => askOpenRouterRaw(BATCH_SYSTEM, batchPrompt(items), outTokens(items.length, 200)) },
-  { api: "nvidia", size: 4, ask: (items) => askNvidiaRaw(BATCH_SYSTEM, batchPrompt(items), outTokens(items.length, 200)) },
+  { api: "nvidia", size: 4, ask: (items, timeLeftMs) => askNvidiaRaw(BATCH_SYSTEM, batchPrompt(items), outTokens(items.length, 200), timeLeftMs) },
 ];
 
 /** Um pedido a uma IA com várias notícias. `responded` diz se a IA chegou a responder (para a memória de falhas). */
-export async function askBatch(provider: Provider, items: BatchItem[]): Promise<{ responded: boolean; answers: Map<number, BatchAnswer> }> {
-  const raw = await provider.ask(items).catch(() => null);
+export async function askBatch(provider: Provider, items: BatchItem[], timeLeftMs?: number): Promise<{ responded: boolean; answers: Map<number, BatchAnswer> }> {
+  const raw = await provider.ask(items, timeLeftMs).catch(() => null);
   return { responded: Boolean(raw), answers: parseBatch(raw, items.length) };
 }

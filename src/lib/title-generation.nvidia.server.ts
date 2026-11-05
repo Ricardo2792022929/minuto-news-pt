@@ -111,14 +111,21 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
 }
 
 /** Lote: um pedido com várias notícias. Devolve o texto em bruto (JSON) ou null. */
-export async function askNvidiaRaw(system: string, user: string, maxTokens: number): Promise<string | null> {
+/** Um lote de 4 notícias demora 20 a 40 s na Nvidia grátis: com 15 s todos os pedidos eram cancelados a meio. */
+const BATCH_TIMEOUT_MS = 45_000;
+/** Abaixo disto já não vale a pena começar um lote: não acabava a tempo da ronda. */
+const BATCH_MIN_MS = 15_000;
+
+export async function askNvidiaRaw(system: string, user: string, maxTokens: number, timeLeftMs?: number): Promise<string | null> {
   const apiKey = process.env["NVIDIA_API_KEY"];
   if (!apiKey) { recordFailure("nvidia", "sem chave"); return null; }
   if (Date.now() < nvidiaCooldownUntil) { recordFailure("nvidia", "em pausa"); return null; }
+  const timeoutMs = Math.min(BATCH_TIMEOUT_MS, timeLeftMs ?? BATCH_TIMEOUT_MS);
+  if (timeoutMs < BATCH_MIN_MS) { recordFailure("nvidia", "sem tempo na ronda"); return null; }
   const release = tryAcquire("nvidia", NVIDIA_LIMIT);
   if (!release) { recordFailure("nvidia", "limite próprio"); return null; }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",

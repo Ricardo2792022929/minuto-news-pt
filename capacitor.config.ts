@@ -10,7 +10,8 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     cleartext: false,
     // Sem rede (ou erro a abrir o site) mostra esta página local em vez do erro do Android.
-    errorPath: "/offline.html",
+    // Sem "/" no início: o Capacitor já junta "https://localhost/" e "//offline.html" não é encontrado nos assets.
+    errorPath: "offline.html",
   },
 };
 

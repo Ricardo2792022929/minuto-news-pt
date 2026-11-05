@@ -31,6 +31,24 @@ const GROUPS_IN_PARALLEL = 3;
 const FAIL_PAUSE_MS = 60 * 60_000;
 const failedRecently = new Map<string, number>();
 
+/* As colunas related, image_status e image_candidates e a tabela image_api_metrics existem na base
+   (confirmado com o workflow ver-feed), mas não nos tipos gerados do Supabase. Este cliente sem tipos
+   deixa usá-las sem erros de compilação, em vez de as retirar. */
+type LooseError = { code?: string; message: string; hint?: string } | null;
+type LooseResult = { data: unknown; error: LooseError };
+type LooseQuery = PromiseLike<LooseResult> & {
+  eq: (column: string, value: string) => LooseQuery;
+  maybeSingle: () => PromiseLike<LooseResult>;
+};
+type LooseDb = {
+  from: (table: string) => {
+    insert: (values: unknown) => PromiseLike<LooseResult>;
+    update: (values: unknown) => LooseQuery;
+    select: (columns: string) => LooseQuery;
+  };
+};
+const looseDb = (db: unknown) => db as LooseDb;
+
 function batchSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const s = raw.replace(/\s+/g, " ").trim();
@@ -290,6 +308,7 @@ export async function runIngest(options: { budgetMs?: number } = {}): Promise<Re
 
 async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, unknown>> {
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+  const loose = looseDb(db);
   let started = Date.now();
   // Com mais tempo, tudo ganha folga: recolha, cada título (contexto + todas as IAs) e manutenção.
   const longRun = budgetMs > BUDGET_MS;
@@ -423,14 +442,25 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         category,
         url: n.url.slice(0, 2000),
         image: safeImage,
+        image_status: safeImage ? "original" : "provisional",
+        image_candidates: sameStory,
         image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
         original_title: n.title.slice(0, 500),
         titulo_inedito: titulo.slice(0, 180),
         resumo: resumo.slice(0, 300),
         relevance: relevance100(n),
         published_at: n.publishedAt,
+        related: (extras.get(n.id) ?? []) as Json,
       };
-      const { error } = await db.from("articles").insert(row);
+      let { error } = await loose.from("articles").insert(row);
+      if (error && error.code !== "23505" && /related/i.test(error.message)) {
+        const { related: _related, ...withoutRelated } = row;
+        error = (await loose.from("articles").insert(withoutRelated)).error;
+      }
+      if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
+        const { related: _r, image_status: _status, image_candidates: _candidates, ...legacy } = row;
+        error = (await loose.from("articles").insert(legacy)).error;
+      }
       if (error) {
         if (error.code === "23505") return;
         saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
@@ -504,6 +534,18 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     openrouterAttempts = attempts["openrouter"] ?? 0;
     nvidiaAttempts = attempts["nvidia"] ?? 0;
 
+    // Outras fontes da mesma notícia, já guardada numa ronda anterior: juntam-se às ligações dela.
+    const touched = new Set(queue.map((item) => item.id));
+    for (const [id, list] of extras) {
+      if (!list.length || touched.has(id)) continue;
+      const { data: current, error: readError } = await loose.from("articles").select("related").eq("id", id).maybeSingle();
+      if (readError) break;
+      const previous = current && typeof current === "object" ? (current as { related?: unknown }).related : undefined;
+      const merged = mergeLinks(asLinks(previous), list);
+      const { error: writeError } = await loose.from("articles").update({ related: merged as Json }).eq("id", id);
+      if (writeError) break;
+    }
+
     // Aviso logo a seguir a guardar, antes da manutenção: se a ligação cair, não se perde.
     let push: "sent" | "none" | "no-key" | "rejected" | "error" = "none";
     try {
@@ -544,7 +586,10 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
             await db.from("articles").update({ image_query: null }).eq("id", m.id);
             return;
           }
-          await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
+          const saved = await loose.from("articles").update({ image: img, image_status: status, image_candidates: safeFound.slice(1, 5), image_query: null }).eq("id", m.id);
+          if (saved.error && /image_status|image_candidates/i.test(saved.error.message)) {
+            await db.from("articles").update({ image: img, image_query: null }).eq("id", m.id);
+          }
         } catch { /* a próxima atualização tenta outra vez */ }
       }));
     }
@@ -636,7 +681,14 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       service, requests: value.requests, results_found: value.resultsFound, accepted: value.accepted,
       failures: value.failures, latency_ms: value.latencyMs, rejection_reasons: value.rejectionReasons, run_id: runId,
     }));
-    const metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
+    let metricsPersist: "ok" | "metrics_persist_failed" | "no_metrics" = imageMetricsRows.length ? "ok" : "no_metrics";
+    if (imageMetricsRows.length) {
+      const { error: metricsError } = await loose.from("image_api_metrics").insert(imageMetricsRows);
+      if (metricsError) {
+        metricsPersist = "metrics_persist_failed";
+        console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
+      }
+    }
     return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples(), emLote: true, saltadasPorMemoria: skippedByMemory, esperouMs: waitedMs };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {

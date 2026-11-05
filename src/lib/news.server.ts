@@ -317,41 +317,44 @@ export function classify(text: string, fallback: string): string {
   };
   const scores: Record<string, number> = {};
   const strongHits: Record<string, number> = {};
+  const val = (cat: string) => scores[cat] ?? 0;
+  const hits = (cat: string) => strongHits[cat] ?? 0;
+  const weakList = (cat: string) => weak[cat] ?? [];
   for (const cat of cats) {
-    const found = strong[cat].filter(hit).length;
+    const found = (strong[cat] ?? []).filter(hit).length;
     strongHits[cat] = found;
     let score = found * 4;
-    score += weak[cat].filter(hit).length * 2;
+    score += weakList(cat).filter(hit).length * 2;
     scores[cat] = score;
   }
-  if (hit("serie") && t.includes("serie de") && strongHits.Cultura <= 1) scores.Cultura = 0;
-  if (/(assalto|roubo|homicidio)/.test(t)) scores.Economia = Math.min(scores.Economia, strongHits.Economia * 4);
-  if (strongHits.Economia > 0 && strongHits.Política > 0) scores.Economia += 3;
+  if (hit("serie") && t.includes("serie de") && hits("Cultura") <= 1) scores["Cultura"] = 0;
+  if (/(assalto|roubo|homicidio)/.test(t)) scores["Economia"] = Math.min(val("Economia"), hits("Economia") * 4);
+  if (hits("Economia") > 0 && hits("Política") > 0) scores["Economia"] = val("Economia") + 3;
   // «Porto» e «Braga» sozinhos são cidades. Só contam como desporto com mais um sinal.
-  if (strongHits.Desporto > 0 && (hit("porto") || hit("braga") || hit("guimaraes"))) scores.Desporto += 2;
+  if (hits("Desporto") > 0 && (hit("porto") || hit("braga") || hit("guimaraes"))) scores["Desporto"] = val("Desporto") + 2;
   const civic = ["habitacao", "arrendamento", "despejo", "manifestantes", "manifestacao", "manifestam"].some(hit);
-  if (civic && strongHits.Desporto === 0) scores.Desporto = 0;
-  if (strongHits.Desporto > 0 && !civic) scores.Cultura = 0;
-  if (weak.Desporto.filter(hit).length > 0 && strongHits.Cultura === 0 && !civic) {
-    scores.Cultura = 0;
-    scores.Desporto += 3;
+  if (civic && hits("Desporto") === 0) scores["Desporto"] = 0;
+  if (hits("Desporto") > 0 && !civic) scores["Cultura"] = 0;
+  if (weakList("Desporto").filter(hit).length > 0 && hits("Cultura") === 0 && !civic) {
+    scores["Cultura"] = 0;
+    scores["Desporto"] = val("Desporto") + 3;
   }
-  if (strongHits.Cultura === 0) scores.Cultura = 0;
-  if (strongHits.Economia > 0 && ["netflix", "bilheteira"].filter(hit).length === strongHits.Cultura && strongHits.Cultura > 0) {
-    scores.Cultura = 0;
+  if (hits("Cultura") === 0) scores["Cultura"] = 0;
+  if (hits("Economia") > 0 && ["netflix", "bilheteira"].filter(hit).length === hits("Cultura") && hits("Cultura") > 0) {
+    scores["Cultura"] = 0;
   }
-  if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura" && fallback !== "Entretenimento") scores[fallback] += 1;
-  const best = [...cats].sort((a, b) => scores[b] - scores[a] || Number(b === "Política") - Number(a === "Política"))[0];
-  if (scores[best] < 3) {
-    if (fallback === "Economia" && (strongHits.Economia > 0 || weak.Economia.some(hit))) return "Economia";
-    if (fallback === "Cultura" && strongHits.Cultura > 0) return "Cultura";
-    if (fallback === "Entretenimento" && (strongHits.Entretenimento > 0 || weak.Entretenimento.some(hit))) return "Entretenimento";
+  if (cats.includes(fallback as (typeof cats)[number]) && fallback !== "Cultura" && fallback !== "Entretenimento") scores[fallback] = val(fallback) + 1;
+  const best = [...cats].sort((a, b) => val(b) - val(a) || Number(b === "Política") - Number(a === "Política"))[0] ?? fallback;
+  if (val(best) < 3) {
+    if (fallback === "Economia" && (hits("Economia") > 0 || weakList("Economia").some(hit))) return "Economia";
+    if (fallback === "Cultura" && hits("Cultura") > 0) return "Cultura";
+    if (fallback === "Entretenimento" && (hits("Entretenimento") > 0 || weakList("Entretenimento").some(hit))) return "Entretenimento";
     if (fallback === "Cultura" || fallback === "Economia" || fallback === "Entretenimento") return "Mundo";
     return cats.includes(fallback as (typeof cats)[number]) ? fallback : "Mundo";
   }
-  if (strongHits.Desporto > 0 && !civic) return "Desporto";
-  if (strongHits.Cultura > 0) return "Cultura";
-  if (strongHits.Entretenimento > 0 && scores.Entretenimento >= scores[best]) return "Entretenimento";
+  if (hits("Desporto") > 0 && !civic) return "Desporto";
+  if (hits("Cultura") > 0) return "Cultura";
+  if (hits("Entretenimento") > 0 && val("Entretenimento") >= val(best)) return "Entretenimento";
   return best;
 }
 
@@ -498,7 +501,9 @@ async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>
       const html = await page.text();
       const tag = html.match(/data-n-a-id="([^"]+)"\s+data-n-a-ts="([^"]+)"\s+data-n-a-sg="([^"]+)"/);
       if (!tag) return;
-      signatures.push({ link, id: tag[1], ts: tag[2], sg: tag[3] });
+      const [, id, ts, sg] = tag;
+      if (!id || !ts || !sg) return;
+      signatures.push({ link, id, ts, sg });
     } catch {
       /* esta manchete fica de fora */
     }
@@ -526,7 +531,7 @@ async function resolveExpressoUrls(links: string[]): Promise<Map<string, string>
     );
     if (!post.ok) return resolved;
     const raw = await post.text();
-    const jsonText = raw.includes("\n\n") ? raw.split("\n\n", 2)[1] : raw.replace(/^\)\]\}'\s*/, "");
+    const jsonText = raw.includes("\n\n") ? (raw.split("\n\n", 2)[1] ?? "") : raw.replace(/^\)\]\}'\s*/, "");
     const rows = JSON.parse(jsonText) as unknown[];
     if (!Array.isArray(rows)) return resolved;
     for (const row of rows) {

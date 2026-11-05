@@ -1,5 +1,25 @@
 [
  {
+  "id": "demo-00",
+  "source": "CNN Portugal",
+  "category": "Desporto",
+  "title": "Presidente da República destaca percurso de Cristiano Ronaldo",
+  "summary": "António José Seguro sublinhou a importância de Cristiano Ronaldo na Seleção Nacional.",
+  "original": "«Cristiano Ronaldo levou o nome de Portugal aos quatro cantos do mundo»",
+  "url": "https://cnnportugal.iol.pt/videos/cristiano-ronaldo-levou-o-nome-de-portugal-aos-quatro-cantos-do-mundo/6aecb3ad0cf2df4c3882d091",
+  "minutes": 1,
+  "image": "estadio.jpg",
+  "related": [
+   {
+    "source": "Record",
+    "title": "António José Seguro agradece a Ronaldo pelo mundo",
+    "url": "https://www.record.pt/futebol/selecoes/detalhe/antonio-jose-seguro-e-o-obrigado-a-ronaldo-levou-o-nome-de-portugal-pelo-mundo",
+    "publishedAt": "2026-11-05T12:30:00+00:00"
+   }
+  ],
+  "saved": false
+ },
+ {
   "id": "demo-01",
   "source": "Correio da Manhã",
   "category": "Cultura",

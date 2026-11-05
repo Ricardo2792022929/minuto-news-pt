@@ -492,7 +492,8 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
           if (expired()) { reachedEnd = false; break; }
           const chunk = left.slice(i, i + provider.size);
           attempts[provider.api] = (attempts[provider.api] ?? 0) + 1;
-          const { responded, answers } = await askBatch(provider, chunk.map((x) => ({ title: x.n.title, articleText: x.articleText })));
+          const timeLeftMs = effectiveBudget - (Date.now() - started) + 5_000;
+          const { responded, answers } = await askBatch(provider, chunk.map((x) => ({ title: x.n.title, articleText: x.articleText })), timeLeftMs);
           for (let k = 0; k < chunk.length; k++) {
             const slot = chunk[k];
             if (!slot) continue;

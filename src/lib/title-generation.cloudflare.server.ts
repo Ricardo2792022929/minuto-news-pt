@@ -1,4 +1,4 @@
-import { CLOUDFLARE_LIMIT, GatewayError, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { CLOUDFLARE_LIMIT, GatewayError, recordFailure, recordSample, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["CLOUDFLARE_MODEL"] || "@cf/meta/llama-3.1-8b-instruct-fp8";
 const TIMEOUT_MS = 8_000;
@@ -91,6 +91,7 @@ export async function generateCloudflareOne(title: string, articleText?: string 
     if (!titulo) {
       console.warn("Cloudflare devolveu título inválido");
       recordFailure("cloudflare", parsed ? "título recusado" : "sem JSON");
+      if (parsed) recordSample("cloudflare", parsed.titulo);
       return null;
     }
     return { titulo, resumo: (parsed && validSummary(parsed.resumo)) || titulo };

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { drainFailures, generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
+import { drainFailures, drainSamples, generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
@@ -377,7 +377,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     const freshNews: { title: string; url: string; publishedAt: string; image?: string | null }[] = [];
     const queue = pending.slice(0, 80);
     // Diagnóstico: porque é que as IAs não deram título (contagens e alguns exemplos).
-    const AI_NAMES = ["groq", "cloudflare", "nvidia", "gemini", "openrouter"];
+    const AI_NAMES = ["groq", "gemini", "cloudflare", "openrouter", "nvidia"];
     const rejectCounts: Record<string, number> = {};
     const rejectSamples: { api: string; motivo: string; original: string; recebido?: string }[] = [];
     const noteReject = (api: string, motivo: string, original: string, recebido?: string) => {
@@ -385,84 +385,85 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       rejectCounts[key] = (rejectCounts[key] ?? 0) + 1;
       if (rejectSamples.length < 8) rejectSamples.push({ api, motivo, original: original.slice(0, 90), ...(recebido ? { recebido: recebido.slice(0, 90) } : {}) });
     };
-    for (let offset = 0; offset < queue.length; offset += WAVE) {
-      if (expired()) break;
-      const wave = queue.slice(offset, offset + WAVE);
-      const titled = await Promise.all(wave.map((n, waveIndex) => withDeadline((async () => {
-        const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
-        const start = (offset + waveIndex) % 5;
-        const order = [
-          async () => { groqAttempts++; return generateGroqOne(n.title, articleText); },
-          async () => { cloudflareAttempts++; return generateCloudflareOne(n.title, articleText); },
-          async () => { nvidiaAttempts++; return generateNvidiaOne(n.title, articleText); },
-          async () => { geminiAttempts++; return generateOne(n.title, articleText); },
-          async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
-        ];
+    // Ordem fixa: as mais rápidas e boas primeiro, a Nvidia (lenta) por último.
+    const order = (n: { title: string }, articleText: string | null) => [
+      async () => { groqAttempts++; return generateGroqOne(n.title, articleText); },
+      async () => { geminiAttempts++; return generateOne(n.title, articleText); },
+      async () => { cloudflareAttempts++; return generateCloudflareOne(n.title, articleText); },
+      async () => { openrouterAttempts++; return generateOpenRouterOne(n.title, articleText); },
+      async () => { nvidiaAttempts++; return generateNvidiaOne(n.title, articleText); },
+    ];
+    const titleOne = (n: (typeof queue)[number]) => withDeadline((async () => {
+      const articleText = expired() ? null : await scrapeArticleText(n.url).catch(() => null);
+      const steps = order(n, articleText);
+      let chosen: Awaited<ReturnType<typeof generateGroqOne>> = null;
+      let ai: string | null = null;
+      for (let step = 0; step < steps.length && !ai && !expired(); step += 1) {
+        const api = AI_NAMES[step];
         let g: Awaited<ReturnType<typeof generateGroqOne>> = null;
-        let ai: string | null = null;
-        for (let step = 0; step < order.length && !ai && !expired(); step += 1) {
-          const index = (start + step) % order.length;
-          const api = AI_NAMES[index];
-          try { g = await order[index](); if (!g) noteReject(api, "vazio", n.title); } catch (e) { g = null; noteReject(api, `erro: ${e instanceof Error ? e.message : String(e)}`.slice(0, 90), n.title); }
-          const candidate = g && validTitle(g.titulo, n.title, articleText);
-          if (g && !candidate) noteReject(api, "título recusado", n.title, g.titulo);
-          if (candidate && isPublishableTitle(candidate, n.title, articleText)) ai = candidate;
-          else if (candidate) noteReject(api, "não publicável", n.title, candidate);
-        }
-        const titulo = ai;
-        if (!titulo || !isPublishableTitle(titulo, n.title, articleText)) return null;
-        return { n, titulo, resumo: g?.resumo || n.excerpt?.trim() || titulo };
-      })(), titleDeadlineMs, null)));
-      const verifiedImages = titled.map((item) => {
-        if (!item) return null;
-        const url = item.n.image || item.n.imageCandidates?.[0] || null;
-        return url ? { url, status: "original" as const } : null;
-      });
-      for (let itemIndex = 0; itemIndex < titled.length; itemIndex++) {
-        const item = titled[itemIndex];
-        if (!item) continue;
-        const { n, titulo, resumo } = item;
-        const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
-        const picked = verifiedImages[itemIndex];
-        const rawImage = picked?.url ?? null;
-        const safeImage = storyImageUrl(rawImage, picked?.status === "search");
-        const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
-        const row = {
-          id: n.id,
-          source: (n.source || "Lusa").slice(0, 120),
-          category,
-          url: n.url.slice(0, 2000),
-          image: safeImage,
-          image_status: safeImage ? (picked?.status ?? "original") : "provisional",
-          image_candidates: sameStory,
-          image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
-          original_title: n.title.slice(0, 500),
-          titulo_inedito: titulo.slice(0, 180),
-          resumo: resumo.slice(0, 300),
-          relevance: relevance100(n),
-          published_at: n.publishedAt,
-          related: (extras.get(n.id) ?? []) as Json,
-        };
-        let { error } = await db.from("articles").insert(row);
-        if (error && error.code !== "23505" && /related/i.test(error.message)) {
-          const { related: _related, ...withoutRelated } = row;
-          const again = await db.from("articles").insert(withoutRelated);
-          error = again.error;
-        }
-        if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
-          const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
-          const again = await db.from("articles").insert(legacy);
-          error = again.error;
-        }
-        if (error) {
-          if (error.code === "23505") continue;
-          saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
-          continue;
-        }
-        inserted++;
-        freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt, image: safeImage });
+        try { g = await steps[step](); if (!g) noteReject(api, "vazio", n.title); } catch (e) { g = null; noteReject(api, `erro: ${e instanceof Error ? e.message : String(e)}`.slice(0, 90), n.title); }
+        const candidate = g && validTitle(g.titulo, n.title, articleText);
+        if (g && !candidate) noteReject(api, "título recusado", n.title, g.titulo);
+        if (candidate && isPublishableTitle(candidate, n.title, articleText)) { ai = candidate; chosen = g; }
+        else if (candidate) noteReject(api, "não publicável", n.title, candidate);
       }
-    }
+      if (!ai || !isPublishableTitle(ai, n.title, articleText)) return null;
+      return { n, titulo: ai, resumo: chosen?.resumo || n.excerpt?.trim() || ai };
+    })(), titleDeadlineMs, null);
+    const saveOne = async (item: { n: (typeof queue)[number]; titulo: string; resumo: string }) => {
+      const { n, titulo, resumo } = item;
+      const category = classify(`${n.title} ${n.excerpt ?? ""}`, n.category || "Mundo");
+      const picked = (() => { const url = n.image || n.imageCandidates?.[0] || null; return url ? { url, status: "original" as const } : null; })();
+      const rawImage = picked?.url ?? null;
+      const safeImage = storyImageUrl(rawImage, picked?.status === "search");
+      const sameStory = [...new Set((n.imageCandidates ?? []).map((candidate) => storyImageUrl(candidate)).filter((candidate): candidate is string => Boolean(candidate) && candidate !== safeImage))].slice(0, 4);
+      const row = {
+        id: n.id,
+        source: (n.source || "Lusa").slice(0, 120),
+        category,
+        url: n.url.slice(0, 2000),
+        image: safeImage,
+        image_status: safeImage ? (picked?.status ?? "original") : "provisional",
+        image_candidates: sameStory,
+        image_query: safeImage ? null : `${n.title} ${n.excerpt ?? ""}`.trim().slice(0, 500),
+        original_title: n.title.slice(0, 500),
+        titulo_inedito: titulo.slice(0, 180),
+        resumo: resumo.slice(0, 300),
+        relevance: relevance100(n),
+        published_at: n.publishedAt,
+        related: (extras.get(n.id) ?? []) as Json,
+      };
+      let { error } = await db.from("articles").insert(row);
+      if (error && error.code !== "23505" && /related/i.test(error.message)) {
+        const { related: _related, ...withoutRelated } = row;
+        const again = await db.from("articles").insert(withoutRelated);
+        error = again.error;
+      }
+      if (error && error.code !== "23505" && /image_status|image_candidates/i.test(error.message)) {
+        const { image_status: _status, image_candidates: _candidates, ...legacy } = row;
+        const again = await db.from("articles").insert(legacy);
+        error = again.error;
+      }
+      if (error) {
+        if (error.code === "23505") return;
+        saveError ??= `${error.code ?? ""} ${error.message}${error.hint ? ` (${error.hint})` : ""}`.trim();
+        return;
+      }
+      inserted++;
+      freshNews.push({ title: titulo, url: n.url, publishedAt: n.publishedAt, image: safeImage });
+    };
+    // Fila de trabalhadores: cada um pega na próxima notícia (a mais recente primeiro) assim que acaba a sua,
+    // sem esperar pela mais lenta do grupo.
+    let nextIndex = 0;
+    const worker = async () => {
+      while (!expired()) {
+        const i = nextIndex++;
+        if (i >= queue.length) return;
+        const item = await titleOne(queue[i]);
+        if (item) await saveOne(item);
+      }
+    };
+    await Promise.all(Array.from({ length: WAVE }, () => worker()));
 
     const touched = new Set(queue.map((item) => item.id));
     for (const [id, list] of extras) {
@@ -617,7 +618,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures() };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures(), recusados: drainSamples() };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

@@ -1,4 +1,4 @@
-import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = "google/gemma-4-31b-it:free";
 const TIMEOUT_MS = 8_000;
@@ -35,8 +35,8 @@ function validSummary(raw: unknown): string | null {
 /** Gera título e resumo através da API OpenRouter (modelos :free), exclusivamente no servidor. */
 export async function generateOpenRouterOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
-  if (!apiKey) return null;
-  if (Date.now() < openrouterCooldownUntil) return null;
+  if (!apiKey) { recordFailure("openrouter", "sem chave"); return null; }
+  if (Date.now() < openrouterCooldownUntil) { recordFailure("openrouter", "em pausa"); return null; }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -67,6 +67,7 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
         openrouterCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
       }
       console.error("OpenRouter HTTP", response.status, detail);
+      recordFailure("openrouter", `HTTP ${response.status}`);
       if (response.status === 401 || response.status === 403) {
         throw new GatewayError(`OpenRouter HTTP ${response.status}`, response.status);
       }
@@ -79,11 +80,12 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
     const raw = message?.content || message?.reasoning || "";
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
-    if (start < 0 || end <= start) return null;
+    if (start < 0 || end <= start) { recordFailure("openrouter", "sem JSON"); return null; }
     const parsed = JSON.parse(raw.slice(start, end + 1)) as { titulo?: unknown; resumo?: unknown };
     const titulo = validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("OpenRouter devolveu título inválido");
+      recordFailure("openrouter", "título recusado");
       return null;
     }
     const resumo = validSummary(parsed.resumo) || titulo;
@@ -91,6 +93,7 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
   } catch (error) {
     if (error instanceof GatewayError) throw error;
     console.error("OpenRouter falhou", error instanceof Error ? error.message : error);
+    recordFailure("openrouter", `falhou ${error instanceof Error ? error.name : "erro"}`);
     return null;
   } finally {
     clearTimeout(timer);

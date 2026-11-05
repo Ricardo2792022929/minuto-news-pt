@@ -1,4 +1,4 @@
-import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = "google/gemma-4-31b-it";
 const TIMEOUT_MS = 8_000;
@@ -47,7 +47,8 @@ function parseJson(raw: string): { titulo?: unknown; resumo?: unknown } | null {
 /** Quarta opção. Só corre quando Groq, Gemini e OpenRouter não entregam um título novo. */
 export async function generateNvidiaOne(title: string, articleText?: string | null): Promise<GeneratedTitle | null> {
   const apiKey = process.env["NVIDIA_API_KEY"];
-  if (!apiKey || Date.now() < nvidiaCooldownUntil) return null;
+  if (!apiKey) { recordFailure("nvidia", "sem chave"); return null; }
+  if (Date.now() < nvidiaCooldownUntil) { recordFailure("nvidia", "em pausa"); return null; }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -76,6 +77,7 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
         nvidiaCooldownUntil = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
       }
       console.error("NVIDIA HTTP", response.status, detail);
+      recordFailure("nvidia", `HTTP ${response.status}`);
       if (response.status === 401 || response.status === 403) {
         throw new GatewayError(`NVIDIA HTTP ${response.status}`, response.status);
       }
@@ -90,12 +92,14 @@ export async function generateNvidiaOne(title: string, articleText?: string | nu
     const titulo = parsed && validTitle(parsed.titulo, title, articleText);
     if (!titulo) {
       console.warn("NVIDIA devolveu título inválido");
+      recordFailure("nvidia", parsed ? "título recusado" : "sem JSON");
       return null;
     }
     return { titulo, resumo: (parsed && validSummary(parsed.resumo)) || titulo };
   } catch (error) {
     if (error instanceof GatewayError) throw error;
     console.error("NVIDIA falhou", error instanceof Error ? error.message : error);
+    recordFailure("nvidia", `falhou ${error instanceof Error ? error.name : "erro"}`);
     return null;
   } finally {
     clearTimeout(timer);

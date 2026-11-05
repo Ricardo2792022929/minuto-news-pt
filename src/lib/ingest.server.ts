@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getAllNews, relevanceScore, isLowResImage, classify } from "./news.server";
-import { generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
+import { drainFailures, generateOne, GatewayError, validTitle, isPublishableTitle, swapsStoryActor } from "./title-generation.server";
 import { generateGroqOne } from "./title-generation.groq.server";
 import { generateOpenRouterOne } from "./title-generation.openrouter.server";
 import { generateNvidiaOne } from "./title-generation.nvidia.server";
@@ -271,6 +271,7 @@ async function findHdImage(term: string, used: Set<string>, description = ""): P
 export async function runIngest(options: { budgetMs?: number } = {}): Promise<Record<string, unknown>> {
   const asked = options.budgetMs;
   const budgetMs = asked && Number.isFinite(asked) ? Math.min(MAX_BUDGET_MS, Math.max(BUDGET_MS, Math.round(asked))) : BUDGET_MS;
+  drainFailures();
   return imageMetricsStore.run({}, () => runIngestWithMetrics(budgetMs));
 }
 
@@ -616,7 +617,7 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
         console.error("image_api_metrics_write_failed", metricsError.code ?? "unknown");
       }
     }
-    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples };
+    return { inserted, pending: pending.length, lusaQueued: lusaPick.length, saveError, geminiAttempts, groqAttempts, openrouterAttempts, nvidiaAttempts, cloudflareAttempts, rewritten, recategorized, imageMetrics: imageMetricsRows, metricsPersist, imageMetricsRunId: runId, push, rejectCounts, rejectSamples, falhas: drainFailures() };
   } catch (e) {
     if (e instanceof GatewayError && (e.status === 402 || e.status === 403)) {
       await db.from("ingest_state").update({ paused_reason: `${e.status}: ${e.message}` }).eq("id", 1);

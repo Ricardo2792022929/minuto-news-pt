@@ -1,4 +1,4 @@
-import { GatewayError, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, recordFailure, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
 const TIMEOUT_MS = 6_000;
@@ -51,7 +51,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
   let blocked = 0;
   for (let step = 0; step < accounts.length; step += 1) {
     const account = accounts[(start + step) % accounts.length];
-    if (Date.now() < groqCooldownUntil[account.slot]) continue;
+    if (Date.now() < groqCooldownUntil[account.slot]) { recordFailure("groq", "em pausa"); continue; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
@@ -77,6 +77,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
           groqCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
         }
         console.error("Groq HTTP", response.status, detail);
+        recordFailure("groq", `HTTP ${response.status}`);
         if (response.status === 401 || response.status === 403 || response.status === 402) blocked += 1;
         continue;
       }
@@ -87,17 +88,19 @@ export async function generateGroqOne(title: string, articleText?: string | null
       const raw = message?.content || message?.reasoning || "";
       const jsonStart = raw.indexOf("{");
       const jsonEnd = raw.lastIndexOf("}");
-      if (jsonStart < 0 || jsonEnd <= jsonStart) continue;
+      if (jsonStart < 0 || jsonEnd <= jsonStart) { recordFailure("groq", "sem JSON"); continue; }
       const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { titulo?: unknown; resumo?: unknown };
       const titulo = validTitle(parsed.titulo, title, articleText);
       if (!titulo) {
         console.warn("Groq devolveu título inválido");
+        recordFailure("groq", "título recusado");
         continue;
       }
       groqTurn = account.slot + 1;
       return { titulo, resumo: validSummary(parsed.resumo) || titulo };
     } catch (error) {
       console.error("Groq falhou", error instanceof Error ? error.message : error);
+      recordFailure("groq", `falhou ${error instanceof Error ? error.name : "erro"}`);
     } finally {
       clearTimeout(timer);
     }

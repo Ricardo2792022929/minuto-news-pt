@@ -1,4 +1,4 @@
-import { GatewayError, OPENROUTER_LIMIT, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, OPENROUTER_LIMIT, recordFailure, recordSample, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = "google/gemma-4-31b-it:free";
 const TIMEOUT_MS = 8_000;
@@ -88,6 +88,7 @@ export async function generateOpenRouterOne(title: string, articleText?: string 
     if (!titulo) {
       console.warn("OpenRouter devolveu título inválido");
       recordFailure("openrouter", "título recusado");
+      recordSample("openrouter", parsed.titulo);
       return null;
     }
     const resumo = validSummary(parsed.resumo) || titulo;

@@ -51,6 +51,15 @@ export function recordFailure(api: string, reason: string): void {
   const key = `${api}: ${reason}`.slice(0, 80);
   failureCounts.set(key, (failureCounts.get(key) ?? 0) + 1);
 }
+const rejectedSamples: string[] = [];
+/** Guarda uns exemplos do que a IA escreveu e foi recusado, para perceber qual regra os corta. */
+export function recordSample(api: string, text: unknown): void {
+  if (rejectedSamples.length >= 10 || typeof text !== "string") return;
+  rejectedSamples.push(`${api}: ${text.slice(0, 100)}`);
+}
+export function drainSamples(): string[] {
+  return rejectedSamples.splice(0, rejectedSamples.length);
+}
 export function drainFailures(): Record<string, number> {
   const out = Object.fromEntries(failureCounts);
   failureCounts.clear();
@@ -404,6 +413,7 @@ export async function generateOne(title: string, articleText?: string | null): P
       if (!titulo) {
         console.error("Gemini resposta inválida", raw.slice(0, 200));
         recordFailure("gemini", "título recusado");
+        recordSample("gemini", parsed.titulo);
         continue;
       }
       geminiTurn = account.slot + 1;

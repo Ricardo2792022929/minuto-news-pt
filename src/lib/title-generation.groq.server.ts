@@ -1,4 +1,4 @@
-import { GatewayError, GROQ_LIMIT, recordFailure, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
+import { GatewayError, GROQ_LIMIT, recordFailure, recordSample, tryAcquire, validTitle, type GeneratedTitle } from "./title-generation.server";
 
 const MODEL = process.env["GROQ_MODEL"] || "openai/gpt-oss-20b";
 const TIMEOUT_MS = 6_000;
@@ -79,7 +79,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
           groqCooldownUntil[account.slot] = Date.now() + (retryAfter > 0 ? Math.min(retryAfter, 7200) * 1000 : 15 * 60_000);
         }
         console.error("Groq HTTP", response.status, detail);
-        recordFailure("groq", `HTTP ${response.status}`);
+        recordFailure("groq", response.status === 400 ? `HTTP 400 ${detail.replace(/\s+/g, " ").slice(0, 50)}` : `HTTP ${response.status}`);
         if (response.status === 401 || response.status === 403 || response.status === 402) blocked += 1;
         continue;
       }
@@ -96,6 +96,7 @@ export async function generateGroqOne(title: string, articleText?: string | null
       if (!titulo) {
         console.warn("Groq devolveu título inválido");
         recordFailure("groq", "título recusado");
+        recordSample("groq", parsed.titulo);
         continue;
       }
       groqTurn = account.slot + 1;

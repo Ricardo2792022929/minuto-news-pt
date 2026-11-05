@@ -194,13 +194,14 @@ const prefs = {
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.locator(".feed-card").first().waitFor({ timeout: 30000 });
   await waitImages(page);
-  const save = page.locator(".feed-card").first().getByRole("button", { name: /^Guardar/ });
-  if (await save.count()) {
-    await save.click();
-    await wait(500);
-  }
+  const target = page.locator(".feed-card").filter({ hasText: "Caixa Geral" }).first();
+  await target.evaluate((card) => card.parentElement?.scrollTo({ top: card.offsetTop, behavior: "instant" }));
+  await wait(600);
+  await waitImages(page);
+  await target.getByRole("button", { name: /^Guardar/ }).click();
+  await wait(600);
   await shot(page, "13-guardado-no-feed");
-  await page.locator(".feed-card").first().getByRole("button", { name: "Guardadas" }).click();
+  await target.getByRole("button", { name: "Guardadas" }).click();
   await wait(1200);
   await waitImages(page);
   await shot(page, "14-guardadas");

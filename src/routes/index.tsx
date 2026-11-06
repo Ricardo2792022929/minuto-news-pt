@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { INTRO_SRC } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
-import { Onboarding, useAfterNativeIntro } from "@/components/onboarding";
+import { Onboarding } from "@/components/onboarding";
 import { PushAsk } from "@/components/push-ask";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
@@ -533,9 +533,9 @@ function Index() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
-  const [prefsReady, setPrefsReady] = useState(false);
-  const introOver = useAfterNativeIntro();
-  const openedOnce = useRef(false);
+  // Fade do feed pedido no fim do "Tudo pronto": só arranca quando as notícias já estão no ecrã
+  // (com os temas e o clube novos há um carregamento; antes o fade corria por cima do "a carregar").
+  const [fadePending, setFadePending] = useState(false);
   const pendingArrival = useRef<string | null>(null);
   const arrivalPlayed = useRef(false);
   const [premiere, setPremiere] = useState(false);
@@ -602,16 +602,6 @@ function Index() {
     }
     setShowIntro(false);
   }, []);
-
-  // Sempre que a app abre (depois do vídeo de entrada), o feed passa de escuro a normal.
-  // Na primeira utilização isto acontece no fim do "Tudo pronto" (ver onDone do Onboarding).
-  useEffect(() => {
-    if (!mounted || !prefsReady || !introOver || showIntro || showOnboarding || openedOnce.current) return;
-    openedOnce.current = true;
-    setArrival("feed");
-    const id = window.setTimeout(() => setArrival(null), 1000);
-    return () => window.clearTimeout(id);
-  }, [mounted, prefsReady, introOver, showIntro, showOnboarding]);
 
   const playArrival = useCallback(() => {
     if (arrivalPlayed.current) return;
@@ -766,7 +756,6 @@ function Index() {
     } catch {
       setShowOnboarding(true);
     }
-    setPrefsReady(true);
     try {
       const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
       const nativeIntro =
@@ -1074,6 +1063,19 @@ function Index() {
 
   const isError = query.isError;
 
+  useEffect(() => {
+    if (!fadePending) return;
+    if (articles.length > 0) {
+      setFadePending(false);
+      setArrival("feed");
+      window.setTimeout(() => setArrival(null), 1000);
+      return;
+    }
+    // Se as notícias demorarem muito, desiste do fade (o feed aparece normalmente).
+    const giveUp = window.setTimeout(() => setFadePending(false), 10_000);
+    return () => window.clearTimeout(giveUp);
+  }, [fadePending, articles.length]);
+
   if (!mounted) {
     return (
       <div className="mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl bg-transparent" />
@@ -1111,9 +1113,7 @@ function Index() {
             // O feed entra logo, no mesmo instante em que o "Tudo pronto" sai (sem esperar pelos avisos).
             pendingArrival.current = null;
             arrivalPlayed.current = true;
-            openedOnce.current = true;
-            setArrival("feed");
-            window.setTimeout(() => setArrival(null), 1000);
+            setFadePending(true);
             setShowOnboarding(false);
             setPremiere(true);
           }}

@@ -53,7 +53,7 @@ function inNativeShell(): boolean {
 }
 
 /** Devolve true quando a intro nativa já acabou (de imediato fora da app Android). */
-export function useAfterNativeIntro(): boolean {
+function useAfterNativeIntro(): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!inNativeShell()) {

@@ -1,3 +1,4 @@
+import { readTextCapped } from "./http-limit.server";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 
@@ -33,7 +34,7 @@ export async function fetchArticle(url: string): Promise<ArticleContent> {
     signal: AbortSignal.timeout(10000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const html = await res.text();
+  const html = await readTextCapped(res, 1_500_000);
 
   const { document } = parseHTML(html);
   const ogImage =

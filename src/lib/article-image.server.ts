@@ -1,3 +1,4 @@
+import { readTextCapped } from "./http-limit.server";
 import { chooseOriginal } from "./image-dimensions.server";
 
 const LOGO_PATTERN = /logo|placeholder|icon|sprite|ojogo|o-jogo|sapo.*brand|favicon|avatar|default.*image|no-image|sem-imagem|brand|thumb.*logo|jogo.*logo|jog.*logo|site.*logo|header.*logo|nav.*logo|footer.*logo/i;
@@ -40,7 +41,7 @@ export async function imageFromArticlePage(pageUrl: string): Promise<string | nu
       redirect: "follow",
     });
     if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 300_000);
+    const html = await readTextCapped(res, 300_000);
     const candidates: string[] = [];
     for (const meta of html.matchAll(/<meta\b[^>]*>/gi)) {
       const tag = meta[0];

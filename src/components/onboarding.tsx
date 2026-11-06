@@ -32,6 +32,7 @@ const DEFAULT_CARDS = ["Mundo", "Desporto", "Economia"];
 
 /** Confirmação final curta antes de entregar as escolhas à app. */
 const DONE_MS = 900;
+const LEAVE_MS = 240;
 
 /** No Android a intro nativa passa por cima da app; as boas-vindas esperam só um pouco depois de a página montar. */
 const NATIVE_WAIT_MS = 1200;
@@ -114,16 +115,22 @@ export function Onboarding({
   const latest = useRef({ onDone, picked, clubId, push });
   latest.current = { onDone, picked, clubId, push };
   const finished = useRef(false);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (step !== "done") return;
+    // O "Tudo pronto" desvanece nos últimos 240 ms; o feed entra logo a seguir (fundo preto entre os dois).
+    const leave = window.setTimeout(() => setLeaving(true), DONE_MS - LEAVE_MS);
     const id = window.setTimeout(() => {
       if (finished.current) return;
       finished.current = true;
       const { onDone: done, picked: topics, clubId: club } = latest.current;
       done(topics, club);
     }, DONE_MS);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(id);
+    };
   }, [step]);
 
   const go = (next: Step, dir: 1 | -1 = 1) => {
@@ -361,7 +368,7 @@ export function Onboarding({
           {step === "done" ? (
             <div
               role="status"
-              className="flex flex-1 flex-col items-center justify-center px-8 pb-10 text-center"
+              className={`flex flex-1 flex-col items-center justify-center px-8 pb-10 text-center ${leaving ? "ob-leave" : ""}`}
             >
               <span className="ob-pop flex size-16 items-center justify-center rounded-full bg-live">
                 <Check className="size-8 text-live-foreground" strokeWidth={3} aria-hidden />

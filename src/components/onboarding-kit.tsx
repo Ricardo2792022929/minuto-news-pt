@@ -211,7 +211,7 @@ export function PrimaryButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
     <button
       type="button"
       {...props}
-      className={`flex h-14 w-full items-center justify-center rounded-full bg-live text-base font-semibold text-live-foreground transition-[transform,background-color,color] disabled:bg-white/10 disabled:text-ob-fg3 ob-focus`}
+      className={`flex h-14 w-full items-center justify-center rounded-full bg-live text-base font-semibold text-live-foreground transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] disabled:active:scale-100 motion-reduce:transition-none disabled:bg-white/10 disabled:text-ob-fg3 ob-focus`}
     />
   );
 }

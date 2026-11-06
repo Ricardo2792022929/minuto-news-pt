@@ -126,6 +126,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
         <img
           src={ready}
           alt={alt}
+          className="animate-photo-in"
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}

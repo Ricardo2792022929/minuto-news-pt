@@ -102,19 +102,6 @@
   }
 }
 
-@keyframes ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@utility animate-ticker {
-  animation: ticker-scroll 28s linear infinite;
-}
-
 @keyframes live-pulse {
   0%,
   100% {
@@ -131,151 +118,31 @@
   animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Entrada do feed depois do "Tudo pronto": aproxima-se e ganha nitidez, e o texto do 1.º cartão sobe a seguir.
+   ease-out-quint: arranca logo e assenta devagar. Só transform, opacidade e um desfoque curto (< 20px). */
+@keyframes feed-arrive {
+  from { opacity: 0; transform: scale(1.04); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
 }
-
-@utility animate-rise {
-  animation: rise-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
+@keyframes feed-arrive-text {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: none; }
 }
+.feed-arrive { animation: feed-arrive 600ms cubic-bezier(0.23, 1, 0.32, 1) both; will-change: transform, opacity; }
+.feed-arrive-text { animation: feed-arrive-text 480ms cubic-bezier(0.23, 1, 0.32, 1) 160ms both; }
 
-@keyframes greet-letter {
-  from {
-    opacity: 0;
-    transform: translateY(0.55em) scale(0.92);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
+/* Aviso "avisos ativados": o visto entra, desenha-se e o ecrã desvanece no fim (antes desaparecia de repente). */
+@keyframes push-ok-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
 }
-
-@keyframes greet-glow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.45;
-  }
-  50% {
-    transform: scale(1.18);
-    opacity: 0.8;
-  }
-}
-
-@keyframes greet-ring {
-  from {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 0.35;
-    transform: scale(1);
-  }
-}
-
-@keyframes greet-line {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@utility animate-greet-glow {
-  animation: greet-glow 3.2s ease-in-out infinite;
-}
-
-@keyframes greet-sweep {
-  from { transform: translateX(-130%); }
-  to { transform: translateX(240%); }
-}
-
-@keyframes curtain-in {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
-}
-
-@keyframes curtain-out {
-  from { transform: scaleY(1); }
-  to { transform: scaleY(0); }
-}
-
-@keyframes scene-in {
-  from {
-    opacity: 0;
-    transform: translateY(36px);
-    filter: blur(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-@keyframes select-glow {
-  0% { transform: scale(0.96); }
-  55% { transform: scale(1.03); }
-  100% { transform: scale(1); }
-}
-
-@keyframes light-drift {
-  0% { transform: translate3d(-12%, 0, 0) scale(1); }
-  50% { transform: translate3d(18%, 8%, 0) scale(1.2); }
-  100% { transform: translate3d(-12%, 0, 0) scale(1); }
-}
-
-@keyframes feed-reveal {
-  0% {
-    clip-path: circle(0% at 50% 44%);
-    transform: scale(1.08);
-    filter: brightness(0.55) saturate(0.8);
-  }
-  100% {
-    clip-path: circle(150% at 50% 44%);
-    transform: scale(1);
-    filter: brightness(1) saturate(1);
-  }
-}
-
-@keyframes reveal-ring {
-  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-  65% { opacity: 0.9; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-}
-
 @keyframes check-draw {
   to { stroke-dashoffset: 0; }
 }
 
 @keyframes push-ok-out {
-  0%, 100% { opacity: 1; }
-}
-
-@keyframes heart-pop {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.35);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@utility animate-heart-pop {
-  animation: heart-pop 0.35s ease-out;
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Feed tokens */
@@ -333,33 +200,13 @@
   to { opacity: 1; }
 }
 
+/* A foto aparece com um fade curto em vez de "saltar" para o ecrã. */
 @utility animate-photo-in {
-  animation: photo-in 300ms ease-out both;
+  animation: photo-in 220ms ease-out both;
 }
-
-@keyframes slide-left {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(0); }
-}
-@keyframes slide-right {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(0); }
-}
-@keyframes exit-left {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
-}
-@keyframes exit-right {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(100%); }
-}
-@utility animate-slide-left { animation: slide-left 260ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-slide-right { animation: slide-right 260ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-exit-left { animation: exit-left 260ms cubic-bezier(.22,1,.36,1) both; }
-@utility animate-exit-right { animation: exit-right 260ms cubic-bezier(.22,1,.36,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .image-shimmer, .animate-photo-in, .animate-slide-left, .animate-slide-right, .animate-exit-left, .animate-exit-right, .animate-greet-glow, .animate-greet-ring { animation: none; }
+  .image-shimmer, .animate-photo-in, .feed-arrive, .feed-arrive-text { animation: none; }
 }
 
 /* Onboarding: animações só com transform e opacidade (compositor, sem blur),
@@ -386,17 +233,21 @@
   to { opacity: 1; transform: none; }
 }
 @keyframes ob-pop {
-  0% { opacity: 0; transform: scale(0.5); }
-  60% { opacity: 1; transform: scale(1.12); }
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.06); }
   100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ob-leave {
+  to { opacity: 0; transform: translate3d(0, -8px, 0) scale(0.98); }
 }
 
 .ob-rise { animation: ob-rise 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ob-lift { animation: ob-lift 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ob-drop { animation: ob-drop 600ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both; }
+.ob-lift { animation: ob-lift 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-drop { animation: ob-drop 480ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both; }
 .ob-slide { animation: ob-slide 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .ob-slide-back { animation: ob-slide-back 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ob-pop { animation: ob-pop 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-pop { animation: ob-pop 280ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ob-leave { animation: ob-leave 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 
 /* Estado de toque Material: camada da cor do texto por cima do botão. */
 .ob-slot { transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease; }
@@ -435,7 +286,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ob-rise, .ob-lift, .ob-drop, .ob-slide, .ob-slide-back, .ob-pop, .animate-live-pulse { animation: none; }
+  .ob-rise, .ob-lift, .ob-drop, .ob-slide, .ob-slide-back, .ob-pop, .ob-leave, .animate-live-pulse { animation: none; }
   .ob-slot { transition: none; }
 }
 

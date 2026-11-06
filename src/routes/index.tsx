@@ -507,9 +507,9 @@ function PushOk() {
   return (
     <div
       className="fixed inset-0 z-[110] flex items-center justify-center bg-black"
-      style={{ animation: "push-ok-out 0.72s ease both" }}
+      style={{ animation: "push-ok-out 620ms cubic-bezier(0.23, 1, 0.32, 1) both" }}
     >
-      <svg viewBox="0 0 52 52" className="size-28" aria-hidden>
+      <svg viewBox="0 0 52 52" className="size-28" aria-hidden style={{ animation: "push-ok-in 320ms cubic-bezier(0.23, 1, 0.32, 1) both" }}>
         <path
           d="M14 27.5 22.2 36 39 16"
           fill="none"
@@ -1094,8 +1094,11 @@ function Index() {
               /* ignora */
             }
             // Depois do "Tudo pronto", o feed abre sempre com a animação de entrada (com ou sem clube).
-            pendingArrival.current = chosen ? LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen : "feed";
-            arrivalPlayed.current = false;
+            // O feed entra logo, no mesmo instante em que o "Tudo pronto" sai (sem esperar pelos avisos).
+            pendingArrival.current = null;
+            arrivalPlayed.current = true;
+            setArrival("feed");
+            window.setTimeout(() => setArrival(null), 900);
             setShowOnboarding(false);
             setPremiere(true);
           }}
@@ -1103,27 +1106,15 @@ function Index() {
           push={pushHooks}
         />
       )}
-      {arrival ? (
-        // Entrada do feed: abre-se em círculo a partir do sítio do visto do "Tudo pronto", com um anel de luz na borda.
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-[90] overflow-hidden">
-          <span
-            className="absolute left-1/2 top-[44%] aspect-square w-[230vmax] rounded-full"
-            style={{
-              animation: "reveal-ring 1.1s cubic-bezier(.7,0,.2,1) forwards",
-              boxShadow: "0 0 0 2px rgba(255,210,63,0.85), 0 0 40px 10px rgba(212,39,46,0.55), inset 0 0 60px 14px rgba(212,39,46,0.45)",
-            }}
-          />
-        </div>
-      ) : null}
 
       {tab === "feed" ? (
         <>
           {/* Feed */}
           <div
-            className="absolute inset-0 z-0 overflow-hidden"
+            className={`absolute inset-0 z-0 overflow-hidden ${arrival ? "feed-arrive" : ""}`}
             style={
               arrival
-                ? { animation: "feed-reveal 1.1s cubic-bezier(.7,0,.2,1) both", transformOrigin: "50% 44%" }
+                ? undefined
                 : askPush || pushOk
                   ? { visibility: "hidden" }
                   : undefined
@@ -1212,7 +1203,7 @@ function Index() {
                     />
                   )}
 
-                  <div className="relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className={`relative z-10 mt-auto flex flex-col ${arrival && i === 0 ? "feed-arrive-text" : ""} bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]`}>
                     <div className="flex items-center gap-2 text-[0.6875rem] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[0.8125rem] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
@@ -1256,7 +1247,7 @@ function Index() {
                             void shareStory(a);
                           }}
                           aria-label={copiedId === a.id ? "Link copiado" : "Partilhar"}
-                          className="flex size-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/25"
+                          className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
                         >
                           {copiedId === a.id ? <Check className="size-5" /> : <Share2 className="size-5" />}
                         </button>
@@ -1269,7 +1260,7 @@ function Index() {
                             toggleSave(a);
                           }}
                           aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
-                          className={`flex size-11 items-center justify-center rounded-full ring-1 ring-white/25 ${
+                          className={`flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none ring-1 ring-white/25 ${
                             savedMap[a.id] ? "bg-live text-live-foreground ring-live" : "bg-black/45 text-white"
                           }`}
                         >
@@ -1284,7 +1275,7 @@ function Index() {
                             setTab("saved");
                           }}
                           aria-label="Guardadas"
-                          className="flex size-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/25"
+                          className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
                         >
                           <EllipsisVertical className="size-5" />
                         </button>
@@ -1421,11 +1412,12 @@ function Index() {
                 ))}
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-0 h-full rounded-full bg-live"
+                  className="pointer-events-none absolute left-0 top-0 h-full rounded-full bg-live motion-reduce:transition-none"
                   style={{
-                    left: indicator.left,
+                    // transform em vez de "left": corre na GPU, sem recalcular a página a cada fotograma.
+                    transform: `translateX(${indicator.left}px)`,
                     width: indicator.width,
-                    transition: "left 280ms cubic-bezier(.22,1,.36,1), width 280ms cubic-bezier(.22,1,.36,1)",
+                    transition: "transform 260ms cubic-bezier(0.645, 0.045, 0.355, 1), width 260ms cubic-bezier(0.645, 0.045, 0.355, 1)",
                   }}
                 />
               </nav>

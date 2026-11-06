@@ -533,6 +533,9 @@ function Index() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [club, setClub] = useState("");
   const [arrival, setArrival] = useState<string | null>(null);
+  // Fade do feed pedido no fim do "Tudo pronto": só arranca quando as notícias já estão no ecrã
+  // (com os temas e o clube novos há um carregamento; antes o fade corria por cima do "a carregar").
+  const [fadePending, setFadePending] = useState(false);
   const pendingArrival = useRef<string | null>(null);
   const arrivalPlayed = useRef(false);
   const [premiere, setPremiere] = useState(false);
@@ -1060,6 +1063,19 @@ function Index() {
 
   const isError = query.isError;
 
+  useEffect(() => {
+    if (!fadePending) return;
+    if (articles.length > 0) {
+      setFadePending(false);
+      setArrival("feed");
+      window.setTimeout(() => setArrival(null), 1000);
+      return;
+    }
+    // Se as notícias demorarem muito, desiste do fade (o feed aparece normalmente).
+    const giveUp = window.setTimeout(() => setFadePending(false), 10_000);
+    return () => window.clearTimeout(giveUp);
+  }, [fadePending, articles.length]);
+
   if (!mounted) {
     return (
       <div className="mx-auto h-[var(--feed-h,100svh)] w-full max-w-xl bg-transparent" />
@@ -1097,8 +1113,7 @@ function Index() {
             // O feed entra logo, no mesmo instante em que o "Tudo pronto" sai (sem esperar pelos avisos).
             pendingArrival.current = null;
             arrivalPlayed.current = true;
-            setArrival("feed");
-            window.setTimeout(() => setArrival(null), 1000);
+            setFadePending(true);
             setShowOnboarding(false);
             setPremiere(true);
           }}

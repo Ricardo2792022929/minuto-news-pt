@@ -1098,7 +1098,7 @@ function Index() {
             pendingArrival.current = null;
             arrivalPlayed.current = true;
             setArrival("feed");
-            window.setTimeout(() => setArrival(null), 900);
+            window.setTimeout(() => setArrival(null), 1000);
             setShowOnboarding(false);
             setPremiere(true);
           }}
@@ -1203,7 +1203,7 @@ function Index() {
                     />
                   )}
 
-                  <div className={`relative z-10 mt-auto flex flex-col ${arrival && i === 0 ? "feed-arrive-text" : ""} bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]`}>
+                  <div className={`relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]`}>
                     <div className="flex items-center gap-2 text-[0.6875rem] font-semibold">
                       <span className={`shrink-0 rounded-full px-3 py-1.5 text-[0.8125rem] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
                         {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
@@ -1362,7 +1362,7 @@ function Index() {
             </div>
           ) : null}
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl bg-gradient-to-b from-black/70 via-black/30 to-transparent pb-8">
+          <div className={`pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl ${arrival ? "feed-arrive" : ""} bg-gradient-to-b from-black/70 via-black/30 to-transparent pb-8`}>
             <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div className="flex items-center justify-between gap-3">
                 <h1 className="font-display text-2xl font-black leading-none tracking-tight text-feed-fg">

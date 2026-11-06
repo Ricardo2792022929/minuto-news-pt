@@ -614,10 +614,12 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
       await Promise.all((toPrepare ?? []).map(async (row) => {
         const kit = imageKitUrl(row.image);
         if (!kit) return;
+        // Aquece no ImageKit a foto e também o fundo desfocado (a 1.ª transformação é a parte lenta).
+        const backdrop = imageKitUrl(row.image, "backdrop");
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 2_500);
         try {
-          await fetch(kit, { signal: ctrl.signal });
+          await Promise.all([kit, backdrop].filter((url): url is string => Boolean(url)).map((url) => fetch(url, { signal: ctrl.signal })));
         } catch {
           /* a próxima atualização tenta outra vez */
         } finally {

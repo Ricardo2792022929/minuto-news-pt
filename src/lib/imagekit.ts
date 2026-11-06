@@ -9,7 +9,7 @@ type ImageProfile = "feed" | "backdrop" | "article";
  */
 const TRANSFORMS: Record<ImageProfile, string> = {
   feed: "tr:w-1080,ar-4-5,fo-auto,q-auto,f-auto,e-sharpen-15",
-  backdrop: "tr:w-270,ar-9-16,fo-auto,bl-20,q-40,f-auto",
+  backdrop: "tr:w-200,ar-9-16,fo-auto,bl-16,q-35,f-auto",
   article: "tr:w-1080,q-auto,f-auto,e-sharpen-15",
 };
 

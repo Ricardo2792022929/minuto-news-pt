@@ -491,15 +491,31 @@ function useLockedFeedHeight() {
     };
     apply(window.innerHeight);
     const onOrient = () => apply(window.innerHeight);
+    // Na app Android não há barra de endereço: qualquer mudança de altura é real (barras do sistema a
+    // aparecer ou a esconder depois do vídeo de entrada) e tem de ser seguida. Antes ignoravam-se mudanças
+    // abaixo de 140 px, e se a WebView arrancava mais baixa o feed ficava curto, com uma faixa preta em baixo.
+    // No browser, nos primeiros 3 s segue-se tudo; depois só mudanças grandes (a barra de endereço não conta).
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const native = Boolean(cap?.isNativePlatform?.());
+    const startedAt = performance.now();
+    let frame = 0;
     const onResize = () => {
-      const height = window.innerHeight;
-      if (Math.abs(height - last) > 140) apply(height);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const height = window.innerHeight;
+        if (height === last) return;
+        if (native || performance.now() - startedAt < 3000 || Math.abs(height - last) > 140) {
+          apply(height);
+          window.dispatchEvent(new Event("feed-height"));
+        }
+      });
     };
     window.addEventListener("orientationchange", onOrient);
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("orientationchange", onOrient);
       window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(frame);
     };
   }, []);
 }
@@ -1055,7 +1071,11 @@ function Index() {
     view.addEventListener("pointercancel", up);
     view.addEventListener("scroll", onScroll, { passive: true });
     view.addEventListener("wheel", wheel, { passive: false });
+    // Quando a altura do ecrã muda, a notícia atual volta a ficar certinha no ecrã (sem meio cartão de fora).
+    const resnap = () => requestAnimationFrame(() => view.scrollTo({ top: pageRef.current * height(), behavior: "instant" as ScrollBehavior }));
+    window.addEventListener("feed-height", resnap);
     return () => {
+      window.removeEventListener("feed-height", resnap);
       view.removeEventListener("pointerdown", down);
       view.removeEventListener("pointermove", move);
       view.removeEventListener("pointerup", up);

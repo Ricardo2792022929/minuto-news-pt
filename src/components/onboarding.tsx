@@ -33,6 +33,7 @@ const DEFAULT_CARDS = ["Mundo", "Desporto", "Economia"];
 /** Confirmação final curta antes de entregar as escolhas à app. */
 const DONE_MS = 900;
 const LEAVE_MS = 240;
+const PREPARE_MAX_MS = 8000;
 
 /** No Android a intro nativa passa por cima da app; as boas-vindas esperam só um pouco depois de a página montar. */
 const NATIVE_WAIT_MS = 1200;
@@ -98,10 +99,13 @@ export function Onboarding({
   onDone,
   onLater,
   push,
+  prepare,
 }: {
   onDone: (interests: string[], club: string | null) => void;
   onLater: () => void;
   push?: PushHooks | null;
+  /** Carrega o feed com as escolhas feitas, enquanto o "Tudo pronto" está no ecrã. */
+  prepare?: (interests: string[], club: string | null) => Promise<unknown>;
 }) {
   const [step, setStep] = useState<Step>("welcome");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -112,24 +116,32 @@ export function Onboarding({
   const introOver = useAfterNativeIntro();
 
   // O pai recria as funções a cada render e o aviso só fica a saber-se a meio do fluxo.
-  const latest = useRef({ onDone, picked, clubId, push });
-  latest.current = { onDone, picked, clubId, push };
+  const latest = useRef({ onDone, picked, clubId, push, prepare });
+  latest.current = { onDone, picked, clubId, push, prepare };
   const finished = useRef(false);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (step !== "done") return;
-    // O "Tudo pronto" desvanece nos últimos 240 ms; o feed entra logo a seguir (fundo preto entre os dois).
-    const leave = window.setTimeout(() => setLeaving(true), DONE_MS - LEAVE_MS);
-    const id = window.setTimeout(() => {
-      if (finished.current) return;
-      finished.current = true;
-      const { onDone: done, picked: topics, clubId: club } = latest.current;
-      done(topics, club);
-    }, DONE_MS);
+    // O "Tudo pronto" fica no ecrã até o feed estar carregado (no mínimo DONE_MS, no máximo PREPARE_MAX_MS),
+    // para se passar direto às notícias, sem o "a carregar". Depois desvanece e o feed entra.
+    let cancelled = false;
+    let leaveTimer = 0;
+    const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+    const { prepare: load, picked: topics, clubId: club } = latest.current;
+    const loaded = Promise.race([Promise.resolve(load?.(topics, club)).catch(() => undefined), wait(PREPARE_MAX_MS)]);
+    void Promise.all([loaded, wait(DONE_MS - LEAVE_MS)]).then(() => {
+      if (cancelled) return;
+      setLeaving(true);
+      leaveTimer = window.setTimeout(() => {
+        if (cancelled || finished.current) return;
+        finished.current = true;
+        latest.current.onDone(latest.current.picked, latest.current.clubId);
+      }, LEAVE_MS);
+    });
     return () => {
-      window.clearTimeout(leave);
-      window.clearTimeout(id);
+      cancelled = true;
+      window.clearTimeout(leaveTimer);
     };
   }, [step]);
 

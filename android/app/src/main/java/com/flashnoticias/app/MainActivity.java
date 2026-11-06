@@ -10,11 +10,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 import android.widget.VideoView;
+import androidx.activity.EdgeToEdge;
+import androidx.activity.SystemBarStyle;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -30,20 +32,15 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Ecrã de ponta a ponta (Android 15+) da forma recomendada pela Google, compatível com versões antigas:
+        // barras transparentes com ícones claros, conteúdo por trás delas e também na zona do notch/câmara.
+        // Substitui setStatusBarColor/setNavigationBarColor e o modo de recorte, descontinuados no Android 15.
+        EdgeToEdge.enable(
+                this,
+                SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        );
         super.onCreate(savedInstanceState);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        // Barras transparentes: a "faixa de cor" que o Android desenha por trás da barra de estado
-        // ficava preta por cima do vídeo até a barra se esconder.
-        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
-        // O vídeo também ocupa a zona do notch/câmara.
-        if (android.os.Build.VERSION.SDK_INT >= 28) {
-            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
-            lp.layoutInDisplayCutoutMode = android.os.Build.VERSION.SDK_INT >= 30
-                    ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                    : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            getWindow().setAttributes(lp);
-        }
         hideBars();
         bridge.getWebView().setBackgroundColor(android.graphics.Color.BLACK);
         // O "tamanho da letra" do Android aumentava o texto da WebView sem mexer no resto e desarrumava o feed.
@@ -195,35 +192,19 @@ public class MainActivity extends BridgeActivity {
         if (hasFocus && introOn) hideBars();
     }
 
+    private WindowInsetsControllerCompat bars() {
+        return WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+    }
+
+    /** Durante a intro: esconde as barras (voltam com um gesto a partir da borda). */
     private void hideBars() {
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            }
-        } else {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
-        }
+        WindowInsetsControllerCompat controller = bars();
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.systemBars());
     }
 
     private void showBars() {
-        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                controller.show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-            }
-        } else {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-        }
+        bars().show(WindowInsetsCompat.Type.systemBars());
     }
 
     static class FullVideo extends VideoView {

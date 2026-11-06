@@ -1,3 +1,4 @@
+import { readTextCapped } from "./http-limit.server";
 import type { NewsItem } from "./news.types";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -81,7 +82,7 @@ async function imageFromArticle(url: string): Promise<string | null> {
       redirect: "follow",
     });
     if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 80_000);
+    const html = await readTextCapped(res, 80_000);
     const og = html.match(/property=['"]og:image['"][^>]*content=['"]([^'"]+)['"]/i)?.[1]
       ?? html.match(/content=['"]([^'"]+)['"][^>]*property=['"]og:image['"]/i)?.[1];
     return og?.startsWith("https://") ? og : null;
@@ -99,7 +100,7 @@ export async function scrapeLusa(): Promise<NewsItem[]> {
         redirect: "follow",
       });
       if (!res.ok) return [] as NewsItem[];
-      const html = await res.text();
+      const html = await readTextCapped(res, 800_000);
       const images = new Map<string, string>();
       for (const match of html.matchAll(IMAGE)) {
         const key = match[1];

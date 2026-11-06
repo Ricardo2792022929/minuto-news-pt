@@ -1,3 +1,4 @@
+import { readTextCapped } from "./http-limit.server";
 // Vai buscar o texto da notícia ao site original para dar contexto às APIs de título.
 // Tenta várias formas: artigo, dados estruturados, meta, e versão AMP.
 const TIMEOUT_MS = 2_500;
@@ -31,7 +32,7 @@ async function fetchPage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: BROWSER_HEADERS, redirect: "follow" });
     if (!res.ok) return null;
-    return await res.text();
+    return await readTextCapped(res, 800_000);
   } catch {
     return null;
   } finally {

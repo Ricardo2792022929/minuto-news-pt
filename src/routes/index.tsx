@@ -1118,6 +1118,17 @@ function Index() {
             setPremiere(true);
           }}
           onLater={() => setShowOnboarding(false)}
+          prepare={(picked, chosen) => {
+            // A mesma pesquisa (e a mesma chave) que o feed vai fazer a seguir: fica já em cache.
+            const nextInterests = picked.length ? picked : interests;
+            const nextClub = chosen || club;
+            return queryClient.prefetchInfiniteQuery({
+              queryKey: ["news", category, nextInterests.join(","), nextClub, true],
+              queryFn: ({ pageParam }) =>
+                fetchNews({ data: { offset: pageParam as number, limit: PAGE_SIZE, category: category === "Tudo" ? undefined : category, interests: nextInterests, club: nextClub || undefined, premiere: category === "Tudo" } }),
+              initialPageParam: 0,
+            });
+          }}
           push={pushHooks}
         />
       )}

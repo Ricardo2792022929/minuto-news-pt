@@ -12,7 +12,7 @@ jobs:
         run: |
           URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"
           KEY="sb_publishable_Q240clLEpscXn_rKI9vNhw_2b0cRfQZ"
-          curl -sS "$URL/rest/v1/articles?select=*&or=(titulo_inedito.ilike.*Santos%20Silva*,original_title.ilike.*Santos%20Silva*)&order=published_at.desc&limit=3" \
+          curl -sS "$URL/rest/v1/articles?select=*&or=(id.eq.nz2gbtu,original_title.ilike.*Santos%20Silva*)&order=published_at.desc&limit=3" \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o a.json
           python3 -c "
           import json; a=json.load(open('a.json'))

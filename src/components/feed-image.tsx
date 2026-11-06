@@ -36,6 +36,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
   const [ready, setReady] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const [backdropLoaded, setBackdropLoaded] = useState<string | null>(null);
   const urls = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
   const attempts = useMemo(() => urls.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value)))]), [urls]);
   const attemptKey = attempts.join("\n");
@@ -63,6 +64,11 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
     if (!active) return;
     const token = ++generation.current;
     let cancelled = false;
+    // O fundo desfocado começa a descarregar ao mesmo tempo que a foto (antes só depois de ela chegar).
+    if (fill) for (const url of urls) {
+      const backdrop = imageKitUrl(url, "backdrop");
+      if (backdrop) void preloadImage(backdrop).then((src) => { if (!cancelled) setBackdropLoaded(src); }, () => {});
+    }
     const loadNext = async () => {
       for (const src of attempts) {
         if (!src || failedSrc.current.has(src)) continue;
@@ -84,14 +90,28 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
     };
     void loadNext();
     return () => { cancelled = true; };
-  }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length]);
+  }, [active, attemptKey, attempts, item.category, item.imageStatus, nonce, urls.length, fill, urls]);
 
   const failed = !ready && active && finished;
   // Fundo: a mesma foto desfocada. Se a foto veio direta (sem ImageKit), desfoca-se no próprio telemóvel.
   const readyOriginal = ready ? urls.find((url) => url === ready || imageKitUrl(url) === ready) ?? ready : null;
-  const backdropKit = readyOriginal ? imageKitUrl(readyOriginal, "backdrop") : null;
+  const wantedBackdrop = readyOriginal ? imageKitUrl(readyOriginal, "backdrop") : null;
+  // Enquanto o fundo pequeno do ImageKit não chega, usa-se a própria foto desfocada no telemóvel: sem espera nenhuma.
+  const backdropKit = wantedBackdrop && backdropLoaded === wantedBackdrop ? wantedBackdrop : null;
   const backdropSrc = fill && ready ? backdropKit ?? ready : null;
   const fallbackSrc = failed ? categoryImage(item.category, item.title ?? "", item.id ?? "") : null;
+  const frontStyle = fill ? {
+    // Foto inteira (4:5) no meio do ecrã, com as pontas a fundir-se no fundo desfocado.
+    position: "absolute", top: "50%", left: "50%", width: "min(100%, 80svh)", aspectRatio: "4 / 5",
+    transform: "translate(-50%, -54%)", objectFit: "cover", objectPosition: "center center",
+    maskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
+    WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
+  } as const : { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" } as const;
+  const backdropStyle = (blurHere: boolean) => ({
+    position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center",
+    transform: "scale(1.12)",
+    filter: blurHere ? "blur(28px) brightness(0.5) saturate(1.25)" : "brightness(0.5) saturate(1.25)",
+  } as const);
 
   return (
     <div
@@ -104,7 +124,11 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
       {!ready && (
         <div className="absolute inset-0 bg-neutral-950" role="img" aria-label={item.category ?? "Notícias"}>
           {fallbackSrc ? (
-            <img src={fallbackSrc} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }} />
+            // Imagem genérica do tema: o mesmo formato das fotos (4:5 sobre a própria imagem desfocada).
+            <>
+              {fill ? <img src={fallbackSrc} alt="" aria-hidden style={backdropStyle(true)} /> : null}
+              <img src={fallbackSrc} alt="" className="animate-photo-in" style={frontStyle} />
+            </>
           ) : null}
         </div>
       )}
@@ -115,11 +139,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           aria-hidden
           decoding="async"
           referrerPolicy="no-referrer"
-          style={{
-            position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center",
-            transform: "scale(1.12)",
-            filter: backdropKit ? "brightness(0.5) saturate(1.25)" : "blur(28px) brightness(0.5) saturate(1.25)",
-          }}
+          style={backdropStyle(!backdropKit)}
         />
       )}
       {ready && (
@@ -130,13 +150,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
-          style={fill ? {
-            // Foto inteira (4:5) no meio do ecrã, com as pontas a fundir-se no fundo desfocado.
-            position: "absolute", top: "50%", left: "50%", width: "min(100%, 80svh)", aspectRatio: "4 / 5",
-            transform: "translate(-50%, -54%)", objectFit: "cover", objectPosition: "center center",
-            maskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)",
-          } : { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}
+          style={frontStyle}
         />
       )}
     </div>

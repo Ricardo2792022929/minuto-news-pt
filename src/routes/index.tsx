@@ -899,6 +899,8 @@ function Index() {
       const img = new Image();
       img.decoding = "async";
       img.src = src;
+      const backdrop = item.image ? imageKitUrl(item.image, "backdrop") : null;
+      if (backdrop) new Image().src = backdrop;
     }
   }, [articles]);
 
@@ -910,6 +912,8 @@ function Index() {
       const img = new Image();
       img.decoding = "async";
       img.src = src;
+      const backdrop = item.image ? imageKitUrl(item.image, "backdrop") : null;
+      if (backdrop) new Image().src = backdrop;
     }
   }, [page, articles]);
 

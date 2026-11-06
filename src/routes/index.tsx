@@ -3,7 +3,6 @@ import { INTRO_SRC } from "@/lib/intro-preload";
 import { LIGA_CLUBS } from "@/lib/clubs";
 import { Onboarding } from "@/components/onboarding";
 import { PushAsk } from "@/components/push-ask";
-import paperBall from "@/assets/paper-ball.jpg";
 import { imageKitUrl } from "@/lib/imagekit";
 import { FeedImage } from "@/components/feed-image";
 
@@ -1090,13 +1089,13 @@ function Index() {
               if (chosen) {
                 setClub(chosen);
                 localStorage.setItem(CLUB_KEY, chosen);
-                const name = LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen;
-                pendingArrival.current = name;
-                arrivalPlayed.current = false;
               }
             } catch {
               /* ignora */
             }
+            // Depois do "Tudo pronto", o feed abre sempre com a animação de entrada (com ou sem clube).
+            pendingArrival.current = chosen ? LIGA_CLUBS.find((item) => item.id === chosen)?.name ?? chosen : "feed";
+            arrivalPlayed.current = false;
             setShowOnboarding(false);
             setPremiere(true);
           }}
@@ -1105,17 +1104,15 @@ function Index() {
         />
       )}
       {arrival ? (
-        <div className="pointer-events-none absolute inset-0 z-[90]" style={{ perspective: "680px" }}>
-          <div
-            className="absolute left-1/2 top-[56%] aspect-square w-64 [transform-style:preserve-3d]"
-            style={{ animation: "ball-tumble 1.35s cubic-bezier(.55,.04,.25,1) forwards" }}
-          >
-            <img src={paperBall} alt="" className="size-full rounded-full object-cover shadow-[0_28px_30px_rgba(0,0,0,0.5)]" />
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{ background: "radial-gradient(circle at 32% 28%, rgba(255,255,255,0.34), transparent 36%, rgba(0,0,0,0.42) 78%)" }}
-            />
-          </div>
+        // Entrada do feed: abre-se em círculo a partir do sítio do visto do "Tudo pronto", com um anel de luz na borda.
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-[90] overflow-hidden">
+          <span
+            className="absolute left-1/2 top-[44%] aspect-square w-[230vmax] rounded-full"
+            style={{
+              animation: "reveal-ring 1.1s cubic-bezier(.7,0,.2,1) forwards",
+              boxShadow: "0 0 0 2px rgba(255,210,63,0.85), 0 0 40px 10px rgba(212,39,46,0.55), inset 0 0 60px 14px rgba(212,39,46,0.45)",
+            }}
+          />
         </div>
       ) : null}
 
@@ -1126,7 +1123,7 @@ function Index() {
             className="absolute inset-0 z-0 overflow-hidden"
             style={
               arrival
-                ? { animation: "feed-unfold 1.35s cubic-bezier(.55,.05,.25,1) both", transformOrigin: "50% 56%" }
+                ? { animation: "feed-reveal 1.1s cubic-bezier(.7,0,.2,1) both", transformOrigin: "50% 44%" }
                 : askPush || pushOk
                   ? { visibility: "hidden" }
                   : undefined

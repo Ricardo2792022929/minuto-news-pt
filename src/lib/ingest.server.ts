@@ -346,15 +346,29 @@ async function runIngestWithMetrics(budgetMs: number): Promise<Record<string, un
     const cutoff = new Date(Date.now() - 72 * 3600_000).toISOString();
     await db.from("articles").delete().lt("published_at", cutoff);
     const news = (await withDeadline(getAllNews(), collectMs, [])).filter((n) => n.publishedAt >= cutoff).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+    // Já guardadas: pergunta-se só pelas notícias desta recolha (aos bocados), em vez de ler a tabela.
+    // Com mais de 1000 notícias em 72 h, o limite de 1000 linhas do Supabase deixava muitas de fora:
+    // eram tratadas como novas, gastavam pedidos às IAs e no fim falhavam ao gravar (já existiam).
     const existing = new Set<string>();
-    const [byId, byUrl] = await Promise.all([
-      db.from("articles").select("id").gte("published_at", cutoff).limit(1000),
-      db.from("articles").select("url").gte("published_at", cutoff).limit(1000),
+    const chunks = <T,>(list: T[], size: number) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
+    const newsIds = [...new Set(news.map((n) => n.id))];
+    const newsUrls = [...new Set(news.map((n) => n.url.slice(0, 2000)))];
+    await Promise.all([
+      ...chunks(newsIds, 120).map(async (ids) => {
+        const { data } = await db.from("articles").select("id").in("id", ids);
+        for (const r of data ?? []) existing.add(r.id);
+      }),
+      ...chunks(newsUrls, 30).map(async (urls) => {
+        const { data } = await db.from("articles").select("url").in("url", urls);
+        for (const r of data ?? []) existing.add(normalizeArticleUrl(r.url));
+      }),
     ]);
-    for (const r of byId.data ?? []) existing.add(r.id);
-    for (const r of byUrl.data ?? []) existing.add(normalizeArticleUrl(r.url));
-    const { data: savedTitles } = await db.from("articles").select("id, source, original_title, titulo_inedito").gte("published_at", cutoff).limit(500);
-    const savedRows = savedTitles ?? [];
+    // Títulos já guardados (para juntar a mesma notícia de outra fonte): as mais recentes primeiro, até 2000.
+    const titleCols = "id, source, original_title, titulo_inedito";
+    const titlePages = await Promise.all([0, 1].map((page) =>
+      db.from("articles").select(titleCols).gte("published_at", cutoff).order("published_at", { ascending: false }).range(page * 1000, page * 1000 + 999),
+    ));
+    const savedRows = titlePages.flatMap((page) => page.data ?? []);
     const knownTitles = savedRows.flatMap((r) => [r.original_title, r.titulo_inedito]).filter((title): title is string => typeof title === "string" && title.trim().length > 0);
     const extras = new Map<string, StoryLink[]>();
     const addExtra = (id: string, extra: StoryLink) => {

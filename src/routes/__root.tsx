@@ -91,6 +91,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      // Servidor das fotografias do feed: a ligação abre já, antes de se saber que fotos vêm.
+      { rel: "preconnect", href: "https://ik.imagekit.io" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "preconnect",

@@ -63,7 +63,7 @@ function shockScore(title: string): number {
 }
 
 /** Tempo máximo que o feed espera pelas fotografias das páginas das fontes antes de responder. */
-const BARE_IMAGE_WAIT_MS = 1000;
+const BARE_IMAGE_WAIT_MS = 350;
 
 // Lê apenas notícias já pré-processadas (com título final pronto) da base de dados.
 export const getNews = createServerFn({ method: "GET" })
@@ -187,6 +187,28 @@ export const getNews = createServerFn({ method: "GET" })
       }
       return out;
     };
+
+    // Consultas que não dependem da principal: arrancam já, em paralelo (antes eram feitas uma a uma no fim).
+    const daySince = since;
+    const dayUntil = new Date(now - 90 * 60_000).toISOString();
+    const dayQuery = (onlyInterests: boolean) => {
+      let oq = db
+        .from("articles")
+        .select(legacyCols)
+        .gte("published_at", daySince)
+        .lte("published_at", dayUntil)
+        .order("published_at", { ascending: false })
+        .limit(80);
+      if (data.category) oq = oq.eq("category", data.category);
+      else if (onlyInterests && data.interests && data.interests.length) oq = oq.in("category", data.interests);
+      return oq;
+    };
+    // .then() faz o pedido partir já (os construtores do Supabase só correm quando são aguardados).
+    const dayEarly = dayQuery(true).then((res) => res);
+    const allowClub = Boolean(data.club) && (!data.category || data.category === "Desporto");
+    const clubEarly = allowClub
+      ? db.from("articles").select(legacyCols).gte("published_at", daySince).eq("category", "Desporto").order("published_at", { ascending: false }).limit(80).then((res) => res)
+      : null;
 
     let total = 0;
     let ordered: NewsItem[] = [];
@@ -320,19 +342,8 @@ export const getNews = createServerFn({ method: "GET" })
     const fresh = ordered.slice(data.offset, data.offset + data.limit);
 
     // Do dia, até 24 horas, mas só as fortes. O fio das mais recentes não pára.
-    const daySince = since;
-    const dayUntil = new Date(now - 90 * 60_000).toISOString();
     const loadDay = async (onlyInterests: boolean) => {
-      let oq = db
-        .from("articles")
-        .select(legacyCols)
-        .gte("published_at", daySince)
-        .lte("published_at", dayUntil)
-        .order("published_at", { ascending: false })
-        .limit(80);
-      if (data.category) oq = oq.eq("category", data.category);
-      else if (onlyInterests && data.interests && data.interests.length) oq = oq.in("category", data.interests);
-      const { data: dayRows } = await oq;
+      const { data: dayRows } = await (onlyInterests ? dayEarly : dayQuery(false));
       return (dayRows ?? []).filter(canShow).map(toItem).filter((item) => shockScore(item.title) >= 3);
     };
     let day = await loadDay(true);
@@ -359,16 +370,9 @@ export const getNews = createServerFn({ method: "GET" })
     }
     const page = Math.floor(data.offset / data.limit);
     const pool = diversified.slice(page * 4);
-    const allowClub = Boolean(data.club) && (!data.category || data.category === "Desporto");
     let clubNews: NewsItem[] = [];
-    if (allowClub && data.club) {
-      const { data: clubRows } = await db
-        .from("articles")
-        .select(legacyCols)
-        .gte("published_at", daySince)
-        .eq("category", "Desporto")
-        .order("published_at", { ascending: false })
-        .limit(80);
+    if (clubEarly && data.club) {
+      const { data: clubRows } = await clubEarly;
       clubNews = (clubRows ?? [])
         .map(toItem)
         .filter((item) => articleMatchesClub(item.title, item.category, data.club!))
@@ -429,9 +433,10 @@ export const getNews = createServerFn({ method: "GET" })
     const nextOffset = data.offset + data.limit;
     const pendingFixes = [...new Map(fixes.map((fix) => [fix.id, fix])).values()];
     if (pendingFixes.length) {
-      await Promise.all(
+      // Correções de categoria em segundo plano: o feed não fica à espera delas.
+      void Promise.all(
         pendingFixes.map((fix) => db.from("articles").update({ category: fix.category }).eq("id", fix.id)),
-      );
+      ).catch(() => {});
     }
     const bare = mixed.filter((item) => !item.image).slice(0, 4);
     if (bare.length && (process.env["FLASH_DB_SERVICE_KEY"] || process.env["SUPABASE_SERVICE_ROLE_KEY"])) {
@@ -445,7 +450,7 @@ export const getNews = createServerFn({ method: "GET" })
           item.imageStatus = "original";
           await supabaseAdmin.from("articles").update({ image, image_query: null }).eq("id", item.id);
         }));
-        // No máximo ~1 s à espera das fotografias das fontes; as que faltarem ficam com a imagem da categoria.
+        // No máximo ~0,35 s à espera das fotografias das fontes; as que faltarem ficam com a imagem da categoria.
         await Promise.race([lookups, new Promise((resolve) => setTimeout(resolve, BARE_IMAGE_WAIT_MS))]);
       } catch { /* o feed abre mesmo que a fotografia da fonte falhe */ }
     }

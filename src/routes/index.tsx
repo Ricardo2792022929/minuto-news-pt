@@ -4,7 +4,7 @@ import { LIGA_CLUBS } from "@/lib/clubs";
 import { Onboarding } from "@/components/onboarding";
 import { PushAsk } from "@/components/push-ask";
 import { imageKitUrl } from "@/lib/imagekit";
-import { FeedImage } from "@/components/feed-image";
+import { FeedImage, preloadImage } from "@/components/feed-image";
 
 const TITLE_LINKS = new Set(["da", "de", "do", "das", "dos"]);
 
@@ -909,27 +909,23 @@ function Index() {
 
   useEffect(() => {
     for (const item of articles.slice(0, 6)) warmOrigin(item.url);
-    for (const item of articles.slice(0, 8)) {
-      const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
-      if (!src) continue;
-      const img = new Image();
-      img.decoding = "async";
-      img.src = src;
-      const backdrop = item.image ? imageKitUrl(item.image, "backdrop") : null;
-      if (backdrop) new Image().src = backdrop;
-    }
+    // As 2 primeiras com prioridade alta; as restantes em prioridade baixa, para não lhes roubarem a ligação.
+    articles.slice(0, 8).forEach((item, index) => {
+      if (!item.image) return;
+      const priority = index < 2 ? "high" : "low";
+      void preloadImage(imageKitUrl(item.image) ?? item.image, priority).catch(() => {});
+      const backdrop = imageKitUrl(item.image, "backdrop");
+      if (backdrop) void preloadImage(backdrop, priority).catch(() => {});
+    });
   }, [articles]);
 
   useEffect(() => {
     const next = articles.slice(page, page + 3);
     for (const item of next) {
-      const src = item.image ? imageKitUrl(item.image) ?? item.image : null;
-      if (!src) continue;
-      const img = new Image();
-      img.decoding = "async";
-      img.src = src;
-      const backdrop = item.image ? imageKitUrl(item.image, "backdrop") : null;
-      if (backdrop) new Image().src = backdrop;
+      if (!item.image) continue;
+      void preloadImage(imageKitUrl(item.image) ?? item.image).catch(() => {});
+      const backdrop = imageKitUrl(item.image, "backdrop");
+      if (backdrop) void preloadImage(backdrop).catch(() => {});
     }
   }, [page, articles]);
 

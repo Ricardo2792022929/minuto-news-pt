@@ -3,6 +3,22 @@ import { imageKitUrl } from "@/lib/imagekit";
 import { categoryImage } from "@/lib/image-policy";
 
 const downloads = new Map<string, Promise<string>>();
+/** Fotos já descarregadas e descodificadas: um FeedImage novo mostra-as logo no 1.º frame (sem piscar a preto). */
+const decoded = new Set<string>();
+function markDecoded(src: string) {
+  decoded.add(src);
+  if (decoded.size > 96) {
+    const oldest = decoded.values().next().value;
+    if (oldest) decoded.delete(oldest);
+  }
+}
+/** Descarrega e descodifica a foto e o fundo desfocado de uma notícia (usado para preparar a secção ao lado). */
+export function preloadFeedImage(item: { image?: string | null }): Promise<unknown> {
+  if (!item.image) return Promise.resolve();
+  const main = imageKitUrl(item.image) ?? item.image;
+  const backdrop = imageKitUrl(item.image, "backdrop");
+  return Promise.allSettled([preloadImage(main), backdrop ? preloadImage(backdrop) : Promise.resolve()]);
+}
 export function preloadImage(src: string, priority: "high" | "low" | "auto" = "auto"): Promise<string> {
   const cached = downloads.get(src);
   if (cached) return cached;
@@ -11,7 +27,7 @@ export function preloadImage(src: string, priority: "high" | "low" | "auto" = "a
     image.referrerPolicy = "no-referrer";
     // A foto que está no ecrã passa à frente das que estão a ser pré-carregadas.
     (image as HTMLImageElement & { fetchPriority?: string }).fetchPriority = priority;
-    image.onload = () => { image.decode().then(() => resolve(src), reject); };
+    image.onload = () => { image.decode().then(() => { markDecoded(src); resolve(src); }, reject); };
     image.onerror = () => reject(new Error("Image unavailable"));
     image.src = src;
   });
@@ -34,18 +50,32 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
   const container = useRef<HTMLDivElement>(null);
   const failedSrc = useRef(new Set<string>());
   const generation = useRef(0);
-  const [active, setActive] = useState(eager);
-  const [ready, setReady] = useState<string | null>(null);
-  const [finished, setFinished] = useState(false);
-  const [nonce, setNonce] = useState(0);
-  const [backdropLoaded, setBackdropLoaded] = useState<string | null>(null);
   const urls = useMemo(() => [...new Set([item.image, ...(item.imageCandidates ?? [])].filter((url): url is string => Boolean(url)))], [item.id, item.image, item.imageCandidates]);
   const attempts = useMemo(() => urls.flatMap((url) => [...new Set([imageKitUrl(url), url].filter((value): value is string => Boolean(value)))]), [urls]);
   const attemptKey = attempts.join("\n");
+  // Foto (e fundo) já prontos na memória: aparecem no 1.º render, sem fade nem frame preto — é o que dá o efeito galeria no swipe.
+  const instant = attempts.find((src) => decoded.has(src)) ?? null;
+  const instantBackdrop = (() => {
+    if (!instant) return null;
+    const original = urls.find((url) => url === instant || imageKitUrl(url) === instant) ?? instant;
+    const backdrop = imageKitUrl(original, "backdrop");
+    return backdrop && decoded.has(backdrop) ? backdrop : null;
+  })();
+  const [active, setActive] = useState(eager || Boolean(instant));
+  const [ready, setReady] = useState<string | null>(instant);
+  const [finished, setFinished] = useState(false);
+  const [nonce, setNonce] = useState(0);
+  const [backdropLoaded, setBackdropLoaded] = useState<string | null>(instantBackdrop);
+  const [fadeIn, setFadeIn] = useState(!instant);
+  const firstRun = useRef(true);
 
   useEffect(() => {
+    // No 1.º render o estado já veio certo (foto pronta ou não): não apagar para não piscar.
+    if (firstRun.current) { firstRun.current = false; return; }
     failedSrc.current = new Set();
-    setReady(null);
+    const hit = attempts.find((src) => decoded.has(src)) ?? null;
+    setReady(hit);
+    setFadeIn(!hit);
     setFinished(false);
   }, [item.id, attemptKey]);
 
@@ -72,11 +102,14 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
       if (backdrop) void preloadImage(backdrop, eager ? "high" : "auto").then((src) => { if (!cancelled) setBackdropLoaded(src); }, () => {});
     }
     const loadNext = async () => {
+      const hit = attempts.find((src) => decoded.has(src) && !failedSrc.current.has(src));
+      if (hit) { setReady(hit); setFinished(false); return; }
       for (const src of attempts) {
         if (!src || failedSrc.current.has(src)) continue;
         try {
           await preloadImage(src, eager ? "high" : "auto");
           if (cancelled || token !== generation.current) return;
+          setFadeIn(true);
           setReady(src);
           setFinished(false);
           return;
@@ -139,7 +172,7 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
           src={backdropSrc}
           alt=""
           aria-hidden
-          decoding="async"
+          decoding={decoded.has(backdropSrc) ? "sync" : "async"}
           referrerPolicy="no-referrer"
           style={backdropStyle(!backdropKit)}
         />
@@ -148,8 +181,9 @@ export function FeedImage({ item, className, alt = "", eager = false, fill = fal
         <img
           src={ready}
           alt={alt}
-          className="animate-photo-in"
-          decoding="async"
+          className={fadeIn ? "animate-photo-in" : undefined}
+          // Já está descodificada (preloadImage): "sync" pinta-a no mesmo frame em vez de deixar um frame vazio.
+          decoding="sync"
           referrerPolicy="no-referrer"
           onError={() => { failedSrc.current.add(ready); setReady(null); setNonce((current) => current + 1); }}
           style={frontStyle}

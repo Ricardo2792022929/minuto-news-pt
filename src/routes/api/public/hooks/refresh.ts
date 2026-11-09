@@ -1,6 +1,49 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+type LooseSelect = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: number) => {
+        maybeSingle: () => PromiseLike<{ data: { refresh_token_hash?: string | null } | null; error: { message: string } | null }>;
+      };
+    };
+  };
+};
+
+/**
+ * Só o agendador (GitHub Actions, secret REFRESH_TOKEN) pode chamar este endereço: cada chamada gasta
+ * quota das IAs de título e das APIs de imagens. A base guarda apenas o SHA-256 do token
+ * (ingest_state.refresh_token_hash), nunca o token. Sem hash configurado, recusa (falha fechada).
+ */
+async function authorize(request: Request): Promise<Response | null> {
+  const match = /^Bearer ([^\s,]+)$/.exec(request.headers.get("authorization") ?? "");
+  const token = match?.[1];
+  if (!token) return new Response("Unauthorized", { status: 401 });
+
+  const { createHash, timingSafeEqual } = await import("node:crypto");
+  const encoder = new TextEncoder();
+  const provided = encoder.encode(createHash("sha256").update(token, "utf8").digest("hex"));
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await (supabaseAdmin as unknown as LooseSelect)
+    .from("ingest_state")
+    .select("refresh_token_hash")
+    .eq("id", 1)
+    .maybeSingle();
+  const storedHex = data?.refresh_token_hash ?? "";
+  if (error || !/^[0-9a-f]{64}$/i.test(storedHex)) {
+    console.error("refresh_auth_unconfigured", error?.message ?? "sem refresh_token_hash");
+    return new Response("Server configuration error", { status: 503 });
+  }
+  if (!timingSafeEqual(provided, encoder.encode(storedHex.toLowerCase()))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  return null;
+}
+
 async function refresh({ request }: { request: Request }) {
+  const denied = await authorize(request);
+  if (denied) return denied;
   if (new URL(request.url).searchParams.get("probe") === "1") {
     const { probeTitleApis } = await import("@/lib/api-probe.server");
     return Response.json(await probeTitleApis());

@@ -11,4 +11,6 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Puxar noticias novas
-        run: curl -fsS --retry 2 --max-time 90 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?budget=70"
+        env:
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        run: curl -fsS --retry 2 --max-time 90 -H "Authorization: Bearer $REFRESH_TOKEN" "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?budget=70"

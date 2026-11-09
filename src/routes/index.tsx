@@ -4,7 +4,7 @@ import { LIGA_CLUBS } from "@/lib/clubs";
 import { Onboarding } from "@/components/onboarding";
 import { PushAsk } from "@/components/push-ask";
 import { imageKitUrl } from "@/lib/imagekit";
-import { FeedImage, preloadImage } from "@/components/feed-image";
+import { FeedImage, preloadFeedImage, preloadImage } from "@/components/feed-image";
 
 const TITLE_LINKS = new Set(["da", "de", "do", "das", "dos"]);
 
@@ -84,6 +84,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -91,10 +92,14 @@ import {
   ArrowRight,
   Bookmark,
   Check,
+  ChevronRight,
   EllipsisVertical,
+  EyeOff,
+  Flag,
   Phone,
   Share2,
 } from "lucide-react";
+import { reportArticle, type ReportReason } from "@/lib/report.functions";
 import { getNews, type GetNewsResult } from "@/lib/news.functions";
 import type { NewsItem } from "@/lib/news.types";
 import { storyLabel } from "@/lib/story-label";
@@ -143,6 +148,17 @@ const SAVED_KEY = "aominuto:saved";
 const INTERESTS_KEY = "aominuto:interests";
 const CLUB_KEY = "aominuto:club";
 const CLUB_ASKED_KEY = "aominuto:club-asked";
+/** Fontes que o leitor pediu para não ver (menu ⋮ → Esconder fonte). Só neste aparelho. */
+const HIDDEN_SOURCES_KEY = "flash:hidden-sources";
+/** Notícias já reportadas neste aparelho, para não reportar a mesma duas vezes. */
+const REPORTED_KEY = "flash:reported";
+
+const REPORT_OPTIONS: { reason: ReportReason; label: string }[] = [
+  { reason: "image", label: "A imagem não corresponde à notícia" },
+  { reason: "title", label: "O título é enganador ou está errado" },
+  { reason: "duplicate", label: "Notícia repetida" },
+  { reason: "other", label: "Outro problema" },
+];
 
 const PAGE_SIZE = 10;
 
@@ -731,10 +747,8 @@ function Index() {
     const timer = window.setTimeout(measure, 50);
     return () => window.clearTimeout(timer);
   }, [category, mounted]);
-  const [slide, setSlide] = useState<"left" | "right" | null>(null);
-  const [dragX, setDragX] = useState(0);
-  const [settling, setSettling] = useState(false);
-  const [prevArticles, setPrevArticles] = useState<NewsItem[]>([]);
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
   const [sidePreview, setSidePreview] = useState<{ left?: NewsItem; right?: NewsItem }>({});
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<"feed" | "saved">("feed");
@@ -742,6 +756,11 @@ function Index() {
   const [sourceStory, setSourceStory] = useState<NewsItem | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, NewsItem>>({});
+  const [menuStory, setMenuStory] = useState<NewsItem | null>(null);
+  const [menuStep, setMenuStep] = useState<"main" | "report">("main");
+  const [hiddenSources, setHiddenSources] = useState<string[]>([]);
+  const [notice, setNotice] = useState<{ text: string; undoSource?: string } | null>(null);
+  const noticeTimer = useRef<number | undefined>(undefined);
   const feedRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(0);
@@ -758,6 +777,11 @@ function Index() {
     try {
       const savedRaw = localStorage.getItem(SAVED_KEY);
       if (savedRaw) setSavedMap(JSON.parse(savedRaw) as Record<string, NewsItem>);
+      const hiddenRaw = localStorage.getItem(HIDDEN_SOURCES_KEY);
+      if (hiddenRaw) {
+        const parsed = JSON.parse(hiddenRaw) as unknown;
+        if (Array.isArray(parsed)) setHiddenSources(parsed.filter((s): s is string => typeof s === "string"));
+      }
       const interestsRaw = localStorage.getItem(INTERESTS_KEY);
       const clubRaw = localStorage.getItem(CLUB_KEY);
       if (clubRaw) setClub(clubRaw);
@@ -815,6 +839,64 @@ function Index() {
     [],
   );
 
+  const showNotice = useCallback((text: string, undoSource?: string) => {
+    window.clearTimeout(noticeTimer.current);
+    setNotice(undoSource ? { text, undoSource } : { text });
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 4000);
+  }, []);
+
+  const setHidden = useCallback((next: string[]) => {
+    setHiddenSources(next);
+    try {
+      localStorage.setItem(HIDDEN_SOURCES_KEY, JSON.stringify(next));
+    } catch {
+      /* storage bloqueado — fica só nesta sessão */
+    }
+  }, []);
+
+  const hideSource = useCallback((source: string) => {
+    setHidden([...new Set([...hiddenSources, source])]);
+    showNotice(`Deixas de ver notícias de ${source}`, source);
+  }, [hiddenSources, setHidden, showNotice]);
+
+  const unhideSource = useCallback((source: string) => {
+    setHidden(hiddenSources.filter((item) => item !== source));
+    showNotice(`${source} voltou ao teu feed`);
+  }, [hiddenSources, setHidden, showNotice]);
+
+  const sendReport = useServerFn(reportArticle);
+  const report = useCallback((item: NewsItem, reason: ReportReason) => {
+    setMenuStory(null);
+    let reported: string[] = [];
+    try {
+      reported = JSON.parse(localStorage.getItem(REPORTED_KEY) ?? "[]") as string[];
+    } catch {
+      reported = [];
+    }
+    if (reported.includes(item.id)) {
+      showNotice("Já reportaste esta notícia. Obrigado!");
+      return;
+    }
+    showNotice("Obrigado! Vamos rever esta notícia.");
+    void sendReport({
+      data: {
+        articleId: item.id,
+        reason,
+        title: item.title?.slice(0, 400),
+        source: item.source?.slice(0, 120),
+        category: item.category?.slice(0, 60),
+        image: item.image?.slice(0, 2000),
+      },
+    }).then((result) => {
+      if (!result.ok) return;
+      try {
+        localStorage.setItem(REPORTED_KEY, JSON.stringify([...reported, item.id].slice(-200)));
+      } catch {
+        /* ignora */
+      }
+    }).catch(() => undefined);
+  }, [sendReport, showNotice]);
+
   const shareStory = useCallback(async (item: NewsItem) => {
     const url = cleanUrl(item.url);
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
@@ -859,6 +941,8 @@ function Index() {
     queryKey: ["news", category, interests.join(","), club, premiere],
     enabled: mounted,
     refetchInterval: 60_000,
+    // A secção ao lado já vem pré-carregada: não a pedir outra vez no instante do swipe (trocava o 1.º cartão).
+    staleTime: 30_000,
     placeholderData: () => {
       if (!mounted) return undefined;
       const page = readFeedCache(feedCacheKey);
@@ -876,16 +960,17 @@ function Index() {
   const articles = useMemo(() => {
     const list: NewsItem[] = [];
     const seen = new Set<string>();
+    const hidden = new Set(hiddenSources);
     for (const page of query.data?.pages ?? []) {
       for (const item of page.items) {
-        if (!seen.has(item.id)) {
+        if (!seen.has(item.id) && !hidden.has(item.source)) {
           seen.add(item.id);
           list.push(item);
         }
       }
     }
     return list;
-  }, [query.data]);
+  }, [query.data, hiddenSources]);
   countRef.current = articles.length;
   articlesRef.current = articles;
   fetchMoreRef.current = () => {
@@ -935,25 +1020,40 @@ function Index() {
     const neighbors = [CATEGORIES[index - 1], CATEGORIES[index + 1]].filter(
       (item): item is (typeof CATEGORIES)[number] => Boolean(item),
     );
+    // Preview imediato a partir da cache (evita mostrar a secção antiga ao lado).
+    const cached: { left?: NewsItem; right?: NewsItem } = {};
+    // A chave TEM de ser igual à do useInfiniteQuery do feed (incluindo premiere), senão o feed
+    // não aproveita a pré-carga e volta a pedir tudo no momento do swipe (cartão vazio / imagem a piscar).
+    const keyFor = (neighbor: string) => ["news", neighbor, interests.join(","), club, premiere];
+    const hidden = new Set(hiddenSources);
+    const visible = (items: NewsItem[]) => items.filter((item) => !hidden.has(item.source));
     for (const neighbor of neighbors) {
-      const key = ["news", neighbor, interests.join(","), club];
+      const data = queryClient.getQueryData<{ pages: { items: NewsItem[] }[] }>(keyFor(neighbor));
+      const first = visible(data?.pages?.[0]?.items ?? [])[0];
+      if (first) cached[CATEGORIES.indexOf(neighbor) < index ? "left" : "right"] = first;
+    }
+    setSidePreview(cached);
+    let cancelled = false;
+    for (const neighbor of neighbors) {
+      const key = keyFor(neighbor);
       queryClient.prefetchInfiniteQuery({
         queryKey: key,
-        queryFn: ({ pageParam }) => fetchNews({ data: { offset: pageParam as number, limit: PAGE_SIZE, category: neighbor === "Tudo" ? undefined : neighbor, interests, club: club || undefined } }),
+        queryFn: ({ pageParam }) => fetchNews({ data: { offset: pageParam as number, limit: PAGE_SIZE, category: neighbor === "Tudo" ? undefined : neighbor, interests, club: club || undefined, premiere: premiere && pageParam === 0 && neighbor === "Tudo" } }),
         initialPageParam: 0,
+        staleTime: 30_000,
       }).then(() => {
         const data = queryClient.getQueryData<{ pages: { items: NewsItem[] }[] }>(key);
-        const first = data?.pages?.[0]?.items?.[0];
-        if (!first) return;
+        const items = visible(data?.pages?.[0]?.items ?? []);
+        // Foto + fundo dos 2 primeiros cartões já descodificados: ao largar o swipe aparecem no mesmo frame.
+        for (const item of items.slice(0, 2)) void preloadFeedImage(item);
+        const first = items[0];
+        if (!first || cancelled) return;
         const side = CATEGORIES.indexOf(neighbor) < index ? "left" : "right";
-        setSidePreview((prev) => ({ ...prev, [side]: first }));
-        if (first.image) {
-          const img = new Image();
-          img.src = imageKitUrl(first.image) ?? first.image;
-        }
+        setSidePreview((prev) => (prev[side]?.id === first.id ? prev : { ...prev, [side]: first }));
       });
     }
-  }, [category, mounted, interests, club, queryClient, fetchNews]);
+    return () => { cancelled = true; };
+  }, [category, mounted, interests, club, premiere, hiddenSources, queryClient, fetchNews]);
   const swiped = useRef(false);
   const trackLock = useRef(false);
 
@@ -983,8 +1083,59 @@ function Index() {
     let tracking = false;
     let horizontal = false;
     let decided = false;
+    let animating = false;
+    let currentX = 0;
+    let frame = 0;
+    let lastX = 0;
+    let lastT = 0;
+    let velocity = 0; // px/ms, suavizada
+
+    const EASE = "cubic-bezier(.2,.9,.25,1)";
+    const width = () => view.clientWidth || window.innerWidth;
+    const index = CATEGORIES.indexOf(category);
+    const hasPrev = index > 0;
+    const hasNext = index < CATEGORIES.length - 1;
+
+    // Escreve os transforms diretamente no DOM: zero re-renders do React durante o arrasto.
+    const paint = (x: number, ms = 0) => {
+      const w = width();
+      const transition = ms ? `transform ${ms}ms ${EASE}` : "none";
+      const left = leftPaneRef.current;
+      const right = rightPaneRef.current;
+      view.style.transition = transition;
+      view.style.transform = x ? `translate3d(${x}px,0,0)` : "";
+      if (left) {
+        left.style.transition = transition;
+        left.style.transform = `translate3d(${x - w}px,0,0)`;
+        left.style.visibility = x > 0 || ms ? "visible" : "hidden";
+      }
+      if (right) {
+        right.style.transition = transition;
+        right.style.transform = `translate3d(${x + w}px,0,0)`;
+        right.style.visibility = x < 0 || ms ? "visible" : "hidden";
+      }
+    };
+    const schedule = (x: number) => {
+      currentX = x;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        paint(currentX);
+      });
+    };
+    const reset = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      currentX = 0;
+      paint(0);
+      const left = leftPaneRef.current;
+      const right = rightPaneRef.current;
+      if (left) left.style.visibility = "hidden";
+      if (right) right.style.visibility = "hidden";
+    };
 
     const down = (event: PointerEvent) => {
+      if (animating) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("button")) return;
@@ -993,51 +1144,73 @@ function Index() {
       decided = false;
       startX = event.clientX;
       startY = event.clientY;
+      lastX = event.clientX;
+      lastT = event.timeStamp;
+      velocity = 0;
     };
     const move = (event: PointerEvent) => {
       if (!tracking) return;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
       if (!decided) {
-        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
         decided = true;
-        horizontal = Math.abs(dx) > Math.abs(dy);
+        horizontal = Math.abs(dx) > Math.abs(dy) * 1.1;
       }
       if (!horizontal) return;
       event.preventDefault();
-      const index = CATEGORIES.indexOf(category);
-      const atStart = index <= 0 && dx > 0;
-      const atEnd = index >= CATEGORIES.length - 1 && dx < 0;
-      if (atStart || atEnd) { setDragX(0); return; }
-      setDragX(dx);
+      const dt = event.timeStamp - lastT;
+      if (dt > 0) {
+        const v = (event.clientX - lastX) / dt;
+        velocity = velocity * 0.6 + v * 0.4;
+      }
+      lastX = event.clientX;
+      lastT = event.timeStamp;
+      // Resistência elástica nas pontas em vez de bloquear.
+      const blocked = (dx > 0 && !hasPrev) || (dx < 0 && !hasNext);
+      schedule(blocked ? dx * 0.18 : dx);
     };
     const up = (event: PointerEvent) => {
       if (!tracking) return;
       tracking = false;
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
-      if (horizontal && Math.abs(dx) > 50) {
-        swiped.current = true;
-        window.setTimeout(() => { swiped.current = false; }, 400);
+      if (horizontal) {
+        if (event.timeStamp - lastT > 80) velocity = 0; // parou antes de largar
+        const w = width();
         const dir = dx < 0 ? "left" : "right";
-        const width = view.clientWidth || window.innerWidth;
-        const target = dir === "left" ? -width : width;
-        setSettling(true);
-        setDragX(target);
-        window.setTimeout(() => {
-          setPrevArticles(articlesRef.current);
-          setCategory((current) => {
-            const index = CATEGORIES.indexOf(current);
-            return CATEGORIES[dir === "left" ? Math.min(index + 1, CATEGORIES.length - 1) : Math.max(index - 1, 0)] ?? current;
-          });
-          setDragX(0);
-          setSettling(false);
-        }, 220);
+        const allowed = dir === "left" ? hasNext : hasPrev;
+        const flick = Math.abs(velocity) > 0.35 && Math.sign(velocity) === Math.sign(dx) && Math.abs(dx) > 20;
+        const commit = allowed && (Math.abs(dx) > w * 0.22 || flick);
+        swiped.current = true;
+        window.setTimeout(() => { swiped.current = false; }, 300);
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        if (commit) {
+          const target = dir === "left" ? -w : w;
+          const remaining = Math.abs(target - dx);
+          // Duração proporcional à distância e à velocidade do gesto.
+          const speed = Math.max(Math.abs(velocity), 1.4);
+          const ms = Math.round(Math.min(240, Math.max(110, remaining / speed)));
+          animating = true;
+          paint(target, ms);
+          window.setTimeout(() => {
+            flushSync(() => {
+              setCategory(CATEGORIES[dir === "left" ? index + 1 : index - 1] ?? category);
+            });
+            // Já no topo antes do próximo frame: senão aparecia por instantes um cartão de outra notícia.
+            view.scrollTop = 0;
+            pageRef.current = 0;
+            reset();
+            animating = false;
+          }, ms);
+          return;
+        }
+        animating = true;
+        paint(0, 180);
+        window.setTimeout(() => { reset(); animating = false; }, 180);
         return;
       }
-      setSettling(true);
-      setDragX(0);
-      window.setTimeout(() => setSettling(false), 180);
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
         const item = articlesRef.current[indexFromScroll()];
         if (item) openReaderRef.current(item.url);
@@ -1061,10 +1234,21 @@ function Index() {
       window.setTimeout(() => { trackLock.current = false; }, 420);
     };
 
+    const cancel = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (!horizontal || animating) return;
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      animating = true;
+      paint(0, 180);
+      window.setTimeout(() => { reset(); animating = false; }, 180);
+    };
+
     view.addEventListener("pointerdown", down);
     view.addEventListener("pointermove", move, { passive: false });
     view.addEventListener("pointerup", up);
-    view.addEventListener("pointercancel", up);
+    view.addEventListener("pointercancel", cancel);
     view.addEventListener("scroll", onScroll, { passive: true });
     view.addEventListener("wheel", wheel, { passive: false });
     // Quando a altura do ecrã muda, a notícia atual volta a ficar certinha no ecrã (sem meio cartão de fora).
@@ -1072,14 +1256,134 @@ function Index() {
     window.addEventListener("feed-height", resnap);
     return () => {
       window.removeEventListener("feed-height", resnap);
+      if (frame) cancelAnimationFrame(frame);
       view.removeEventListener("pointerdown", down);
       view.removeEventListener("pointermove", move);
       view.removeEventListener("pointerup", up);
-      view.removeEventListener("pointercancel", up);
+      view.removeEventListener("pointercancel", cancel);
       view.removeEventListener("scroll", onScroll);
       view.removeEventListener("wheel", wheel);
     };
   }, [tab, mounted, category]);
+
+  // Um cartão do feed. Também é usado nos painéis da secção ao lado, para o swipe mostrar exatamente o que vai ficar.
+  const renderCard = (a: NewsItem, i: number) => {
+    const fresh =
+      Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
+    return (
+      <a
+        key={a.id}
+        href={cleanUrl(a.url)}
+        target="_blank"
+        onPointerDown={() => warmOrigin(a.url)}
+        onClick={(e) => {
+          e.preventDefault();
+          if (swiped.current) return;
+        }}
+        className="feed-card relative flex w-full snap-start snap-always flex-col overflow-hidden bg-black"
+        style={{ height: "var(--feed-h, 100svh)", minHeight: "var(--feed-h, 100svh)" }}
+      >
+        {true ? (
+          <FeedImage
+            item={a}
+            alt={a.title}
+            eager={i < 2}
+            fill
+            className="h-full w-full"
+          />
+        ) : (
+          <div
+            className={`absolute inset-0 ${
+              a.id.charCodeAt(1) % 2 === 0
+                ? "feed-grad-a"
+                : "feed-grad-b"
+            }`}
+          />
+        )}
+
+        <div className={`relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]`}>
+          <div className="flex items-center gap-2 text-[0.6875rem] font-semibold">
+            <span className={`shrink-0 rounded-full px-3 py-1.5 text-[0.8125rem] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
+              {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
+            </span>
+            <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
+              {storyLabel(a)}
+            </span>
+            <span className="min-w-0 truncate text-white/75">{a.source}</span>
+            {(a.sources?.length ?? 0) > 1 ? (
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSourceStory(a);
+                }}
+                className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-white"
+              >
+                {a.sources!.length} fontes
+              </button>
+            ) : null}
+          </div>
+          <StoryTitle
+            title={a.title}
+            open={openTitle === a.id}
+            onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
+          />
+          <div className="mt-3 flex translate-y-1.5 items-center justify-between gap-3">
+            <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[0.8125rem] font-bold text-black shadow-lg shadow-black/30">
+              Ler notícia
+              <ArrowRight className="size-3.5" />
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void shareStory(a);
+                }}
+                aria-label={copiedId === a.id ? "Link copiado" : "Partilhar"}
+                className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
+              >
+                {copiedId === a.id ? <Check className="size-5" /> : <Share2 className="size-5" />}
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleSave(a);
+                }}
+                aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
+                className={`flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none ring-1 ring-white/25 ${
+                  savedMap[a.id] ? "bg-live text-live-foreground ring-live" : "bg-black/45 text-white"
+                }`}
+              >
+                <Bookmark className={`size-5 ${savedMap[a.id] ? "fill-current" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuStep("main");
+                  setMenuStory(a);
+                }}
+                aria-label="Mais opções"
+                className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
+              >
+                <EllipsisVertical className="size-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </a>
+    );
+  };
 
   const isError = query.isError;
 
@@ -1166,43 +1470,31 @@ function Index() {
                   : undefined
             }
           >
-            {dragX !== 0 && (
-              <div
-                className="absolute inset-0 z-20 overflow-hidden bg-black"
-                style={{
-                  transform: `translateX(${dragX > 0 ? dragX - (feedRef.current?.clientWidth || window.innerWidth) : dragX + (feedRef.current?.clientWidth || window.innerWidth)}px)`,
-                  transition: settling ? "transform 220ms cubic-bezier(.22,1,.36,1)" : "none",
-                  willChange: "transform",
-                }}
-              >
-                {(() => {
-                  const preview = dragX < 0 ? sidePreview.right : sidePreview.left;
-                  return preview ? (
-                    <>
-                      <FeedImage item={preview} alt="" fill className="h-full w-full" />
-                      <div className="absolute inset-0 feed-scrim" />
-                      <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8">
-                        <h2 className="font-display text-2xl font-bold text-white">{preview.title}</h2>
-                      </div>
-                    </>
+            {(["left", "right"] as const).map((side) => {
+              // Painéis sempre montados (fora do ecrã) para o arrasto não montar nada a meio do gesto.
+              const preview = sidePreview[side];
+              const neighbor = CATEGORIES[CATEGORIES.indexOf(category) + (side === "right" ? 1 : -1)];
+              return (
+                <div
+                  key={side}
+                  ref={side === "left" ? leftPaneRef : rightPaneRef}
+                  aria-hidden
+                  className="pointer-events-none invisible absolute inset-0 z-20 overflow-hidden bg-black"
+                  style={{ willChange: "transform", contain: "strict" }}
+                >
+                  {preview ? (
+                    // O mesmo cartão que o feed vai mostrar: ao largar o swipe nada muda de sítio (como numa galeria).
+                    renderCard(preview, 0)
                   ) : (
                     <div className="flex h-full items-center justify-center text-white/60">
                       <span className="text-sm font-semibold uppercase tracking-widest">
-                        {(() => {
-                          const neighbor = CATEGORIES[CATEGORIES.indexOf(category) + (dragX < 0 ? 1 : -1)];
-                          return neighbor ? sectionName(neighbor) : "";
-                        })()}
+                        {neighbor ? sectionName(neighbor) : ""}
                       </span>
                     </div>
-                  );
-                })()}
-              </div>
-            )}
-            {slide && prevArticles.length > 0 && (
-              <div className="absolute inset-0 z-10 overflow-hidden" style={{ opacity: 0, pointerEvents: "none" }}>
-                <div className="relative h-full w-full overflow-hidden bg-black" />
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
             <div
               ref={feedRef}
               className={`absolute inset-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
@@ -1210,127 +1502,9 @@ function Index() {
                 scrollSnapType: "y mandatory",
                 WebkitOverflowScrolling: "touch",
                 touchAction: "pan-y",
-                transform: dragX ? `translateX(${dragX}px)` : undefined,
-                transition: settling ? "transform 220ms cubic-bezier(.22,1,.36,1)" : "none",
-                willChange: dragX ? "transform" : undefined,
               }}
             >
-            {articles.map((a, i) => {
-              const fresh =
-                Date.now() - new Date(a.publishedAt).getTime() < 60 * 60_000;
-              return (
-                <a
-                  key={a.id}
-                  href={cleanUrl(a.url)}
-                  target="_blank"
-                  onPointerDown={() => warmOrigin(a.url)}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (swiped.current) return;
-                  }}
-                  className="feed-card relative flex w-full snap-start snap-always flex-col overflow-hidden bg-black"
-                  style={{ height: "var(--feed-h, 100svh)", minHeight: "var(--feed-h, 100svh)" }}
-                >
-                  {true ? (
-                    <FeedImage
-                      item={a}
-                      alt={a.title}
-                      eager={i < 2}
-                      fill
-                      className="h-full w-full"
-                    />
-                  ) : (
-                    <div
-                      className={`absolute inset-0 ${
-                        a.id.charCodeAt(1) % 2 === 0
-                          ? "feed-grad-a"
-                          : "feed-grad-b"
-                      }`}
-                    />
-                  )}
-
-                  <div className={`relative z-10 mt-auto flex flex-col bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-[max(1rem,env(safe-area-inset-bottom))]`}>
-                    <div className="flex items-center gap-2 text-[0.6875rem] font-semibold">
-                      <span className={`shrink-0 rounded-full px-3 py-1.5 text-[0.8125rem] font-black tabular-nums tracking-tight ${fresh ? "bg-live text-live-foreground" : "bg-white text-black"}`}>
-                        {timeAgo(a.publishedAt)} · {formatClock(new Date(a.publishedAt))}
-                      </span>
-                      <span className="rounded-full bg-white/15 px-2.5 py-1 uppercase tracking-wider text-white">
-                        {storyLabel(a)}
-                      </span>
-                      <span className="min-w-0 truncate text-white/75">{a.source}</span>
-                      {(a.sources?.length ?? 0) > 1 ? (
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSourceStory(a);
-                          }}
-                          className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-white"
-                        >
-                          {a.sources!.length} fontes
-                        </button>
-                      ) : null}
-                    </div>
-                    <StoryTitle
-                      title={a.title}
-                      open={openTitle === a.id}
-                      onToggle={() => setOpenTitle((current) => (current === a.id ? null : a.id))}
-                    />
-                    <div className="mt-3 flex translate-y-1.5 items-center justify-between gap-3">
-                      <p className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white pl-3.5 pr-3 text-[0.8125rem] font-bold text-black shadow-lg shadow-black/30">
-                        Ler notícia
-                        <ArrowRight className="size-3.5" />
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void shareStory(a);
-                          }}
-                          aria-label={copiedId === a.id ? "Link copiado" : "Partilhar"}
-                          className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
-                        >
-                          {copiedId === a.id ? <Check className="size-5" /> : <Share2 className="size-5" />}
-                        </button>
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleSave(a);
-                          }}
-                          aria-label={savedMap[a.id] ? "Guardado" : "Guardar"}
-                          className={`flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none ring-1 ring-white/25 ${
-                            savedMap[a.id] ? "bg-live text-live-foreground ring-live" : "bg-black/45 text-white"
-                          }`}
-                        >
-                          <Bookmark className={`size-5 ${savedMap[a.id] ? "fill-current" : ""}`} />
-                        </button>
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setTab("saved");
-                          }}
-                          aria-label="Guardadas"
-                          className="flex size-11 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.92] motion-reduce:transition-none bg-black/45 text-white ring-1 ring-white/25"
-                        >
-                          <EllipsisVertical className="size-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              );
-            })}
+            {articles.map((a, i) => renderCard(a, i))}
 
 
             {isError && !articles.length && (
@@ -1408,6 +1582,99 @@ function Index() {
             </div>
           ) : null}
 
+          {menuStory ? (
+            <div className="absolute inset-0 z-40 bg-black/55" onClick={() => setMenuStory(null)}>
+              <div
+                role="dialog"
+                aria-label={menuStep === "report" ? "Reportar problema" : "Opções da notícia"}
+                className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-neutral-950 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 ring-1 ring-white/10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/25" />
+                <p className="mb-3 line-clamp-2 text-sm font-semibold text-white/70">{menuStory.title}</p>
+                {menuStep === "main" ? (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMenuStep("report")}
+                      className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-left text-[0.9375rem] font-semibold text-white"
+                    >
+                      <Flag className="size-5 shrink-0 text-white/80" />
+                      <span className="flex-1">Reportar problema</span>
+                      <ChevronRight className="size-4 text-white/50" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const source = menuStory.source;
+                        setMenuStory(null);
+                        hideSource(source);
+                      }}
+                      className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-left text-[0.9375rem] font-semibold text-white"
+                    >
+                      <EyeOff className="size-5 shrink-0 text-white/80" />
+                      <span className="flex-1">
+                        Esconder {menuStory.source}
+                        <span className="block text-xs font-medium text-white/50">Deixas de ver notícias desta fonte</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuStory(null);
+                        setTab("saved");
+                      }}
+                      className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-left text-[0.9375rem] font-semibold text-white"
+                    >
+                      <Bookmark className="size-5 shrink-0 text-white/80" />
+                      <span className="flex-1">Guardadas</span>
+                      <span className="text-sm font-medium tabular-nums text-white/50">{Object.keys(savedMap).length}</span>
+                      <ChevronRight className="size-4 text-white/50" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMenuStep("main")}
+                      className="mb-1 inline-flex items-center gap-1.5 self-start text-sm font-semibold text-white/60"
+                    >
+                      <ArrowLeft className="size-4" />
+                      Qual é o problema?
+                    </button>
+                    {REPORT_OPTIONS.map((option) => (
+                      <button
+                        key={option.reason}
+                        type="button"
+                        onClick={() => report(menuStory, option.reason)}
+                        className="rounded-2xl bg-white/10 px-4 py-3.5 text-left text-[0.9375rem] font-semibold text-white"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {notice ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-[max(6rem,calc(env(safe-area-inset-bottom)+6rem))] z-50 flex justify-center px-4">
+              <div role="status" className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-lg shadow-black/40">
+                <span className="min-w-0 truncate">{notice.text}</span>
+                {notice.undoSource ? (
+                  <button
+                    type="button"
+                    onClick={() => unhideSource(notice.undoSource!)}
+                    className="shrink-0 font-bold text-live"
+                  >
+                    Desfazer
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className={`pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-xl ${arrival ? "feed-arrive" : ""} bg-gradient-to-b from-black/70 via-black/30 to-transparent pb-8`}>
             <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div className="flex items-center justify-between gap-3">
@@ -1437,16 +1704,7 @@ function Index() {
                   <button
                     key={c}
                     data-cat={c}
-                    onClick={() => {
-                      const from = CATEGORIES.indexOf(category);
-                      const to = CATEGORIES.indexOf(c);
-                      if (to !== from) {
-                        setPrevArticles(articlesRef.current);
-                        setSlide(to > from ? "left" : "right");
-                        window.setTimeout(() => { setSlide(null); setPrevArticles([]); }, 280);
-                      }
-                      setCategory(c);
-                    }}
+                    onClick={() => setCategory(c)}
                     className={`relative z-10 flex h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold transition-colors duration-200 ${
                       category === c
                         ? "text-live-foreground"

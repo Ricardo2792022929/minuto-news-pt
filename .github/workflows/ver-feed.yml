@@ -27,8 +27,10 @@ jobs:
               print(f'publicada há {int((now-t).total_seconds()//60):>4} min | {guardada} | {r["source"]}')
           PY
       - name: Sonda das IAs de título
+        env:
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
-          curl -sS --max-time 90 "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?probe=1" | python3 -m json.tool || true
+          curl -sS --max-time 90 -H "Authorization: Bearer $REFRESH_TOKEN" "https://minuto-news-pt.lovable.app/api/public/hooks/refresh?probe=1" | python3 -m json.tool || true
       - name: Colunas das notícias
         run: |
           URL="https://yrbpprnbtugzhrbzhxgu.supabase.co"

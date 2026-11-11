@@ -1090,7 +1090,9 @@ function Index() {
     let lastT = 0;
     let velocity = 0; // px/ms, suavizada
 
-    const EASE = "cubic-bezier(.2,.9,.25,1)";
+    // Abrandamento longo no fim (ease-out forte): a página desliza e assenta, em vez de saltar.
+    const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+    const SNAP_BACK_MS = 260;
     const width = () => view.clientWidth || window.innerWidth;
     const index = CATEGORIES.indexOf(category);
     const hasPrev = index > 0;
@@ -1189,9 +1191,9 @@ function Index() {
         if (commit) {
           const target = dir === "left" ? -w : w;
           const remaining = Math.abs(target - dx);
-          // Duração proporcional à distância e à velocidade do gesto.
-          const speed = Math.max(Math.abs(velocity), 1.4);
-          const ms = Math.round(Math.min(240, Math.max(110, remaining / speed)));
+          // Cerca de 0,3 s: proporcional à distância e à velocidade, entre 280 e 340 ms.
+          const speed = Math.max(Math.abs(velocity), 0.9);
+          const ms = Math.round(Math.min(340, Math.max(280, remaining / speed)));
           animating = true;
           paint(target, ms);
           window.setTimeout(() => {
@@ -1207,8 +1209,8 @@ function Index() {
           return;
         }
         animating = true;
-        paint(0, 180);
-        window.setTimeout(() => { reset(); animating = false; }, 180);
+        paint(0, SNAP_BACK_MS);
+        window.setTimeout(() => { reset(); animating = false; }, SNAP_BACK_MS);
         return;
       }
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
@@ -1241,8 +1243,8 @@ function Index() {
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       animating = true;
-      paint(0, 180);
-      window.setTimeout(() => { reset(); animating = false; }, 180);
+      paint(0, SNAP_BACK_MS);
+      window.setTimeout(() => { reset(); animating = false; }, SNAP_BACK_MS);
     };
 
     view.addEventListener("pointerdown", down);

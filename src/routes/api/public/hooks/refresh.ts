@@ -11,9 +11,9 @@ type LooseSelect = {
 };
 
 /**
- * Só o agendador (GitHub Actions, secret REFRESH_TOKEN) pode chamar este endereço: cada chamada gasta
+ * Só os agendadores (GitHub Actions com o secret REFRESH_TOKEN e o pg_cron do Supabase com o token no Vault) podem chamar este endereço: cada chamada gasta
  * quota das IAs de título e das APIs de imagens. A base guarda apenas o SHA-256 do token
- * (ingest_state.refresh_token_hash), nunca o token. Sem hash configurado, recusa (falha fechada).
+ * (ingest_state.refresh_token_hash, um ou mais separados por vírgula), nunca o token. Sem hash configurado, recusa (falha fechada).
  */
 async function authorize(request: Request): Promise<Response | null> {
   const match = /^Bearer ([^\s,]+)$/.exec(request.headers.get("authorization") ?? "");
@@ -30,15 +30,18 @@ async function authorize(request: Request): Promise<Response | null> {
     .select("refresh_token_hash")
     .eq("id", 1)
     .maybeSingle();
-  const storedHex = data?.refresh_token_hash ?? "";
-  if (error || !/^[0-9a-f]{64}$/i.test(storedHex)) {
+  // Pode haver mais de um token válido (separados por vírgula): um do GitHub Actions e um do pg_cron do Supabase.
+  const storedHashes = (data?.refresh_token_hash ?? "")
+    .split(/[\s,]+/)
+    .filter((hex) => /^[0-9a-f]{64}$/i.test(hex))
+    .map((hex) => hex.toLowerCase());
+  if (error || storedHashes.length === 0) {
     console.error("refresh_auth_unconfigured", error?.message ?? "sem refresh_token_hash");
     return new Response("Server configuration error", { status: 503 });
   }
-  if (!timingSafeEqual(provided, encoder.encode(storedHex.toLowerCase()))) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  return null;
+  let ok = false;
+  for (const hex of storedHashes) if (timingSafeEqual(provided, encoder.encode(hex))) ok = true;
+  return ok ? null : new Response("Unauthorized", { status: 401 });
 }
 
 async function refresh({ request }: { request: Request }) {

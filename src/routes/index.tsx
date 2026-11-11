@@ -1109,12 +1109,12 @@ function Index() {
       if (left) {
         left.style.transition = transition;
         left.style.transform = `translate3d(${x - w}px,0,0)`;
-        left.style.visibility = x > 0 || ms ? "visible" : "hidden";
+        left.style.visibility = "visible";
       }
       if (right) {
         right.style.transition = transition;
         right.style.transform = `translate3d(${x + w}px,0,0)`;
-        right.style.visibility = x < 0 || ms ? "visible" : "hidden";
+        right.style.visibility = "visible";
       }
     };
     const schedule = (x: number) => {
@@ -1125,16 +1125,26 @@ function Index() {
         paint(currentX);
       });
     };
+    // Os painéis ao lado ficam sempre prontos, encostados fora do ecrã e visíveis para o navegador já os ter
+    // desenhados: o 1.º swipe deixa de ter de preparar tudo a meio do gesto (era isso o engasgo).
+    const park = () => {
+      const w = width();
+      const left = leftPaneRef.current;
+      const right = rightPaneRef.current;
+      view.style.transition = "none";
+      view.style.transform = "";
+      if (left) { left.style.transition = "none"; left.style.transform = `translate3d(${-w}px,0,0)`; left.style.visibility = "visible"; }
+      if (right) { right.style.transition = "none"; right.style.transform = `translate3d(${w}px,0,0)`; right.style.visibility = "visible"; }
+    };
     const reset = () => {
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       currentX = 0;
-      paint(0);
-      const left = leftPaneRef.current;
-      const right = rightPaneRef.current;
-      if (left) left.style.visibility = "hidden";
-      if (right) right.style.visibility = "hidden";
+      park();
     };
+    // A camada do feed existe desde o início (antes só era criada no 1.º arrasto).
+    view.style.willChange = "transform";
+    park();
 
     const down = (event: PointerEvent) => {
       if (animating) return;
@@ -1256,8 +1266,12 @@ function Index() {
     // Quando a altura do ecrã muda, a notícia atual volta a ficar certinha no ecrã (sem meio cartão de fora).
     const resnap = () => requestAnimationFrame(() => view.scrollTo({ top: pageRef.current * height(), behavior: "instant" as ScrollBehavior }));
     window.addEventListener("feed-height", resnap);
+    // Se a largura mudar (rodar o ecrã), os painéis voltam a ficar exatamente fora do ecrã.
+    const repark = () => { if (!tracking && !animating) park(); };
+    window.addEventListener("resize", repark);
     return () => {
       window.removeEventListener("feed-height", resnap);
+      window.removeEventListener("resize", repark);
       if (frame) cancelAnimationFrame(frame);
       view.removeEventListener("pointerdown", down);
       view.removeEventListener("pointermove", move);

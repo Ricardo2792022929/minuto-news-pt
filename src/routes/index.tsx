@@ -1209,6 +1209,7 @@ function Index() {
           window.setTimeout(() => {
             flushSync(() => {
               setCategory(CATEGORIES[dir === "left" ? index + 1 : index - 1] ?? category);
+              setPage(0);
             });
             // Já no topo antes do próximo frame: senão aparecia por instantes um cartão de outra notícia.
             view.scrollTop = 0;
@@ -1520,7 +1521,20 @@ function Index() {
                 touchAction: "pan-y",
               }}
             >
-            {articles.map((a, i) => renderCard(a, i))}
+            {articles.map((a, i) =>
+              // Só se desenham os cartões perto do ecrã (e os 3 primeiros, para onde se volta ao mudar de secção);
+              // os outros são caixas vazias da mesma altura. Ao mudar de secção já não se montam 10–20 cartões de uma vez.
+              i <= 2 || Math.abs(i - page) <= 2 ? (
+                renderCard(a, i)
+              ) : (
+                <div
+                  key={a.id}
+                  aria-hidden
+                  className="feed-card w-full snap-start snap-always bg-black"
+                  style={{ height: "var(--feed-h, 100svh)", minHeight: "var(--feed-h, 100svh)" }}
+                />
+              ),
+            )}
 
 
             {isError && !articles.length && (

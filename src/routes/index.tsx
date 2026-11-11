@@ -141,7 +141,7 @@ const CATEGORIES = [
 type Category = (typeof CATEGORIES)[number];
 
 function sectionName(category: Category): string {
-  return category === "Tudo" ? "Preferências" : category;
+  return category === "Tudo" ? "Para ti" : category;
 }
 
 const SAVED_KEY = "aominuto:saved";
